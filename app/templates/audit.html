@@ -1,0 +1,722 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Audit Rules</h1>
+    <div style="display:flex; gap:1rem;">
+        <button class="btn btn-secondary" onclick="openBundleModal()">
+            <i class="fas fa-box"></i> New Bundle
+        </button>
+        <button class="btn btn-secondary" onclick="openRuleModal()">
+            <i class="fas fa-plus"></i> New Ad-hoc Rule
+        </button>
+    </div>
+</div>
+
+<!-- Bundles Section -->
+<div id="bundles-container">
+    {% for bundle in bundles %}
+    <div class="card fade-in bundle-card" style="margin-bottom: 1rem;">
+        <div class="resource-header"
+            style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <i class="fas fa-box" style="color:var(--accent-color);"></i>
+                <span style="font-weight:700; font-size:1.1rem;">{{ bundle.name }}</span>
+                {% if bundle.match_datacenter %}<span class="badge badge-blue">{{ bundle.match_datacenter }}</span>{%
+                endif %}
+                {% if bundle.match_environment %}<span class="badge badge-green">{{ bundle.match_environment }}</span>{%
+                endif %}
+
+                <!-- Display Tags -->
+                {% if bundle.tags %}
+                {% set tags = bundle.tags | fromjson %}
+                {% for k,v in tags.items() %}
+                <span class="badge"
+                    style="background:var(--bg-secondary); border:1px solid var(--border-color); font-size:0.7em;">{{ k
+                    }}={{ v }}</span>
+                {% endfor %}
+                {% endif %}
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+                <button class="btn btn-secondary"
+                    onclick='editBundle({{ bundle.id }}, "{{ bundle.name }}", "{{ bundle.match_datacenter or "" }}", "{{ bundle.match_environment or "" }}", {{ bundle.tags or "{}" }})'
+                    style="padding:0.25rem 0.5rem; font-size:0.8rem;">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button class="btn btn-secondary" onclick="openRuleModal({{ bundle.id }})"
+                    style="padding:0.25rem 0.5rem; font-size:0.8rem;">
+                    <i class="fas fa-plus"></i> Add Rule
+                </button>
+                <button class="btn btn-danger" onclick="deleteBundle({{ bundle.id }})"
+                    style="padding:0.25rem 0.5rem; font-size:0.8rem;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:20%;">Rule Name</th>
+                        <th style="width:20%;">Resource</th>
+                        <th style="width:25%;">Logic</th>
+                        <th style="width:20%;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set ns = namespace(count=0) %}
+                    {% for rule in rules if rule.bundle_id == bundle.id %}
+                    {% set ns.count = ns.count + 1 %}
+                    <tr>
+                        <td>{{ rule.name }}</td>
+                        <td>
+                            {{ rule.resource_kind }}
+                            {% if rule.match_resource_name %}
+                            <br><small style="color:var(--accent-color);">Name: {{ rule.match_resource_name }}</small>
+                            {% endif %}
+                            <br><small style="opacity:0.6;">({{ rule.api_version }})</small>
+                        </td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:0.3rem;">
+                                <div>
+                                    <span class="badge badge-blue">{{ rule.operator }}</span>
+                                    <code style="font-size:0.8em;">{{ rule.field_path }}</code>
+                                    {% if rule.expected_value %}
+                                    <span style="font-weight:bold;">= {{ rule.expected_value | truncate(64) }}</span>
+                                    {% endif %}
+                                </div>
+                                {% if rule.extra_conditions %}
+                                {% set extras = rule.extra_conditions | fromjson %}
+                                {% for cond in extras %}
+                                <div
+                                    style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; opacity:0.8;">
+                                    <span style="color:var(--accent-color); font-weight:700; width:30px;">{{
+                                        rule.condition_logic }}</span>
+                                    <span class="badge"
+                                        style="background:var(--bg-primary); border:1px solid var(--border-color); font-size:0.75rem; padding:0.1rem 0.3rem;">{{
+                                        cond.op }}</span>
+                                    <code>{{ cond.path }}</code>
+                                    {% if cond.val %}<b>= {{ cond.val | truncate(64) }}</b>{% endif %}
+                                </div>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
+                                data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
+                                data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
+                                data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
+                                data-val="{{ rule.expected_value or "" }}"
+                                data-res-name="{{ rule.match_resource_name or "" }}"
+                                data-logic="{{ rule.condition_logic }}"
+                                data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
+                                style="padding:0.2rem 0.5rem;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if ns.count == 0 %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; opacity:0.6; padding:0.5rem;">No rules in this bundle.
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Ad-hoc Rules -->
+<div class="card fade-in" style="margin-top: 2rem;">
+    <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700;">
+        Ad-hoc Rules
+    </div>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Rule Name</th>
+                    <th>Resource</th>
+                    <th>Logic</th>
+                    <th>Scope</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(count=0) %}
+                {% for rule in rules if not rule.bundle_id %}
+                {% set ns.count = ns.count + 1 %}
+                <tr>
+                    <td>{{ rule.name }}</td>
+                    <td>
+                        {{ rule.resource_kind }}
+                        {% if rule.match_resource_name %}
+                        <br><small style="color:var(--accent-color);">Name: {{ rule.match_resource_name }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display:flex; flex-direction:column; gap:0.3rem;">
+                            <div>
+                                <span class="badge badge-blue">{{ rule.operator }}</span>
+                                <code>{{ rule.field_path }}</code>
+                                {% if rule.expected_value and rule.operator == 'equals' %}
+                                <span style="font-weight:bold;">= {{ rule.expected_value | truncate(64) }}</span>
+                                {% endif %}
+                            </div>
+                            {% if rule.extra_conditions %}
+                            {% set extras = rule.extra_conditions | fromjson %}
+                            {% for cond in extras %}
+                            <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; opacity:0.8;">
+                                <span style="color:var(--accent-color); font-weight:700; width:30px;">{{
+                                    rule.condition_logic }}</span>
+                                <span class="badge"
+                                    style="background:var(--bg-primary); border:1px solid var(--border-color); font-size:0.75rem; padding:0.1rem 0.3rem;">{{
+                                    cond.op }}</span>
+                                <code>{{ cond.path }}</code>
+                                {% if cond.val %}<b>= {{ cond.val | truncate(64) }}</b>{% endif %}
+                            </div>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if rule.match_datacenter %}<span class="badge badge-blue">{{ rule.match_datacenter
+                            }}</span>{% endif %}
+                        {% if rule.match_environment %}<span class="badge badge-green">{{ rule.match_environment
+                            }}</span>{% endif %}
+                        {% if rule.tags %}
+                        {% set tags = rule.tags | fromjson %}
+                        {% for k,v in tags.items() %}
+                        <span class="badge"
+                            style="background:var(--bg-secondary); border:1px solid var(--border-color); font-size:0.7em;">{{
+                            k }}={{ v }}</span>
+                        {% endfor %}
+                        {% endif %}
+                        {% if not rule.match_datacenter and not rule.match_environment and not rule.tags %}All{% endif
+                        %}
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
+                            data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
+                            data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
+                            data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
+                            data-val="{{ rule.expected_value or "" }}" data-dc="{{ rule.match_datacenter or "" }}"
+                            data-env="{{ rule.match_environment or "" }}" data-tags='{{ rule.tags or "{}" }}'
+                            data-res-name="{{ rule.match_resource_name or "" }}" data-logic="{{ rule.condition_logic }}"
+                            data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
+                            style="padding:0.2rem 0.5rem;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if ns.count == 0 %}
+                <tr>
+                    <td colspan="5" style="text-align:center; opacity:0.6;">No ad-hoc rules.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Bundle Modal -->
+<div id="bundle-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="bundle-modal-title">Create Audit Bundle</h3>
+            <button onclick="closeBundleModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="b-id">
+            <div class="form-group">
+                <label class="form-label">Bundle Name</label>
+                <input type="text" id="b-name" class="form-input">
+            </div>
+            <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div>
+                    <label class="form-label">Datacenter Scope</label>
+                    <select id="b-dc" class="form-input">
+                        <option value="">All</option>
+                        <option value="Azure">Azure</option>
+                        <option value="HCI">HCI</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Environment Scope</label>
+                    <select id="b-env" class="form-input">
+                        <option value="">All</option>
+                        <option value="DEV">DEV</option>
+                        <option value="UAT">UAT</option>
+                        <option value="PROD">PROD</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Tags Section -->
+            <div class="form-group">
+                <label class="form-label">Metadata Tags Scope (Subset Match)</label>
+                <div id="b-tags-container" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                    <input type="text" id="b-tag-key" class="form-input" placeholder="Key" style="flex:1;">
+                    <input type="text" id="b-tag-val" class="form-input" placeholder="Value" style="flex:1;">
+                    <button class="btn btn-secondary" onclick="addTag('b')">Add</button>
+                </div>
+            </div>
+
+            <button class="btn btn-secondary" onclick="showMatches('b')"
+                style="width:100%; margin-bottom:1rem; border:1px dashed var(--border-color);">
+                <i class="fas fa-search"></i> Show Matching Clusters
+            </button>
+            <div id="b-matches" style="margin-bottom:1rem; font-size:0.9rem; color:var(--text-secondary);"></div>
+
+            <button class="btn btn-primary" onclick="submitBundle()" style="width:100%;">Save Bundle</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rule Modal -->
+<div id="rule-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="rule-modal-title">Add Rule</h3>
+            <button onclick="closeRuleModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="r-id"> <!-- For Edit -->
+            <input type="hidden" id="r-bundle-id"> <!-- For Context -->
+
+            <div class="form-group">
+                <label class="form-label">Rule Name</label>
+                <input type="text" id="r-name" class="form-input">
+            </div>
+
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                <div>
+                    <label class="form-label">Resource Kind</label>
+                    <input type="text" id="r-kind" class="form-input" placeholder="e.g. ConfigMap">
+                </div>
+                <div>
+                    <label class="form-label">API Version</label>
+                    <input type="text" id="r-api" class="form-input" placeholder="e.g. v1">
+                </div>
+                <div>
+                    <label class="form-label">Namespace (Opt)</label>
+                    <input type="text" id="r-ns" class="form-input" placeholder="e.g. default">
+                </div>
+            </div>
+
+            <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                <div>
+                    <label class="form-label">Field Path (JSON Path)</label>
+                    <input type="text" id="r-path" class="form-input">
+                    <small style="opacity:0.6;">Use quotes for keys with dots, e.g.
+                        <code>metadata.annotations."key.with.dot"</code></small>
+                </div>
+                <div>
+                    <label class="form-label">Resource Name (Optional)</label>
+                    <input type="text" id="r-name-match" class="form-input" placeholder="e.g. managed-csi">
+                </div>
+            </div>
+
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                <div>
+                    <label class="form-label">Operator</label>
+                    <select id="r-op" class="form-input">
+                        <option value="equals">Equals</option>
+                        <option value="exists">Exists</option>
+                        <option value="contains">Contains</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Expected Value</label>
+                    <input type="text" id="r-val" class="form-input">
+                </div>
+            </div>
+
+            <div
+                style="margin: 1.5rem 0; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h4
+                        style="margin:0; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary);">
+                        Advanced Conditions</h4>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="font-size:0.8rem; opacity:0.8;">Logic:</span>
+                        <select id="r-logic" class="form-input"
+                            style="padding: 0.2rem 0.5rem; width: auto; font-size: 0.8rem;">
+                            <option value="AND">AND</option>
+                            <option value="OR">OR</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="extra-conditions-container" style="margin-bottom: 1rem;">
+                    <!-- Rows injected here -->
+                </div>
+
+                <button class="btn btn-secondary" onclick="addExtraConditionRow()"
+                    style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+                    <i class="fas fa-plus"></i> Add Condition
+                </button>
+            </div>
+
+            <div id="r-scope-section">
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label">Datacenter (Optional)</label>
+                        <select id="r-dc" class="form-input">
+                            <option value="">All</option>
+                            <option value="Azure">Azure</option>
+                            <option value="HCI">HCI</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Environment (Optional)</label>
+                        <select id="r-env" class="form-input">
+                            <option value="">All</option>
+                            <option value="DEV">DEV</option>
+                            <option value="UAT">UAT</option>
+                            <option value="PROD">PROD</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Tags Section -->
+                <div class="form-group">
+                    <label class="form-label">Metadata Tags Scope</label>
+                    <div id="r-tags-container" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
+                    </div>
+                    <div style="display:flex; gap:0.5rem;">
+                        <input type="text" id="r-tag-key" class="form-input" placeholder="Key" style="flex:1;">
+                        <input type="text" id="r-tag-val" class="form-input" placeholder="Value" style="flex:1;">
+                        <button class="btn btn-secondary" onclick="addTag('r')">Add</button>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="showMatches('r')"
+                    style="width:100%; margin-bottom:1rem; border:1px dashed var(--border-color);">
+                    <i class="fas fa-search"></i> Show Matching Clusters
+                </button>
+                <div id="r-matches" style="margin-bottom:1rem; font-size:0.9rem; color:var(--text-secondary);"></div>
+            </div>
+
+            <div style="text-align: right; margin-top: 1.5rem;">
+                <button class="btn btn-secondary" onclick="closeRuleModal()"
+                    style="margin-right: 0.5rem;">Cancel</button>
+                <button class="btn btn-primary" onclick="submitRule()">Save Rule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    let bundleTags = {};
+    let ruleTags = {};
+    let extraConditions = [];
+
+    function addExtraConditionRow(path = '', op = 'equals', val = '') {
+        const container = document.getElementById('extra-conditions-container');
+        const div = document.createElement('div');
+        div.className = 'form-group extra-condition-row';
+        div.style.display = 'grid';
+        div.style.gridTemplateColumns = '2fr 1fr 2fr auto';
+        div.style.gap = '0.5rem';
+        div.style.marginBottom = '0.5rem';
+        div.style.alignItems = 'end';
+
+        div.innerHTML = `
+            <div>
+                <input type="text" class="form-input ec-path" placeholder="Path" value="${path}">
+            </div>
+            <div>
+                <select class="form-input ec-op">
+                    <option value="equals" ${op === 'equals' ? 'selected' : ''}>Equals</option>
+                    <option value="exists" ${op === 'exists' ? 'selected' : ''}>Exists</option>
+                    <option value="contains" ${op === 'contains' ? 'selected' : ''}>Contains</option>
+                </select>
+            </div>
+            <div>
+                <input type="text" class="form-input ec-val" placeholder="Value" value="${val}">
+            </div>
+            <button class="btn btn-danger" style="padding: 0.5rem;" onclick="this.parentElement.remove()">
+                <i class="fas fa-trash"></i>
+            </button>
+        `;
+        container.appendChild(div);
+    }
+
+    function renderTags(prefix) {
+        const container = document.getElementById(`${prefix}-tags-container`);
+        const tags = prefix === 'b' ? bundleTags : ruleTags;
+        container.innerHTML = '';
+        for (const [k, v] of Object.entries(tags)) {
+            const span = document.createElement('span');
+            span.className = 'badge';
+            span.style.background = 'var(--bg-primary)';
+            span.style.border = '1px solid var(--border-color)';
+            span.innerHTML = `${k}=${v} <i class="fas fa-times" onclick="removeTag('${prefix}', '${k}')" style="cursor:pointer; margin-left:0.3rem; opacity:0.6;"></i>`;
+            container.appendChild(span);
+        }
+    }
+
+    function addTag(prefix) {
+        const k = document.getElementById(`${prefix}-tag-key`).value.trim();
+        const v = document.getElementById(`${prefix}-tag-val`).value.trim();
+        if (k && v) {
+            if (prefix === 'b') bundleTags[k] = v; else ruleTags[k] = v;
+            document.getElementById(`${prefix}-tag-key`).value = '';
+            document.getElementById(`${prefix}-tag-val`).value = '';
+            renderTags(prefix);
+        }
+    }
+    window.removeTag = function (prefix, k) {
+        if (prefix === 'b') delete bundleTags[k]; else delete ruleTags[k];
+        renderTags(prefix);
+    }
+
+    // --- Modals ---
+    function openBundleModal() {
+        document.getElementById('b-id').value = '';
+        document.getElementById('b-name').value = '';
+        document.getElementById('b-dc').value = '';
+        document.getElementById('b-env').value = '';
+        bundleTags = {};
+        renderTags('b');
+        document.getElementById('b-matches').innerText = '';
+        document.getElementById('bundle-modal-title').innerText = "Create Audit Bundle";
+        document.getElementById('bundle-modal').classList.add('open');
+    }
+
+    function editBundle(id, name, dc, env, tags) {
+        document.getElementById('b-id').value = id;
+        document.getElementById('b-name').value = name;
+        document.getElementById('b-dc').value = dc;
+        document.getElementById('b-env').value = env;
+        bundleTags = tags || {};
+        renderTags('b');
+        document.getElementById('b-matches').innerText = '';
+        document.getElementById('bundle-modal-title').innerText = "Edit Audit Bundle";
+        document.getElementById('bundle-modal').classList.add('open');
+    }
+
+    function closeBundleModal() {
+        document.getElementById('bundle-modal').classList.remove('open');
+    }
+
+    function openRuleModal(bundleId = null) {
+        document.getElementById('r-id').value = '';
+        document.getElementById('r-bundle-id').value = bundleId || '';
+        document.getElementById('r-name').value = '';
+        document.getElementById('r-kind').value = '';
+        document.getElementById('r-api').value = '';
+        document.getElementById('r-ns').value = '';
+        document.getElementById('r-path').value = '';
+        document.getElementById('r-op').value = 'equals';
+        document.getElementById('r-val').value = '';
+        document.getElementById('r-name-match').value = '';
+        document.getElementById('r-matches').innerText = '';
+        document.getElementById('r-logic').value = 'AND';
+        document.getElementById('extra-conditions-container').innerHTML = '';
+
+        const scopeSec = document.getElementById('r-scope-section');
+        if (bundleId) {
+            scopeSec.style.display = 'none';
+        } else {
+            scopeSec.style.display = 'block';
+            document.getElementById('r-dc').value = '';
+            document.getElementById('r-env').value = '';
+            ruleTags = {};
+            renderTags('r');
+        }
+
+        document.getElementById('rule-modal-title').innerText = bundleId ? 'Add Rule to Bundle' : 'Add Ad-hoc Rule';
+        document.getElementById('rule-modal').classList.add('open');
+    }
+
+    // Event delegation for Edit Rule buttons
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('.btn-rule-edit');
+        if (!btn) return;
+
+        const d = btn.dataset;
+        openRuleModalForEdit(
+            d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
+            d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
+            d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]'
+        );
+    });
+
+    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras) {
+        // Find if this rule has a bundle_id (passed via data attributes in table)
+        // Check if the button that triggered this is in a bundle table
+        const btn = document.querySelector(`.btn-rule-edit[data-id="${id}"]`);
+        const isBundled = btn ? !!btn.closest('.bundle-card') : false;
+
+        document.getElementById('r-id').value = id || '';
+        document.getElementById('r-name').value = name || '';
+        document.getElementById('r-kind').value = kind || '';
+        document.getElementById('r-api').value = api || '';
+        document.getElementById('r-ns').value = ns || '';
+        document.getElementById('r-path').value = path || '';
+        document.getElementById('r-op').value = op || 'equals';
+        document.getElementById('r-val').value = val || '';
+        document.getElementById('r-name-match').value = resName || '';
+        document.getElementById('r-logic').value = logic || 'AND';
+        document.getElementById('r-matches').innerText = '';
+
+        const container = document.getElementById('extra-conditions-container');
+        container.innerHTML = '';
+        try {
+            const ex = JSON.parse(extras || '[]');
+            ex.forEach(c => addExtraConditionRow(c.path, c.op, c.val));
+        } catch (e) { }
+
+        const scopeSec = document.getElementById('r-scope-section');
+        if (isBundled) {
+            scopeSec.style.display = 'none';
+        } else {
+            scopeSec.style.display = 'block';
+            document.getElementById('r-dc').value = dc || '';
+            document.getElementById('r-env').value = env || '';
+            ruleTags = tags || {};
+            renderTags('r');
+        }
+
+        document.getElementById('rule-modal-title').innerText = 'Edit Rule';
+        document.getElementById('rule-modal').classList.add('open');
+    }
+
+    function closeRuleModal() {
+        document.getElementById('rule-modal').classList.remove('open');
+    }
+
+    // --- API ---
+    async function showMatches(prefix) {
+        const tags = prefix === 'b' ? bundleTags : ruleTags;
+        const dc = document.getElementById(`${prefix}-dc`).value;
+        const env = document.getElementById(`${prefix}-env`).value;
+
+        const container = document.getElementById(`${prefix}-matches`);
+        container.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Checking...';
+
+        const res = await fetch('/api/audit/match_clusters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tags: JSON.stringify(tags),
+                match_datacenter: dc || null,
+                match_environment: env || null
+            })
+        });
+        const matches = await res.json();
+
+        if (matches.length > 0) {
+            container.innerHTML = `<span style="color:var(--success-color);">Matches ${matches.length} cluster(s):</span> ` + matches.map(c => `<b>${c.name}</b>`).join(', ');
+        } else {
+            container.innerHTML = '<span style="color:var(--warning-color);">No matching clusters found (Tags mismatch).</span>';
+        }
+    }
+
+    async function submitBundle() {
+        const id = document.getElementById('b-id').value;
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/audit/bundles/${id}` : '/api/audit/bundles';
+
+        const data = {
+            name: document.getElementById('b-name').value,
+            match_datacenter: document.getElementById('b-dc').value || null,
+            match_environment: document.getElementById('b-env').value || null,
+            tags: JSON.stringify(bundleTags)
+        };
+        if (!data.name) return alert("Name required");
+
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        window.location.reload();
+    }
+
+    async function deleteBundle(id) {
+        if (!confirm("Delete bundle and ALL its rules?")) return;
+        await fetch(`/api/audit/bundles/${id}`, { method: 'DELETE' });
+        window.location.reload();
+    }
+
+    async function deleteRule(id) {
+        if (!confirm("Delete rule?")) return;
+        await fetch(`/api/audit/rules/${id}`, { method: 'DELETE' });
+        window.location.reload();
+    }
+
+    async function submitRule() {
+        const id = document.getElementById('r-id').value;
+        const bundleId = document.getElementById('r-bundle-id').value;
+
+        // Collect extras
+        const extrasRows = document.querySelectorAll('.extra-condition-row');
+        const extras = [];
+        extrasRows.forEach(row => {
+            extras.push({
+                path: row.querySelector('.ec-path').value,
+                op: row.querySelector('.ec-op').value,
+                val: row.querySelector('.ec-val').value
+            });
+        });
+
+        const data = {
+            name: document.getElementById('r-name').value,
+            resource_kind: document.getElementById('r-kind').value,
+            api_version: document.getElementById('r-api').value,
+            namespace: document.getElementById('r-ns').value || null,
+            field_path: document.getElementById('r-path').value,
+            operator: document.getElementById('r-op').value,
+            expected_value: document.getElementById('r-val').value || null,
+            bundle_id: bundleId ? parseInt(bundleId) : null,
+            match_datacenter: document.getElementById('r-dc').value || null,
+            match_environment: document.getElementById('r-env').value || null,
+            match_resource_name: document.getElementById('r-name-match').value || null,
+            condition_logic: document.getElementById('r-logic').value,
+            extra_conditions: JSON.stringify(extras),
+            tags: JSON.stringify(ruleTags)
+        };
+
+        if (!data.name || !data.resource_kind || !data.field_path) {
+            alert("Name, Resource Kind, and Path are required.");
+            return;
+        }
+
+        let url = '/api/audit/rules';
+        let method = 'POST';
+
+        if (id) {
+            url = `/api/audit/rules/${id}`;
+            method = 'PUT';
+        }
+
+        const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            const err = await res.json();
+            alert("Error: " + (err.detail || "Failed to save rule"));
+        }
+    }
+</script>
+{% endblock %}

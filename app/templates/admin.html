@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Cluster Admin</h1>
+    <button class="btn btn-primary" onclick="openModal()">
+        <i class="fas fa-plus"></i> Add Cluster
+    </button>
+</div>
+
+<!-- Cluster List -->
+<div class="card fade-in">
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Cluster Name</th>
+                    <th>API URL</th>
+                    <th>Metadata</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cluster in clusters %}
+                <tr>
+                    <td>{{ cluster.name }}</td>
+                    <td>{{ cluster.api_url }}</td>
+                    <td>
+                        <span class="badge badge-blue">{{ cluster.datacenter }}</span>
+                        <span class="badge badge-green">{{ cluster.environment }}</span>
+                        <!-- Display Tags -->
+                        {% if cluster.tags %}
+                        {% set tags = cluster.tags | fromjson %}
+                        {% for k,v in tags.items() %}
+                        <span class="badge"
+                            style="background:var(--bg-secondary); border:1px solid var(--border-color); font-size:0.7em;">{{
+                            k }}={{ v }}</span>
+                        {% endfor %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="editCluster({{ cluster.id }})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteCluster({{ cluster.id }})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="cluster-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">Add Cluster</h3>
+            <button onclick="closeModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="c-id">
+
+            <div class="form-group">
+                <label class="form-label">Name</label>
+                <input type="text" id="c-name" class="form-input" placeholder="e.g. cluster-01">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">API URL</label>
+                <input type="text" id="c-url" class="form-input" placeholder="https://api.openshift.com:6443">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Token</label>
+                <input type="password" id="c-token" class="form-input" placeholder="sha256~...">
+            </div>
+
+            <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div>
+                    <label class="form-label">Datacenter</label>
+                    <select id="c-dc" class="form-input">
+                        <option value="Azure">Azure</option>
+                        <option value="HCI">HCI</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Environment</label>
+                    <select id="c-env" class="form-input">
+                        <option value="DEV">DEV</option>
+                        <option value="UAT">UAT</option>
+                        <option value="PROD">PROD</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tags Section -->
+            <div class="form-group">
+                <label class="form-label">Metadata Tags</label>
+                <div id="tags-container" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
+                    <!-- Tags added here -->
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                    <input type="text" id="tag-key" class="form-input" placeholder="Key" style="flex:1;">
+                    <input type="text" id="tag-val" class="form-input" placeholder="Value" style="flex:1;">
+                    <button class="btn btn-secondary" onclick="addTag()">Add</button>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="saveCluster()" style="width:100%; margin-top:1rem;">Save
+                Cluster</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    let currentTags = {};
+
+    function renderTags() {
+        const container = document.getElementById('tags-container');
+        container.innerHTML = '';
+        for (const [k, v] of Object.entries(currentTags)) {
+            const tag = document.createElement('span');
+            tag.className = 'badge';
+            tag.style.background = 'var(--bg-primary)';
+            tag.style.border = '1px solid var(--border-color)';
+            tag.innerHTML = `${k}=${v} <i class="fas fa-times" onclick="removeTag('${k}')" style="cursor:pointer; margin-left:0.3rem; opacity:0.6;"></i>`;
+            container.appendChild(tag);
+        }
+    }
+
+    function addTag() {
+        const k = document.getElementById('tag-key').value.trim();
+        const v = document.getElementById('tag-val').value.trim();
+        if (k && v) {
+            currentTags[k] = v;
+            document.getElementById('tag-key').value = '';
+            document.getElementById('tag-val').value = '';
+            renderTags();
+        }
+    }
+
+    window.removeTag = function (k) {
+        delete currentTags[k];
+        renderTags();
+    }
+
+    function openModal() {
+        document.getElementById('c-id').value = '';
+        document.getElementById('c-name').value = '';
+        document.getElementById('c-url').value = '';
+        document.getElementById('c-token').value = '';
+        document.getElementById('modal-title').innerText = "Add Cluster";
+        currentTags = {};
+        renderTags();
+        document.getElementById('cluster-modal').classList.add('open');
+    }
+
+    function closeModal() {
+        document.getElementById('cluster-modal').classList.remove('open');
+    }
+
+    async function editCluster(id) {
+        const res = await fetch(`/api/admin/clusters/${id}`);
+        const c = await res.json();
+
+        document.getElementById('c-id').value = c.id;
+        document.getElementById('c-name').value = c.name;
+        document.getElementById('c-url').value = c.api_url;
+        document.getElementById('c-token').value = c.token; // usually hidden
+        document.getElementById('c-dc').value = c.datacenter || 'Azure';
+        document.getElementById('c-env').value = c.environment || 'DEV';
+
+        try {
+            currentTags = JSON.parse(c.tags || '{}');
+        } catch (e) { currentTags = {}; }
+        renderTags();
+
+        document.getElementById('modal-title').innerText = "Edit Cluster";
+        document.getElementById('cluster-modal').classList.add('open');
+    }
+
+    async function saveCluster() {
+        const id = document.getElementById('c-id').value;
+        const method = id ? 'PATCH' : 'POST';
+        const url = id ? `/api/admin/clusters/${id}` : '/api/admin/clusters/';
+
+        const data = {
+            name: document.getElementById('c-name').value,
+            api_url: document.getElementById('c-url').value,
+            token: document.getElementById('c-token').value,
+            datacenter: document.getElementById('c-dc').value,
+            environment: document.getElementById('c-env').value,
+            tags: JSON.stringify(currentTags)
+        };
+
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        window.location.reload();
+    }
+
+    async function deleteCluster(id) {
+        if (confirm("Delete cluster?")) {
+            await fetch(`/api/admin/clusters/${id}`, { method: 'DELETE' });
+            window.location.reload();
+        }
+    }
+</script>
+{% endblock %}

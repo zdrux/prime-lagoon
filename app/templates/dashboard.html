@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="dashboard-content">
+    <div id="dashboard-summary"
+        style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
+        <!-- Summary cards will be loaded here -->
+        <div class="card" style="text-align:center; padding: 2rem;">
+            <i class="fas fa-circle-notch fa-spin"></i> Loading Cluster Summary...
+        </div>
+    </div>
+</div>
+{% endblock %}

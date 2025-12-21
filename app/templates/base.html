@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCP Inventory</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <!-- Optional for icons, using text fallback if not loading -->
+    <!-- Using local simple icons or just text if fontawesome setup is complex without key. I'll use simple ASCII or text/emoji fallback if needed, or link a CDN that works -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <a href="/dashboard" style="color:inherit; text-decoration:none;"><i class="fas fa-cubes"></i> OCP
+                    Inventory</a>
+            </div>
+
+
+            <ul class="nav-links" id="cluster-list">
+                <!-- Administration Group -->
+                <li
+                    style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.5rem; margin-bottom:0.2rem;">
+                    Administration
+                </li>
+                <li class="nav-item">
+                    <a href="/admin" class="nav-link {% if page == 'admin' %}active{% endif %}">
+                        <i class="fas fa-server"></i> Clusters
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/audit" class="nav-link {% if page == 'audit_rules' %}active{% endif %}">
+                        <i class="fas fa-clipboard-list"></i> Audit Rules
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/compliance" class="nav-link {% if page == 'compliance' %}active{% endif %}">
+                        <i class="fas fa-check-circle"></i> Compliance
+                    </a>
+                </li>
+
+                <!-- Search and Filters -->
+
+                <!-- Search and Filters -->
+                <li style="padding: 0.5rem 1rem;">
+                    <input type="text" id="cluster-search" placeholder="Search clusters..." class="form-input"
+                        style="font-size:0.85rem; padding:0.4rem; margin-bottom: 0.5rem; width:100%; box-sizing:border-box;"
+                        onkeyup="filterClusters()">
+
+                    <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
+                        <button class="filter-btn active" onclick="toggleFilter(this, 'DEV')" data-filter="DEV"
+                            style="flex:1; font-size:0.75rem; padding:0.3rem;">DEV</button>
+                        <button class="filter-btn active" onclick="toggleFilter(this, 'UAT')" data-filter="UAT"
+                            style="flex:1; font-size:0.75rem; padding:0.3rem;">UAT</button>
+                        <button class="filter-btn active" onclick="toggleFilter(this, 'PROD')" data-filter="PROD"
+                            style="flex:1; font-size:0.75rem; padding:0.3rem;">PROD</button>
+                    </div>
+                </li>
+
+                {% if clusters_by_dc %}
+                {% for dc, dc_clusters in clusters_by_dc.items() %}
+                <li
+                    style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 1rem;">
+                    {{ dc }}
+                </li>
+
+                {% for cluster in dc_clusters %}
+                <li class="nav-item cluster-item" data-name="{{ cluster.name|lower }}"
+                    data-dc="{{ cluster.datacenter }}" data-env="{{ cluster.environment }}">
+                    <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
+                        onclick="toggleClusterMenu({{ cluster.id }})">
+                        <i class="fas fa-server"></i> {{ cluster.name }}
+                        <span style="font-size:0.7rem; opacity:0.7; margin-left: auto;">{{ cluster.environment }}</span>
+                    </a>
+                    <div class="resource-submenu" id="submenu-{{ cluster.id }}">
+                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'nodes')">Nodes</a>
+                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'machines')">Machines</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machinesets')">MachineSets</a>
+                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'projects')">Projects</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machineautoscalers')">Autoscalers</a>
+                    </div>
+                </li>
+                {% endfor %}
+
+                {% endfor %}
+                {% else %}
+                <!-- Legacy fallback if viewed directly without dict, though router handles it -->
+                {% for cluster in clusters %}
+                <li class="nav-item cluster-item" data-name="{{ cluster.name|lower }}"
+                    data-dc="{{ cluster.datacenter }}" data-env="{{ cluster.environment }}">
+                    <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
+                        onclick="toggleClusterMenu({{ cluster.id }})">
+                        <i class="fas fa-server"></i> {{ cluster.name }}
+                        <span style="font-size:0.7rem; opacity:0.7; margin-left: auto;">{{ cluster.environment }}</span>
+                    </a>
+                    <div class="resource-submenu" id="submenu-{{ cluster.id }}">
+                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'nodes')">Nodes</a>
+                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'machines')">Machines</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machinesets')">MachineSets</a>
+                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'projects')">Projects</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machineautoscalers')">Autoscalers</a>
+                    </div>
+                </li>
+                {% endfor %}
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

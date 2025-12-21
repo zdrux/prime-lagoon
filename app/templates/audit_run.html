@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Compliance Execution</h1>
+    <span class="badge badge-blue">Run Audits</span>
+</div>
+
+<!-- Cluster Table -->
+<div class="card fade-in">
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Cluster Name</th>
+                    <th>Environment</th>
+                    <th>Tags</th>
+                    <th>Last Compliance</th>
+                    <th>Targeted Content</th>
+                    <th style="width:150px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="cluster-table-body">
+                <tr>
+                    <td colspan="5" style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin"></i>
+                        Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Audit Modal -->
+<div id="audit-modal" class="modal">
+    <div class="modal-content"
+        style="width:800px; max-width:95vh; max-height:90vh; display:flex; flex-direction:column;">
+        <div class="modal-header">
+            <h3 id="modal-title">Audit Results</h3>
+            <button onclick="closeModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="modal-body" style="overflow-y:auto; flex:1;">
+            <!-- Results injected here -->
+        </div>
+        <div style="margin-top:1rem; text-align:right;">
+            <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal.open {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 1.2rem;
+    }
+</style>
+
+<script>
+    let ruleBundles = [];
+    let adhocRules = [];
+
+    async function loadData() {
+        const [clusters, bundles, rules, scores] = await Promise.all([
+            fetch('/api/admin/clusters/').then(r => r.json()),
+            fetch('/api/audit/bundles').then(r => r.json()),
+            fetch('/api/audit/rules').then(r => r.json()),
+            fetch('/api/audit/compliance/latest').then(r => r.json())
+        ]);
+        ruleBundles = bundles;
+        adhocRules = rules;
+        renderClusters(clusters, scores);
+    }
+
+    function parseTags(jsonStr) {
+        try { return JSON.parse(jsonStr || '{}'); } catch (e) { return {}; }
+    }
+
+    function tagsMatch(targetTags, clusterTags) {
+        if (!targetTags || Object.keys(targetTags).length === 0) return true;
+        for (const k in targetTags) {
+            if (clusterTags[k] !== targetTags[k]) return false;
+        }
+        return true;
+    }
+
+    function renderClusters(clusters, scores = []) {
+        const tbody = document.getElementById('cluster-table-body');
+        if (clusters.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem;">No clusters found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = clusters.map(c => {
+            const cTags = parseTags(c.tags);
+            const score = scores.find(s => s.cluster_id === c.id);
+
+            // Find matching bundles
+            const matches = ruleBundles.filter(b => {
+                if (b.match_datacenter && b.match_datacenter !== c.datacenter) return false;
+                if (b.match_environment && b.match_environment !== c.environment) return false;
+                const bTags = parseTags(b.tags);
+                return tagsMatch(bTags, cTags);
+            });
+
+            // Count Ad-hoc
+            const adhocMatches = adhocRules.filter(r => {
+                if (r.bundle_id) return false;
+                if (r.match_datacenter && r.match_datacenter !== c.datacenter) return false;
+                if (r.match_environment && r.match_environment !== c.environment) return false;
+                return tagsMatch(parseTags(r.tags), cTags);
+            });
+
+            const tagsHtml = Object.entries(cTags).map(([k, v]) =>
+                `<span class="badge" style="background:var(--bg-primary); border:1px solid var(--border-color); font-size:0.7rem;">${k}=${v}</span>`
+            ).join(' ');
+
+            return `
+            <tr>
+                <td>
+                    <div style="font-weight:600; color:var(--accent-color);">${c.name}</div>
+                </td>
+                <td>
+                    <span class="badge badge-blue">${c.datacenter || 'N/A'}</span>
+                    <span class="badge badge-green">${c.environment || 'N/A'}</span>
+                </td>
+                <td>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.3rem;">
+                        ${tagsHtml || '<span style="opacity:0.5; font-size:0.8rem;">No tags</span>'}
+                    </div>
+                </td>
+                <td>
+                    ${score ? `
+                        <div style="font-weight:700; color:${score.score >= 100 ? 'var(--success-color)' : 'var(--warning-color)'}; font-size:1.1rem;">
+                            ${score.score}%
+                        </div>
+                        <div style="font-size:0.7rem; opacity:0.6;">
+                            ${score.passed_count}/${score.total_count} Passed<br>
+                            ${score.timestamp}
+                        </div>
+                    ` : '<span style="opacity:0.4; font-style:italic;">No data</span>'}
+                </td>
+                <td>
+                    <div style="font-size:0.9rem;">
+                        <strong>${matches.length}</strong> Bundle(s), <strong>${adhocMatches.length}</strong> Rule(s)
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="openAuditModal(${c.id}, '${c.name}')">
+                        <i class="fas fa-play"></i> Run Audit
+                    </button>
+                </td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    function openAuditModal(clusterId, clusterName) {
+        document.getElementById('modal-title').innerText = `Audit: ${clusterName}`;
+        const body = document.getElementById('modal-body');
+        body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Running audit checks...</div>';
+        document.getElementById('audit-modal').classList.add('open');
+
+        runAudit(clusterId);
+    }
+
+    function closeModal() {
+        document.getElementById('audit-modal').classList.remove('open');
+    }
+
+    async function runAudit(clusterId) {
+        const body = document.getElementById('modal-body');
+        try {
+            const res = await fetch(`/api/audit/run?cluster_id=${clusterId}`, { method: 'POST' });
+            const results = await res.json();
+
+            if (results.length === 0) {
+                body.innerHTML = '<div style="text-align:center; padding:2rem; opacity:0.7;">No rules matched or passed selection for this cluster.</div>';
+                return;
+            }
+
+            // Group by Bundle
+            const map = {};
+            results.forEach(r => {
+                const bName = r.bundle_name || 'Ad-hoc Rules';
+                if (!map[bName]) map[bName] = [];
+                map[bName].push(r);
+            });
+
+            let html = '';
+            // Overall Stats
+            const totalRules = results.length;
+            const totalPass = results.filter(r => r.status === 'PASS').length;
+            const score = Math.round((totalPass / totalRules) * 100);
+
+            html += `
+            <div style="margin-bottom:1.5rem; text-align:center; background:var(--bg-primary); padding:1rem; border-radius:8px;">
+                <div style="font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary);">Overall Compliance Score</div>
+                <div style="font-size:2.5rem; font-weight:bold; color:${score === 100 ? 'var(--success-color)' : (score > 50 ? 'var(--warning-color)' : 'var(--danger-color)')};">
+                    ${score}%
+                </div>
+                <div style="font-size:0.9rem; opacity:0.8;">${totalPass} / ${totalRules} Checks Passed</div>
+            </div>
+            `;
+
+            for (const [bundleName, items] of Object.entries(map)) {
+                const passed = items.filter(i => i.status === 'PASS').length;
+                const total = items.length;
+                const percent = Math.round((passed / total) * 100);
+                const color = percent === 100 ? 'var(--success-color)' : (percent > 50 ? 'var(--warning-color)' : 'var(--danger-color)');
+
+                html += `
+                <div style="margin-bottom:1rem; border:1px solid var(--border-color); border-radius:6px; overflow:hidden;">
+                    <div style="background:rgba(255,255,255,0.03); padding:0.8rem; display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="font-size:1rem;">${bundleName}</strong>
+                        <span class="badge" style="background:${color}20; color:${color}; border:1px solid ${color};">${passed}/${total} Passed</span>
+                    </div>
+                    <table class="data-table" style="margin:0;">
+                        ${items.map(i => `
+                            <tr>
+                                <td style="padding:0.6rem 1rem;">
+                                    <div style="font-weight:500;">${i.rule_name}</div>
+                                    <div style="font-size:0.8rem; opacity:0.6;">${i.resource_kind} / ${i.namespace || '*'}</div>
+                                    ${i.status !== 'PASS' ? `<div style="margin-top:0.3rem; font-size:0.85rem; color:var(--danger-color); background:rgba(239,68,68,0.1); padding:0.3rem; border-radius:4px;">${i.detail}</div>` : ''}
+                                </td>
+                                <td style="width:80px; text-align:right;">
+                                    <span class="badge ${i.status === 'PASS' ? 'badge-green' : 'badge-red'}">${i.status}</span>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </table>
+                </div>
+                `;
+            }
+            body.innerHTML = html;
+
+        } catch (e) {
+            body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;">
+                <i class="fas fa-exclamation-triangle fa-2x"></i><br><br>
+                Error executing audit: ${e.message}
+            </div>`;
+        }
+    }
+
+    loadData();
+</script>
+{% endblock %}

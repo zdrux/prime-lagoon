@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlmodel
+openshift
+jinja2
+python-multipart
+# requests is usually pulled in by openshift but good to be explicit if using directly
+requests

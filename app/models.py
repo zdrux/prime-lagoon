@@ -70,6 +70,7 @@ class ComplianceScore(SQLModel, table=True):
     passed_count: int
     total_count: int
     score: float
+    results_json: Optional[str] = None # Detailed list of AuditResult objects
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

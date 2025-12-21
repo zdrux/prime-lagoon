@@ -1,7 +1,7 @@
 import os
 from sqlmodel import SQLModel, create_engine, Session
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database_v10.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database_v11.db")
 
 connect_args = {"check_same_thread": False}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)

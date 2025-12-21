@@ -165,14 +165,48 @@ def get_nested_value(data: dict, path: str):
             return None
     return current
 
+class TargetRequest(BaseModel):
+    datacenter: Optional[str] = None
+    environment: Optional[str] = None
+    tags: Optional[str] = None
+    bundle_id: Optional[int] = None
+
 class MatchRequest(BaseModel):
     tags: Optional[str] = None # JSON target tags
     match_datacenter: Optional[str] = None
     match_environment: Optional[str] = None
-    
+
 class ClusterMatch(BaseModel):
     id: int
     name: str
+
+@router.post("/calculate-targets", response_model=List[ClusterMatch])
+def calculate_targets(req: TargetRequest, session: Session = Depends(get_session)):
+    clusters = session.exec(select(Cluster)).all()
+    
+    if req.bundle_id:
+        bundle = session.get(AuditBundle, req.bundle_id)
+        if not bundle:
+            raise HTTPException(status_code=404, detail="Bundle not found")
+        target_tags = parse_tags(bundle.tags)
+        dc = bundle.match_datacenter
+        env = bundle.match_environment
+    else:
+        target_tags = parse_tags(req.tags)
+        dc = req.datacenter
+        env = req.environment
+        
+    matches = []
+    for c in clusters:
+        if dc and dc != c.datacenter:
+            continue
+        if env and env != c.environment:
+            continue
+        c_tags = parse_tags(c.tags)
+        if tags_match(target_tags, c_tags):
+            matches.append(ClusterMatch(id=c.id, name=c.name))
+            
+    return matches
 
 @router.post("/match_clusters", response_model=List[ClusterMatch])
 def match_clusters(req: MatchRequest, session: Session = Depends(get_session)):
@@ -372,6 +406,20 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
         cluster_results = results
         total = len(cluster_results)
         passed = len([r for r in cluster_results if r.status == 'PASS'])
+        
+        # Serialize subset of result fields to save space
+        compact_results = [
+            {
+                "rule_name": r.rule_name,
+                "bundle_name": r.bundle_name,
+                "status": r.status,
+                "detail": r.detail,
+                "resource_kind": r.resource_kind,
+                "namespace": r.namespace
+            }
+            for r in cluster_results
+        ]
+        
         if total > 0:
             score_val = (passed / total) * 100
             db_score = ComplianceScore(
@@ -379,7 +427,8 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                 timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 passed_count=passed,
                 total_count=total,
-                score=round(score_val, 1)
+                score=round(score_val, 1),
+                results_json=json.dumps(compact_results)
             )
             session.add(db_score)
             session.commit()

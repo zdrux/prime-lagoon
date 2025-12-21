@@ -2,8 +2,14 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">Compliance Execution</h1>
-    <span class="badge badge-blue">Run Audits</span>
+    <div>
+        <h1 class="page-title">Compliance Execution</h1>
+        <p style="opacity:0.6; font-size:0.9rem; margin-top:0.2rem;">Monitor and manage cluster compliance status across
+            your fleet.</p>
+    </div>
+    <button class="btn btn-primary" onclick="openMassAuditModal()">
+        <i class="fas fa-layer-group" style="margin-right:0.5rem;"></i> Mass Audit Dispatcher
+    </button>
 </div>
 
 <!-- Cluster Table -->
@@ -47,47 +53,164 @@
     </div>
 </div>
 
+<!-- Mass Audit Dispatcher Modal -->
+<div id="mass-audit-modal" class="modal">
+    <div class="modal-content" style="width:700px; max-width:95vw; background:var(--bg-secondary);">
+        <div class="modal-header">
+            <h3>Mass Audit Dispatcher</h3>
+            <button onclick="closeMassAuditModal()" class="close-btn">&times;</button>
+        </div>
+
+        <!-- Step 1: Select Targets -->
+        <div id="mass-step-1" class="mass-step">
+            <div style="padding:1.5rem;">
+                <h4 style="margin-bottom:1rem;">1. Select Targeting Criteria</h4>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+                    <div class="filter-card" onclick="setMassMode('traits')" id="mode-traits">
+                        <i class="fas fa-tags fa-2x"></i>
+                        <strong>Infrastructure Traits</strong>
+                        <span>Target by Datacenter, Env, or Tags</span>
+                    </div>
+                    <div class="filter-card" onclick="setMassMode('bundle')" id="mode-bundle">
+                        <i class="fas fa-box-open fa-2x"></i>
+                        <strong>Audit Bundle</strong>
+                        <span>Target clusters matching a specific bundle</span>
+                    </div>
+                </div>
+
+                <div id="traits-filter" style="display:none;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Datacenter</label>
+                            <select id="mass-dc" class="form-input">
+                                <option value="">Any</option>
+                                <option value="Azure">Azure</option>
+                                <option value="HCI">HCI</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Environment</label>
+                            <select id="mass-env" class="form-input">
+                                <option value="">Any</option>
+                                <option value="PROD">PROD</option>
+                                <option value="UAT">UAT</option>
+                                <option value="DEV">DEV</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Target Tags (JSON)</label>
+                        <input type="text" id="mass-tags" class="form-input" placeholder='{"lob": "retail"}'>
+                    </div>
+                </div>
+
+                <div id="bundle-filter" style="display:none;">
+                    <div class="form-group">
+                        <label class="form-label">Select Audit Bundle</label>
+                        <select id="mass-bundle-id" class="form-input"></select>
+                    </div>
+                </div>
+
+                <div style="margin-top:2rem; text-align:right;">
+                    <button class="btn btn-primary" onclick="calculateMassTargets()">
+                        Next: Preview Targets <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Preview Targets -->
+        <div id="mass-step-2" class="mass-step" style="display:none;">
+            <div style="padding:1.5rem;">
+                <h4 style="margin-bottom:1rem;">2. Confirm Target Clusters</h4>
+                <div id="target-summary"
+                    style="margin-bottom:1rem; padding:0.8rem; background:rgba(0,0,0,0.1); border-radius:6px; font-weight:600;">
+                </div>
+                <div id="target-list"
+                    style="max-height:300px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; margin-bottom:1.5rem;">
+                    <!-- Targeted clusters with checkboxes -->
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <button class="btn btn-secondary" onclick="showMassStep(1)">Back</button>
+                    <button class="btn btn-primary" onclick="launchMassAudit()">
+                        Launch Mass Audit <i class="fas fa-rocket"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Execution -->
+        <div id="mass-step-3" class="mass-step" style="display:none;">
+            <div style="padding:1.5rem; text-align:center;">
+                <h4 style="margin-bottom:1.5rem;">3. Executing Bulk Scan</h4>
+                <div id="mass-progress-text" style="margin-bottom:0.5rem; font-size:0.9rem;">Initializing...</div>
+                <div class="progress-bar-container"
+                    style="height:12px; background:var(--bg-primary); border-radius:10px; overflow:hidden; margin-bottom:1.5rem;">
+                    <div id="mass-progress-fill"
+                        style="height:100%; width:0%; background:var(--accent-color); transition: width 0.3s ease;">
+                    </div>
+                </div>
+                <div id="mass-log"
+                    style="text-align:left; max-height:200px; overflow-y:auto; font-family:monospace; font-size:0.8rem; background:#000; padding:1rem; border-radius:6px; opacity:0.8;">
+                    <!-- Progress logs -->
+                </div>
+                <div id="mass-done" style="display:none; margin-top:1.5rem;">
+                    <button class="btn btn-primary" onclick="window.location.reload()">Finish & Refresh</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
-    .modal {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .modal.open {
-        display: flex;
-    }
-
-    .modal-content {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
+    .filter-card {
+        background: var(--bg-primary);
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
         padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-        border-bottom: 1px solid var(--border-color);
-        padding-bottom: 0.5rem;
-    }
-
-    .close-btn {
-        background: none;
-        border: none;
-        color: var(--text-primary);
         cursor: pointer;
-        font-size: 1.2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        transition: all 0.2s ease;
+    }
+
+    .filter-card:hover {
+        border-color: var(--accent-color);
+        transform: translateY(-3px);
+    }
+
+    .filter-card.active {
+        border-color: var(--accent-color);
+        background: rgba(58, 134, 255, 0.05);
+    }
+
+    .filter-card i {
+        color: var(--accent-color);
+        margin-bottom: 0.8rem;
+    }
+
+    .filter-card span {
+        font-size: 0.8rem;
+        opacity: 0.6;
+        margin-top: 0.3rem;
+    }
+
+    .mass-step {
+        animation: fadeIn 0.3s ease;
+    }
+
+    .target-item {
+        padding: 0.8rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+
+    .target-item:last-child {
+        border-bottom: none;
     }
 </style>
 
@@ -150,10 +273,56 @@
                 `<span class="badge" style="background:var(--bg-primary); border:1px solid var(--border-color); font-size:0.7rem;">${k}=${v}</span>`
             ).join(' ');
 
+            let detailsHtml = '';
+            if (score && score.results_json) {
+                try {
+                    const results = JSON.parse(score.results_json);
+                    const map = {};
+                    results.forEach(r => {
+                        const bName = r.bundle_name || 'Ad-hoc Rules';
+                        if (!map[bName]) map[bName] = [];
+                        map[bName].push(r);
+                    });
+
+                    detailsHtml = '<div style="padding:1rem; background:rgba(0,0,0,0.2); border-radius:8px; margin:0.5rem 0;">';
+                    detailsHtml += '<h4 style="margin-bottom:1rem; font-size:0.9rem; opacity:0.8;">Last Scan Result Details</h4>';
+
+                    for (const [bundleName, items] of Object.entries(map)) {
+                        detailsHtml += `<div style="margin-bottom:0.5rem; font-weight:600; font-size:0.85rem; color:var(--accent-color);">${bundleName}</div>`;
+                        detailsHtml += '<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:0.5rem; margin-bottom:1rem;">';
+                        items.forEach(i => {
+                            const color = i.status === 'PASS' ? 'var(--success-color)' : (i.status === 'FAIL' ? 'var(--danger-color)' : 'var(--warning-color)');
+                            detailsHtml += `
+                                <div style="background:var(--bg-secondary); border:1px solid var(--border-color); padding:0.6rem; border-radius:6px; display:flex; justify-content:space-between; align-items:start;">
+                                    <div style="font-size:0.85rem;">
+                                        <div style="font-weight:500;">${i.rule_name}</div>
+                                        <div style="font-size:0.7rem; opacity:0.6;">${i.resource_kind}</div>
+                                    </div>
+                                    <span class="badge" style="background:${color}20; color:${color}; border:1px solid ${color}; font-size:0.7rem; padding:0.1rem 0.4rem;">${i.status}</span>
+                                </div>
+                            `;
+                        });
+                        detailsHtml += '</div>';
+                    }
+                    detailsHtml += '</div>';
+                } catch (e) {
+                    detailsHtml = '<div style="padding:1rem; opacity:0.5; font-style:italic;">Detailed results unavailable for this scan version.</div>';
+                }
+            } else if (score) {
+                detailsHtml = '<div style="padding:1rem; opacity:0.5; font-style:italic;">No detailed results available for this record.</div>';
+            } else {
+                detailsHtml = '<div style="padding:1rem; opacity:0.5; font-style:italic;">No historical scan data found.</div>';
+            }
+
             return `
-            <tr>
+            <tr id="row-${c.id}">
                 <td>
-                    <div style="font-weight:600; color:var(--accent-color);">${c.name}</div>
+                    <div style="display:flex; align-items:center; gap:0.8rem;">
+                        <button class="btn-icon" onclick="toggleDetails(${c.id})" id="toggle-${c.id}">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                        <div style="font-weight:600; color:var(--accent-color);">${c.name}</div>
+                    </div>
                 </td>
                 <td>
                     <span class="badge badge-blue">${c.datacenter || 'N/A'}</span>
@@ -186,8 +355,28 @@
                     </button>
                 </td>
             </tr>
+            <tr id="details-${c.id}" style="display:none; background:rgba(255,255,255,0.01);">
+                <td colspan="6" style="padding:0 1.5rem 1rem 1.5rem; border-top:none;">
+                    ${detailsHtml}
+                </td>
+            </tr>
             `;
         }).join('');
+    }
+
+    function toggleDetails(clusterId) {
+        const detailsRow = document.getElementById(`details-${clusterId}`);
+        const toggleBtn = document.getElementById(`toggle-${clusterId}`);
+        const isHidden = detailsRow.style.display === 'none';
+
+        detailsRow.style.display = isHidden ? 'table-row' : 'none';
+        toggleBtn.querySelector('i').className = isHidden ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
+
+        if (isHidden) {
+            toggleBtn.style.color = 'var(--accent-color)';
+        } else {
+            toggleBtn.style.color = 'inherit';
+        }
     }
 
     function openAuditModal(clusterId, clusterName) {
@@ -275,6 +464,113 @@
                 Error executing audit: ${e.message}
             </div>`;
         }
+    }
+
+    // --- Mass Audit Logic ---
+    let selectedMassMode = 'traits';
+    let targetedClusters = [];
+
+    function openMassAuditModal() {
+        showMassStep(1);
+        setMassMode('traits');
+        // Populate bundle dropdown
+        const bundleSelect = document.getElementById('mass-bundle-id');
+        bundleSelect.innerHTML = ruleBundles.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+        document.getElementById('mass-audit-modal').classList.add('open');
+    }
+
+    function closeMassAuditModal() {
+        document.getElementById('mass-audit-modal').classList.remove('open');
+    }
+
+    function setMassMode(mode) {
+        selectedMassMode = mode;
+        document.getElementById('mode-traits').className = 'filter-card' + (mode === 'traits' ? ' active' : '');
+        document.getElementById('mode-bundle').className = 'filter-card' + (mode === 'bundle' ? ' active' : '');
+        document.getElementById('traits-filter').style.display = mode === 'traits' ? 'block' : 'none';
+        document.getElementById('bundle-filter').style.display = mode === 'bundle' ? 'block' : 'none';
+    }
+
+    function showMassStep(step) {
+        document.querySelectorAll('.mass-step').forEach(s => s.style.display = 'none');
+        document.getElementById(`mass-step-${step}`).style.display = 'block';
+    }
+
+    async function calculateMassTargets() {
+        const payload = selectedMassMode === 'traits' ? {
+            datacenter: document.getElementById('mass-dc').value,
+            environment: document.getElementById('mass-env').value,
+            tags: document.getElementById('mass-tags').value || null
+        } : {
+            bundle_id: parseInt(document.getElementById('mass-bundle-id').value)
+        };
+
+        const res = await fetch('/api/audit/calculate-targets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        targetedClusters = await res.json();
+
+        renderMassPreview();
+        showMassStep(2);
+    }
+
+    function renderMassPreview() {
+        const summary = document.getElementById('target-summary');
+        const list = document.getElementById('target-list');
+
+        summary.innerHTML = `<i class="fas fa-bullseye"></i> ${targetedClusters.length} Clusters Targeted`;
+
+        if (targetedClusters.length === 0) {
+            list.innerHTML = '<div style="padding:2rem; text-align:center; opacity:0.5;">No clusters matched these criteria.</div>';
+            return;
+        }
+
+        list.innerHTML = targetedClusters.map(c => `
+            <div class="target-item">
+                <input type="checkbox" checked value="${c.id}" class="cluster-target-cb">
+                <div style="font-weight:500;">${c.name}</div>
+            </div>
+        `).join('');
+    }
+
+    async function launchMassAudit() {
+        const selectedIds = Array.from(document.querySelectorAll('.cluster-target-cb:checked')).map(cb => parseInt(cb.value));
+        if (selectedIds.length === 0) {
+            alert('Please select at least one cluster.');
+            return;
+        }
+
+        showMassStep(3);
+        const progressFill = document.getElementById('mass-progress-fill');
+        const progressText = document.getElementById('mass-progress-text');
+        const log = document.getElementById('mass-log');
+        log.innerHTML = '';
+
+        for (let i = 0; i < selectedIds.length; i++) {
+            const id = selectedIds[i];
+            const cluster = targetedClusters.find(c => c.id === id);
+            const percent = Math.round(((i) / selectedIds.length) * 100);
+
+            progressText.innerText = `Auditing ${cluster.name} (${i + 1} of ${selectedIds.length})...`;
+            progressFill.style.width = `${percent}%`;
+
+            log.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Starting audit on ${cluster.name}...</div>`;
+            log.scrollTop = log.scrollHeight;
+
+            try {
+                await fetch(`/api/audit/run?cluster_id=${id}`, { method: 'POST' });
+                log.innerHTML += `<div style="color:var(--success-color);">[OK] Finished ${cluster.name}</div>`;
+            } catch (e) {
+                log.innerHTML += `<div style="color:var(--danger-color);">[ERROR] ${cluster.name}: ${e.message}</div>`;
+            }
+        }
+
+        progressFill.style.width = '100%';
+        progressText.innerText = 'Mass Audit Complete';
+        log.innerHTML += `<div>[${new Date().toLocaleTimeString()}] DONE. All targeted audits finished.</div>`;
+        document.getElementById('mass-done').style.display = 'block';
     }
 
     loadData();

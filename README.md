@@ -1,4 +1,4 @@
-# Prime Lagoon - OpenShift Compliance & Inventory Management
+# OCP Inventory - Cluster Inventory & Compliance Management
 
 A modern web application for managing OpenShift cluster inventory and running automated compliance audits.
 

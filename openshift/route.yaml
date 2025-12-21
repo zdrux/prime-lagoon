@@ -1,0 +1,12 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ocp-inventory
+spec:
+  to:
+    kind: Service
+    name: ocp-inventory
+  port:
+    targetPort: 8000
+  tls:
+    termination: edge

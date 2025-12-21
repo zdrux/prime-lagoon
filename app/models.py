@@ -70,3 +70,12 @@ class ComplianceScore(SQLModel, table=True):
     passed_count: int
     total_count: int
     score: float
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    is_admin: bool = Field(default=False)
+
+class AppConfig(SQLModel, table=True):
+    key: str = Field(primary_key=True)
+    value: Optional[str] = None

@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display:flex; align-items:center; gap:1rem;">
+        <h1 class="page-title">LDAP Configuration</h1>
+        <span class="badge badge-blue">Admin Settings</span>
+    </div>
+    <div style="display:flex; gap:0.5rem;">
+        <a href="/settings/users"
+            class="btn {% if page == 'settings_users' %}btn-primary{% else %}btn-secondary{% endif %}"
+            style="font-size:0.85rem; padding:0.5rem 1rem;">
+            <i class="fas fa-users"></i> Users
+        </a>
+        <a href="/settings/ldap"
+            class="btn {% if page == 'settings_ldap' %}btn-primary{% else %}btn-secondary{% endif %}"
+            style="font-size:0.85rem; padding:0.5rem 1rem;">
+            <i class="fas fa-server"></i> LDAP
+        </a>
+    </div>
+</div>
+
+<div class="card fade-in" style="max-width: 800px;">
+    <div class="resource-header"
+        style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+        <div>
+            <i class="fas fa-network-wired" style="margin-right:0.5rem; color:var(--accent-color);"></i> LDAP Backend
+            Settings
+        </div>
+        <div style="display:flex; align-items:center; gap:0.8rem;">
+            <span style="font-size:0.85rem; opacity:0.7;">LDAP Enabled</span>
+            <label class="switch">
+                <input type="checkbox" id="ldap-enabled-toggle" {% if ldap_enabled %}checked{% endif %}
+                    onchange="toggleLDAPSiteWide(this.checked)">
+                <span class="slider round"></span>
+            </label>
+        </div>
+    </div>
+
+    <div style="padding:2rem;">
+        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:1.5rem;">
+            <div class="form-group">
+                <label class="form-label">LDAP Hostname</label>
+                <input type="text" id="ldap-host" class="form-input" value="{{ ldap_host }}"
+                    placeholder="e.g. ldap.example.corp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">LDAP Port</label>
+                <input type="number" id="ldap-port" class="form-input" value="{{ ldap_port }}" placeholder="389">
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top:0.5rem;">
+            <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; font-size:0.9rem;">
+                <input type="checkbox" id="ldap-ssl" {% if ldap_ssl %}checked{% endif %}>
+                Use LDAPS (SSL/TLS)
+            </label>
+        </div>
+
+        <hr style="border:0; border-top:1px solid var(--border-color); margin:2rem 0;">
+
+        <div style="display:flex; gap:1rem; margin-top:2.5rem;">
+            <button class="btn btn-secondary" onclick="openTestModal()" style="flex:1;">
+                <i class="fas fa-vial" style="margin-right:0.5rem;"></i> Test Connection
+            </button>
+            <button class="btn btn-primary" onclick="saveLDAP()" style="flex:1;">
+                <i class="fas fa-save" style="margin-right:0.5rem;"></i> Save Configuration
+            </button>
+        </div>
+
+        <div id="cfg-status" style="margin-top:1rem; font-size:0.9rem; text-align:center;"></div>
+    </div>
+</div>
+
+<!-- LDAP Test Modal -->
+<div id="test-modal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Test LDAP Credentials</h3>
+            <button class="close-btn" onclick="closeTestModal()">&times;</button>
+        </div>
+        <div style="padding:1.5rem;">
+            <p style="font-size:0.85rem; opacity:0.7; margin-bottom:1.5rem;">Verify authentication with real user
+                credentials before enabling site-wide.</p>
+            <div class="form-group">
+                <label class="form-label">Test Username</label>
+                <input type="text" id="test-user" class="form-input" placeholder="jdoe">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Test Password</label>
+                <input type="password" id="test-pass" class="form-input" placeholder="••••••••">
+            </div>
+            <button class="btn btn-primary" id="run-test-btn" onclick="runLdapTest()"
+                style="width:100%; margin-top:1rem;">
+                Verify Auth
+            </button>
+            <div id="test-result"
+                style="margin-top:1.5rem; padding:1rem; border-radius:8px; display:none; font-size:0.9rem;"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Simple Toggle Switch CSS */
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 22px;
+    }
+
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        transition: .4s;
+        border-radius: 34px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 14px;
+        width: 14px;
+        left: 3px;
+        bottom: 3px;
+        background-color: var(--text-secondary);
+        transition: .4s;
+        border-radius: 50%;
+    }
+
+    input:checked+.slider {
+        background-color: var(--accent-color);
+        border-color: var(--accent-color);
+    }
+
+    input:checked+.slider:before {
+        transform: translateX(22px);
+        background-color: white;
+    }
+
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal.open {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        width: 90%;
+    }
+
+    .modal-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        color: var(--text-primary);
+        font-size: 1.5rem;
+        cursor: pointer;
+    }
+</style>
+
+<script>
+    async function toggleLDAPSiteWide(enabled) {
+        await fetch(`/settings/api/ldap/toggle?enabled=${enabled}`, { method: 'POST' });
+        window.location.reload();
+    }
+
+    function openTestModal() { document.getElementById('test-modal').classList.add('open'); }
+    function closeTestModal() {
+        document.getElementById('test-modal').classList.remove('open');
+        document.getElementById('test-result').style.display = 'none';
+    }
+
+    async function saveLDAP() {
+        const payload = {
+            host: document.getElementById('ldap-host').value.trim(),
+            port: parseInt(document.getElementById('ldap-port').value.trim()),
+            use_ssl: document.getElementById('ldap-ssl').checked
+        };
+
+        const status = document.getElementById('cfg-status');
+        status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Saving...';
+
+        const res = await fetch('/settings/api/ldap', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            status.innerHTML = '<span style="color:var(--success-color);"><i class="fas fa-check"></i> Configuration saved!</span>';
+            setTimeout(() => { window.location.reload(); }, 1500);
+        } else {
+            status.innerHTML = '<span style="color:var(--danger-color);"><i class="fas fa-times"></i> Failed to save.</span>';
+        }
+    }
+
+    async function runLdapTest() {
+        const btn = document.getElementById('run-test-btn');
+        const resDiv = document.getElementById('test-result');
+
+        const payload = {
+            host: document.getElementById('ldap-host').value.trim(),
+            port: parseInt(document.getElementById('ldap-port').value.trim()),
+            use_ssl: document.getElementById('ldap-ssl').checked,
+            test_username: document.getElementById('test-user').value.trim(),
+            test_password: document.getElementById('test-pass').value
+        };
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+        resDiv.style.display = 'none';
+
+        try {
+            const res = await fetch('/settings/api/ldap/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            resDiv.style.display = 'block';
+            if (data.ok) {
+                resDiv.style.background = 'rgba(40, 167, 69, 0.1)';
+                resDiv.style.border = '1px solid var(--success-color)';
+                resDiv.style.color = 'var(--success-color)';
+                resDiv.innerHTML = '<strong><i class="fas fa-check-circle"></i> Success!</strong> Auth verified.';
+            } else {
+                resDiv.style.background = 'rgba(220, 53, 69, 0.1)';
+                resDiv.style.border = '1px solid var(--danger-color)';
+                resDiv.style.color = 'var(--danger-color)';
+                resDiv.innerHTML = `<strong><i class="fas fa-times-circle"></i> Failed</strong><br>${data.error}`;
+            }
+        } catch (e) {
+            resDiv.style.display = 'block';
+            resDiv.innerHTML = 'Connection error.';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Verify Auth';
+        }
+    }
+</script>
+{% endblock %}

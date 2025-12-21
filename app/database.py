@@ -1,10 +1,10 @@
+import os
 from sqlmodel import SQLModel, create_engine, Session
 
-sqlite_file_name = "database_v9.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database_v10.db")
 
 connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, connect_args=connect_args)
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

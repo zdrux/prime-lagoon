@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocp-inventory
+  labels:
+    app: ocp-inventory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ocp-inventory
+  template:
+    metadata:
+      labels:
+        app: ocp-inventory
+    spec:
+      containers:
+      - name: ocp-inventory
+        image: image-registry.openshift-image-registry.svc:5000/ocp-inventory/ocp-inventory:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          value: sqlite:////app/data/ocp_inventory.db
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: ocp-inventory-data

@@ -23,7 +23,33 @@
 
 
             <ul class="nav-links" id="cluster-list">
+                <!-- User Profile Section -->
+                {% if user %}
+                <li
+                    style="padding: 1rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.8rem;">
+                    <div
+                        style="width: 32px; height: 32px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">
+                        {{ user.username[0]|upper }}
+                    </div>
+                    <div style="flex: 1; overflow: hidden;">
+                        <div
+                            style="font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            {{ user.username }}</div>
+                        <div style="font-size: 0.7rem; opacity: 0.6; display: flex; align-items: center; gap: 0.3rem;">
+                            <i class="fas fa-circle" style="font-size: 0.4rem; color: var(--success-color);"></i>
+                            {% if user.is_admin %}Administrator{% else %}Regular User{% endif %}
+                        </div>
+                    </div>
+                    <a href="/logout" title="Logout"
+                        style="color: var(--text-secondary); opacity: 0.6; transition: 0.2s;"
+                        onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">
+                        <i class="fas fa-power-off"></i>
+                    </a>
+                </li>
+                {% endif %}
+
                 <!-- Administration Group -->
+                {% if user.is_admin %}
                 <li
                     style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.5rem; margin-bottom:0.2rem;">
                     Administration
@@ -43,6 +69,26 @@
                         <i class="fas fa-check-circle"></i> Compliance
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="/settings"
+                        class="nav-link {% if page == 'settings' or page == 'settings_users' or page == 'settings_ldap' %}active{% endif %}"
+                        onclick="event.preventDefault(); document.getElementById('settings-submenu').style.display = document.getElementById('settings-submenu').style.display === 'block' ? 'none' : 'block';">
+                        <i class="fas fa-cog"></i> App Config <i class="fas fa-chevron-down"
+                            style="font-size:0.7rem; margin-left:auto; opacity:0.5;"></i>
+                    </a>
+                    <div id="settings-submenu"
+                        style="padding-left: 2rem; display: {% if page == 'settings_users' or page == 'settings_ldap' %}block{% else %}none{% endif %};">
+                        <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}"
+                            style="padding: 0.4rem 0.5rem; font-size: 0.85rem; display: block; color: var(--text-secondary); text-decoration: none;">
+                            <i class="fas fa-users" style="width: 1.2rem;"></i> Users
+                        </a>
+                        <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}"
+                            style="padding: 0.4rem 0.5rem; font-size: 0.85rem; display: block; color: var(--text-secondary); text-decoration: none;">
+                            <i class="fas fa-network-wired" style="width: 1.2rem;"></i> LDAP Settings
+                        </a>
+                    </div>
+                </li>
+                {% endif %}
 
                 <!-- Search and Filters -->
 

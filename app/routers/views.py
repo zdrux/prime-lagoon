@@ -3,8 +3,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from app.database import get_session
-from app.models import Cluster, AuditRule, AuditBundle
+from app.models import Cluster, AuditRule, AuditBundle, User
 
+from app.dependencies import get_current_user_optional, admin_required, is_ldap_enabled
 import json
 
 templates = Jinja2Templates(directory="app/templates")
@@ -17,18 +18,22 @@ def root():
     return RedirectResponse(url="/dashboard")
 
 @router.get("/admin", response_class=HTMLResponse)
-def admin_view(request: Request, session: Session = Depends(get_session)):
+def admin_view(request: Request, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     clusters = session.exec(select(Cluster)).all()
     clusters_by_dc = _group_clusters(clusters)
     return templates.TemplateResponse("admin.html", {
         "request": request, 
         "clusters": clusters, 
         "clusters_by_dc": clusters_by_dc,
-        "page": "admin"
+        "page": "admin",
+        "user": user
     })
 
 @router.get("/audit", response_class=HTMLResponse)
-def audit_view(request: Request, session: Session = Depends(get_session)):
+def audit_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+        
     rules = session.exec(select(AuditRule)).all()
     bundles = session.exec(select(AuditBundle)).all()
     
@@ -41,11 +46,15 @@ def audit_view(request: Request, session: Session = Depends(get_session)):
         "bundles": bundles,
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
-        "page": "audit_rules"
+        "page": "audit_rules",
+        "user": user
     })
 
 @router.get("/compliance", response_class=HTMLResponse)
-def compliance_view(request: Request, session: Session = Depends(get_session)):
+def compliance_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+        
     clusters = session.exec(select(Cluster)).all()
     clusters_by_dc = _group_clusters(clusters)
     
@@ -53,7 +62,8 @@ def compliance_view(request: Request, session: Session = Depends(get_session)):
         "request": request, 
         "page": "compliance",
         "clusters": clusters,
-        "clusters_by_dc": clusters_by_dc
+        "clusters_by_dc": clusters_by_dc,
+        "user": user
     })
 
 def _group_clusters(clusters):
@@ -66,15 +76,17 @@ def _group_clusters(clusters):
     return by_dc
 
 @router.get("/dashboard", response_class=HTMLResponse)
-def dashboard_view(request: Request, session: Session = Depends(get_session)):
+def dashboard_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+
     clusters = session.exec(select(Cluster)).all()
     clusters_by_dc = _group_clusters(clusters)
         
-    # Ensure Azure and HCI keys exist for consistent ordering if desired, or just pass dict
-    # Let's just pass the dict and iterate in template
     return templates.TemplateResponse("dashboard.html", {
         "request": request, 
-        "clusters": clusters, # Keep flat list for other uses if needed
+        "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
-        "page": "dashboard"
+        "page": "dashboard",
+        "user": user
     })

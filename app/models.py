@@ -72,6 +72,23 @@ class ComplianceScore(SQLModel, table=True):
     score: float
     results_json: Optional[str] = None # Detailed list of AuditResult objects
 
+class LicenseUsage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cluster_id: int = Field(index=True)
+    timestamp: str
+    node_count: int
+    total_vcpu: float
+    license_count: int
+    details_json: Optional[str] = None # Detailed breakdown for audit
+
+class LicenseRule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    rule_type: str = Field(default="name_match") # "name_match", "label_match"
+    match_value: str # regex for name, or "key=value" for label
+    action: str = Field(default="INCLUDE") # "INCLUDE", "EXCLUDE"
+    is_active: bool = Field(default=True)
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)

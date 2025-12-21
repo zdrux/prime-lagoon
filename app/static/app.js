@@ -3,6 +3,22 @@ function toggleClusterMenu(clusterId) {
     if (submenu) submenu.classList.toggle('open');
 }
 
+function toggleSubmenu(targetId, element) {
+    const target = document.getElementById(targetId);
+    if (target) {
+        const isOpening = !target.classList.contains('open');
+        target.classList.toggle('open');
+
+        // Handle trigger state
+        if (element) {
+            element.classList.toggle('active');
+        } else {
+            const trigger = document.querySelector(`[data-target="${targetId}"]`);
+            if (trigger) trigger.classList.toggle('active');
+        }
+    }
+}
+
 // Global initialization
 document.addEventListener('DOMContentLoaded', () => {
     // Check if we are on dashboard page and need to load params
@@ -50,6 +66,7 @@ async function loadSummary() {
                             <th>Cluster Name</th>
                             <th>Total Nodes</th>
                             <th>Total vCPUs</th>
+                            <th>Licenses</th>
                             <th>Console</th>
                             <th>Datacenter</th>
                             <th>Environment</th>
@@ -61,6 +78,13 @@ async function loadSummary() {
                                 <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
                                 <td>${c.stats.node_count}</td>
                                 <td>${c.stats.vcpu_count}</td>
+                                <td>
+                                    <span class="badge badge-purple" 
+                                          style="cursor:pointer;" 
+                                          onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})">
+                                        ${c.license_info.count}
+                                    </span>
+                                </td>
                                 <td>
                                     ${c.stats.console_url && c.stats.console_url !== '#'
                 ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.25rem 0.6rem; border-radius:4px; display:inline-block;" title="Open Console">
@@ -279,4 +303,51 @@ function getNested(obj, path) {
         }
         return acc[part];
     }, obj);
+}
+
+// License Modal
+async function showLicenseDetails(clusterId, usageId) {
+    const modal = document.getElementById('license-modal');
+    const tbody = document.getElementById('lic-details-body');
+
+    // Reset
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading details...</td></tr>';
+    document.getElementById('lic-total-nodes').innerText = '-';
+    document.getElementById('lic-total-vcpu').innerText = '-';
+    document.getElementById('lic-total-count').innerText = '-';
+
+    modal.classList.add('open');
+
+    try {
+        const res = await fetch(`/api/dashboard/${clusterId}/license-details/${usageId}`);
+        if (!res.ok) throw new Error("Failed to load details");
+
+        const data = await res.json();
+
+        document.getElementById('lic-total-nodes').innerText = data.node_count;
+        document.getElementById('lic-total-vcpu').innerText = data.total_vcpu.toFixed(1);
+        document.getElementById('lic-total-count').innerText = data.license_count;
+
+        tbody.innerHTML = data.details.map(d => {
+            const isInc = d.status === 'INCLUDED';
+            const color = isInc ? 'var(--success-color)' : 'var(--danger-color)';
+
+            return `
+            <tr style="opacity:${isInc ? 1 : 0.6};">
+                <td style="font-family:monospace;">${d.name}</td>
+                <td><span class="badge" style="color:${color}; border:1px solid ${color}; background:rgba(255,255,255,0.05);">${d.status}</span></td>
+                <td>${d.vcpu}</td>
+                <td><strong>${d.licenses}</strong></td>
+                <td style="font-size:0.85rem;">${d.reason}</td>
+            </tr>
+            `;
+        }).join('');
+
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+function closeLicenseModal() {
+    document.getElementById('license-modal').classList.remove('open');
 }

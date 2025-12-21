@@ -10,4 +10,40 @@
         </div>
     </div>
 </div>
+
+<!-- License Details Modal -->
+<div id="license-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3>RedHat License Usage Details</h3>
+            <span class="close-btn" onclick="closeLicenseModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div
+                style="display:flex; justify-content:space-between; margin-bottom:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
+                <div><strong>Total Nodes:</strong> <span id="lic-total-nodes">-</span></div>
+                <div><strong>Total vCPU:</strong> <span id="lic-total-vcpu">-</span></div>
+                <div><strong>Licenses Required:</strong> <span id="lic-total-count"
+                        style="color:var(--accent-color); font-size:1.2rem; font-weight:bold;">-</span></div>
+            </div>
+            <div style="max-height:400px; overflow-y:auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Node Name</th>
+                            <th>Status</th>
+                            <th>vCPU</th>
+                            <th>Licenses</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lic-details-body"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeLicenseModal()">Close</button>
+        </div>
+    </div>
+</div>
 {% endblock %}

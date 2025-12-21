@@ -1,12 +1,17 @@
 from fastapi import APIRouter, Depends, Request, Form
+from datetime import datetime
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from app.database import get_session
 from app.models import User, AppConfig
 from app.dependencies import admin_required, get_current_user_optional
-from typing import Optional, List
+from typing import Optional, List, Any
 from pydantic import BaseModel
+import json
+from app.models import Cluster, AppConfig, LicenseRule
+from app.services.ocp import fetch_resources
+from app.services.license import calculate_licenses
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 templates = Jinja2Templates(directory="app/templates")
@@ -18,6 +23,8 @@ class LDAPConfig(BaseModel):
     host: str
     port: int
     use_ssl: bool
+    auth_type: str = "SIMPLE" # SIMPLE or NTLM
+    domain_prefix: Optional[str] = None
 
 class LDAPTestRequest(LDAPConfig):
     test_username: str
@@ -34,11 +41,22 @@ def user_management_page(
     user: User = Depends(admin_required)
 ):
     users = session.exec(select(User)).all()
+    clusters = session.exec(select(Cluster)).all()
+    
+    # Group clusters by Datacenter for the sidebar
+    clusters_by_dc = {}
+    for c in clusters:
+        dc = c.datacenter or "Uncategorized"
+        if dc not in clusters_by_dc:
+            clusters_by_dc[dc] = []
+        clusters_by_dc[dc].append(c)
+        
     return templates.TemplateResponse("settings_users.html", {
         "request": request,
         "users": users,
         "user": user,
-        "page": "settings_users"
+        "page": "settings_users",
+        "clusters_by_dc": clusters_by_dc
     })
 
 @router.get("/ldap", response_class=HTMLResponse)
@@ -50,14 +68,26 @@ def ldap_settings_page(
     config = session.exec(select(AppConfig)).all()
     cfg_dict = {c.key: c.value for c in config}
     
+    clusters = session.exec(select(Cluster)).all()
+    # Group clusters by Datacenter for the sidebar
+    clusters_by_dc = {}
+    for c in clusters:
+        dc = c.datacenter or "Uncategorized"
+        if dc not in clusters_by_dc:
+            clusters_by_dc[dc] = []
+        clusters_by_dc[dc].append(c)
+    
     return templates.TemplateResponse("settings_ldap.html", {
         "request": request,
         "ldap_host": cfg_dict.get("LDAP_HOST", ""),
         "ldap_port": cfg_dict.get("LDAP_PORT", "389"),
         "ldap_ssl": cfg_dict.get("LDAP_USE_SSL") == "True",
         "ldap_enabled": cfg_dict.get("LDAP_ENABLED") == "True",
+        "ldap_auth_type": cfg_dict.get("LDAP_AUTH_TYPE", "SIMPLE"),
+        "ldap_domain": cfg_dict.get("LDAP_USER_DOMAIN", ""),
         "user": user,
-        "page": "settings_ldap"
+        "page": "settings_ldap",
+        "clusters_by_dc": clusters_by_dc
     })
 
 @router.get("/api/users", response_model=List[User])
@@ -86,7 +116,9 @@ def update_ldap(config: LDAPConfig, session: Session = Depends(get_session), use
     settings_map = {
         "LDAP_HOST": config.host,
         "LDAP_PORT": str(config.port),
-        "LDAP_USE_SSL": str(config.use_ssl)
+        "LDAP_USE_SSL": str(config.use_ssl),
+        "LDAP_AUTH_TYPE": config.auth_type,
+        "LDAP_USER_DOMAIN": config.domain_prefix
     }
     
     for key, value in settings_map.items():
@@ -124,7 +156,7 @@ def test_ldap(req: LDAPTestRequest, session: Session = Depends(get_session), use
     # Let's refactor authenticate_ldap to accept optional override config.
     # For now, I'll just write the test logic here to keep it simple.
     
-    from ldap3 import Server, Connection, ALL, Tls
+    from ldap3 import Server, Connection, ALL, Tls, NTLM
     import ssl
     
     try:
@@ -133,10 +165,130 @@ def test_ldap(req: LDAPTestRequest, session: Session = Depends(get_session), use
             tls = Tls(validate=ssl.CERT_NONE)
         server = Server(req.host, port=req.port, use_ssl=req.use_ssl, tls=tls, get_info=ALL)
         
-        conn = Connection(server, user=req.test_username, password=req.test_password)
+        user_str = req.test_username
+        if req.domain_prefix:
+            user_str = f"{req.domain_prefix}\\{req.test_username}"
+            
+        auth_type = req.auth_type
+        
+        if auth_type == "NTLM":
+            conn = Connection(server, user=user_str, password=req.test_password, authentication=NTLM)
+        else:
+            conn = Connection(server, user=user_str, password=req.test_password)
+            
         if conn.bind():
             return {"ok": True}
         else:
             return {"ok": False, "error": "Invalid test credentials (direct bind)."}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+# --- License Settings ---
+
+class LicenseConfigModel(BaseModel):
+    rules_json: str
+
+class LicensePreviewRequest(BaseModel):
+    cluster_id: int
+    rules_json: str
+
+@router.get("/license", response_class=HTMLResponse)
+def license_settings_page(
+    request: Request, 
+    session: Session = Depends(get_session),
+    user: User = Depends(admin_required)
+):
+    today = datetime.now().strftime("%Y-%m-%d")
+    clusters = session.exec(select(Cluster)).all()
+    rules = session.exec(select(LicenseRule).order_by(LicenseRule.id)).all()
+    
+    # Group clusters by Datacenter for the sidebar
+    clusters_by_dc = {}
+    for c in clusters:
+        dc = c.datacenter or "Uncategorized"
+        if dc not in clusters_by_dc:
+            clusters_by_dc[dc] = []
+        clusters_by_dc[dc].append(c)
+    
+    return templates.TemplateResponse("settings_license.html", {
+        "request": request,
+        "user": user,
+        "page": "settings_license",
+        "rules": rules,
+        "clusters": clusters,
+        "clusters_by_dc": clusters_by_dc
+    })
+
+class LicenseRuleCreate(BaseModel):
+    name: str
+    rule_type: str
+    match_value: str
+    action: str
+
+@router.post("/api/license/rules")
+def create_license_rule(rule: LicenseRuleCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    db_rule = LicenseRule(
+        name=rule.name,
+        rule_type=rule.rule_type,
+        match_value=rule.match_value,
+        action=rule.action
+    )
+    session.add(db_rule)
+    session.commit()
+    session.refresh(db_rule)
+    return {"ok": True, "rule": db_rule}
+
+@router.put("/api/license/rules/{rule_id}")
+def update_license_rule(rule_id: int, updated_rule: LicenseRuleCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    db_rule = session.get(LicenseRule, rule_id)
+    if not db_rule:
+        return {"ok": False, "error": "Rule not found"}
+    
+    db_rule.name = updated_rule.name
+    db_rule.rule_type = updated_rule.rule_type
+    db_rule.match_value = updated_rule.match_value
+    db_rule.action = updated_rule.action
+    
+    session.add(db_rule)
+    session.commit()
+    session.refresh(db_rule)
+    return {"ok": True, "rule": db_rule}
+
+@router.delete("/api/license/rules/{rule_id}")
+def delete_license_rule(rule_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    rule = session.get(LicenseRule, rule_id)
+    if not rule:
+        return {"ok": False, "error": "Rule not found"}
+    session.delete(rule)
+    session.commit()
+    return {"ok": True}
+
+class LicensePreviewRequest(BaseModel):
+    cluster_id: int
+    # Optional temporary rules for preview
+    temp_rules: Optional[List[LicenseRuleCreate]] = None
+
+@router.post("/api/license/preview")
+def preview_license_config(req: LicensePreviewRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    cluster = session.get(Cluster, req.cluster_id)
+    if not cluster:
+        return {"ok": False, "error": "Cluster not found"}
+        
+    try:
+        nodes = fetch_resources(cluster, "v1", "Node")
+        
+        # Decide which rules to use
+        if req.temp_rules is not None:
+             # Convert Pydantic to Model
+             rules = [
+                 LicenseRule(name=r.name, rule_type=r.rule_type, match_value=r.match_value, action=r.action) 
+                 for r in req.temp_rules
+             ]
+        else:
+             # Use DB rules
+             rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+             
+        result = calculate_licenses(nodes, rules)
+        return {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}

@@ -2,9 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import Any, List, Dict
 
+from datetime import datetime, timedelta
+import json
 from app.database import get_session
-from app.models import Cluster
-from app.services.ocp import fetch_resources, get_cluster_stats
+from app.models import Cluster, LicenseUsage, AppConfig, LicenseRule
+from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu
+from app.services.license import calculate_licenses
 
 def parse_memory_to_gb(mem_str: str) -> float:
     if not mem_str:
@@ -34,12 +37,6 @@ def parse_memory_to_gb(mem_str: str) -> float:
     except:
         return 0.0
 
-def parse_cpu(cpu_str: str) -> float:
-    if not cpu_str:
-        return 0.0
-    if cpu_str.endswith('m'):
-        return float(cpu_str[:-1]) / 1000.0
-    return float(cpu_str)
 
 router = APIRouter(
     prefix="/api/dashboard",
@@ -57,18 +54,64 @@ RESOURCE_MAP = {
 @router.get("/summary")
 def get_dashboard_summary(session: Session = Depends(get_session)):
     clusters = session.exec(select(Cluster)).all()
+    
+    # Fetch Config
+    rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+    
     summary = []
-    # In a real app, this should be async or background task
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     for cluster in clusters:
-        stats = get_cluster_stats(cluster)
+        # Fetch nodes once
+        try:
+             nodes = fetch_resources(cluster, "v1", "Node")
+        except Exception as e:
+             print(f"Error fetching nodes for {cluster.name}: {e}")
+             nodes = []
+
+        # Calculate Licenses
+        lic_data = calculate_licenses(nodes, rules)
+        
+        # Save History (Basic implementation: save every scan)
+        usage = LicenseUsage(
+            cluster_id=cluster.id,
+            timestamp=timestamp,
+            node_count=lic_data["node_count"], # This is filtered count!
+            total_vcpu=lic_data["total_vcpu"],
+            license_count=lic_data["total_licenses"],
+            details_json=json.dumps(lic_data["details"])
+        )
+        session.add(usage)
+        session.commit() # Commit to get ID
+        
+        stats = get_cluster_stats(cluster, nodes=nodes)
         summary.append({
             "id": cluster.id,
             "name": cluster.name,
             "datacenter": cluster.datacenter,
             "environment": cluster.environment,
-            "stats": stats
+            "stats": stats,
+            "license_info": {
+                "count": lic_data["total_licenses"],
+                "usage_id": usage.id
+            }
         })
     return summary
+
+@router.get("/{cluster_id}/license-details/{usage_id}")
+def get_license_details(cluster_id: int, usage_id: int, session: Session = Depends(get_session)):
+     usage = session.get(LicenseUsage, usage_id)
+     if not usage or usage.cluster_id != cluster_id:
+          raise HTTPException(status_code=404, detail="License usage not found")
+     
+     return {
+         "id": usage.id,
+         "timestamp": usage.timestamp,
+         "node_count": usage.node_count,
+         "total_vcpu": usage.total_vcpu,
+         "license_count": usage.license_count,
+         "details": json.loads(usage.details_json or "[]")
+     }
 
 @router.get("/{cluster_id}/resources/{resource_type}")
 def get_cluster_resources(cluster_id: int, resource_type: str, session: Session = Depends(get_session)):

@@ -70,30 +70,37 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="/settings"
-                        class="nav-link {% if page == 'settings' or page == 'settings_users' or page == 'settings_ldap' %}active{% endif %}"
-                        onclick="event.preventDefault(); document.getElementById('settings-submenu').style.display = document.getElementById('settings-submenu').style.display === 'block' ? 'none' : 'block';">
-                        <i class="fas fa-cog"></i> App Config <i class="fas fa-chevron-down"
-                            style="font-size:0.7rem; margin-left:auto; opacity:0.5;"></i>
+                    <a href="#"
+                        class="nav-link submenu-toggle {% if page and page.startswith('settings_') %}active{% endif %}"
+                        data-target="submenu-app-config"
+                        onclick="event.preventDefault(); toggleSubmenu('submenu-app-config', this)">
+                        <i class="fas fa-cog"></i> App Config
+                        <i class="fas fa-chevron-down arrow"></i>
                     </a>
-                    <div id="settings-submenu"
-                        style="padding-left: 2rem; display: {% if page == 'settings_users' or page == 'settings_ldap' %}block{% else %}none{% endif %};">
-                        <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}"
-                            style="padding: 0.4rem 0.5rem; font-size: 0.85rem; display: block; color: var(--text-secondary); text-decoration: none;">
-                            <i class="fas fa-users" style="width: 1.2rem;"></i> Users
+                    <div class="resource-submenu {% if page and page.startswith('settings_') %}open{% endif %}"
+                        id="submenu-app-config">
+                        <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}">
+                            <i class="fas fa-users" style="width:16px;"></i> Users
                         </a>
-                        <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}"
-                            style="padding: 0.4rem 0.5rem; font-size: 0.85rem; display: block; color: var(--text-secondary); text-decoration: none;">
-                            <i class="fas fa-network-wired" style="width: 1.2rem;"></i> LDAP Settings
+                        <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
+                            <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
+                        </a>
+                        <a href="/settings/license"
+                            class="sub-link {% if page == 'settings_license' %}active{% endif %}">
+                            <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Licenses
                         </a>
                     </div>
                 </li>
                 {% endif %}
 
-                <!-- Search and Filters -->
+                <li class="nav-item"
+                    style="margin-top: 1rem; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 0.5rem 0; margin-bottom: 0.5rem;">
+                    <a href="/dashboard" class="nav-link">
+                        <i class="fas fa-th-large"></i> All Clusters
+                    </a>
+                </li>
 
-                <!-- Search and Filters -->
-                <li style="padding: 0.5rem 1rem;">
+                <li style="padding: 0.5rem 1rem; margin-bottom: 0.5rem;">
                     <input type="text" id="cluster-search" placeholder="Search clusters..." class="form-input"
                         style="font-size:0.85rem; padding:0.4rem; margin-bottom: 0.5rem; width:100%; box-sizing:border-box;"
                         onkeyup="filterClusters()">

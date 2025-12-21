@@ -31,8 +31,20 @@ def authenticate_ldap(username, password, session: Session) -> bool:
             
         server = Server(ldap_host, port=int(ldap_port), use_ssl=use_ssl, tls=tls, get_info=ALL)
         
-        # Simple direct bind with username and password
-        conn = Connection(server, user=username, password=password)
+        user_str = username
+        ldap_domain = cfg.get("LDAP_USER_DOMAIN")
+        if ldap_domain:
+            user_str = f"{ldap_domain}\\{username}"
+            
+        auth_type = cfg.get("LDAP_AUTH_TYPE", "SIMPLE")
+        
+        from ldap3 import NTLM
+        
+        if auth_type == "NTLM":
+            conn = Connection(server, user=user_str, password=password, authentication=NTLM)
+        else:
+            conn = Connection(server, user=user_str, password=password)
+            
         return conn.bind()
             
     except Exception as e:

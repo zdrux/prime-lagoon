@@ -50,11 +50,26 @@
             </div>
         </div>
 
-        <div class="form-group" style="margin-top:0.5rem;">
+        <div class="form-group" style="margin-top:0.5rem; display:flex; align-items:center; gap:2rem;">
             <label style="display:flex; align-items:center; gap:0.6rem; cursor:pointer; font-size:0.9rem;">
                 <input type="checkbox" id="ldap-ssl" {% if ldap_ssl %}checked{% endif %}>
                 Use LDAPS (SSL/TLS)
             </label>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-top:1rem;">
+            <div class="form-group">
+                <label class="form-label">Authentication Type</label>
+                <select id="ldap-auth-type" class="form-input">
+                    <option value="SIMPLE" {% if ldap_auth_type=='SIMPLE' %}selected{% endif %}>Simple Bind</option>
+                    <option value="NTLM" {% if ldap_auth_type=='NTLM' %}selected{% endif %}>NTLM</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Domain Prefix (Optional)</label>
+                <input type="text" id="ldap-domain" class="form-input" value="{{ ldap_domain }}" placeholder="e.g. ad">
+                <small style="opacity:0.6;">Prepend <code>prefix\</code> to usernames</small>
+            </div>
         </div>
 
         <hr style="border:0; border-top:1px solid var(--border-color); margin:2rem 0;">
@@ -206,7 +221,9 @@
         const payload = {
             host: document.getElementById('ldap-host').value.trim(),
             port: parseInt(document.getElementById('ldap-port').value.trim()),
-            use_ssl: document.getElementById('ldap-ssl').checked
+            use_ssl: document.getElementById('ldap-ssl').checked,
+            auth_type: document.getElementById('ldap-auth-type').value,
+            domain_prefix: document.getElementById('ldap-domain').value.trim()
         };
 
         const status = document.getElementById('cfg-status');
@@ -234,6 +251,8 @@
             host: document.getElementById('ldap-host').value.trim(),
             port: parseInt(document.getElementById('ldap-port').value.trim()),
             use_ssl: document.getElementById('ldap-ssl').checked,
+            auth_type: document.getElementById('ldap-auth-type').value,
+            domain_prefix: document.getElementById('ldap-domain').value.trim(),
             test_username: document.getElementById('test-user').value.trim(),
             test_password: document.getElementById('test-pass').value
         };

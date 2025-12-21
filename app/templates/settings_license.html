@@ -45,7 +45,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-secondary" onclick="openEditRuleModal({{ rule.dict()|tojson }})">
+                        <button class="btn btn-sm btn-secondary" onclick="openEditRuleModal({{ rule.id }})">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-sm btn-danger" onclick="deleteRule({{ rule.id }})">
@@ -135,7 +135,17 @@
         document.getElementById('rule-modal').classList.add('open');
     }
 
-    function openEditRuleModal(rule) {
+    // Global rules storage to avoid escaping issues in attributes
+    const rules = [
+        {% for rule in rules %}
+    { { rule.dict() | tojson | safe } } {% if not loop.last %}, {% endif %}
+    {% endfor %}
+    ];
+
+    function openEditRuleModal(ruleId) {
+        const rule = rules.find(r => r.id === ruleId);
+        if (!rule) return;
+
         document.getElementById('modal-title').innerText = 'Edit Selection Rule';
         document.getElementById('modal-submit-btn').innerText = 'Update Rule';
         document.getElementById('rule-id').value = rule.id;

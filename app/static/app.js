@@ -196,10 +196,11 @@ function renderTable(resourceType, data) {
         columns = [
             { header: 'Name', path: 'metadata.name' },
             { header: 'Status', path: item => getNested(item, 'status.conditions')?.find(c => c.type === 'Ready')?.status === 'True' ? 'Ready' : 'Not Ready' },
+            { header: 'Intake #', path: 'metadata.labels.intake_number' },
+            { header: 'MAPID', path: 'metadata.labels.mapid' },
+            { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Roles', path: item => Object.keys(getNested(item, 'metadata.labels') || {}).filter(k => k.startsWith('node-role.kubernetes.io/')).map(k => k.split('/')[1]).join(', ') },
             { header: 'Arch', path: 'status.nodeInfo.architecture' },
-            { header: 'OS Image', path: 'status.nodeInfo.osImage' },
-            { header: 'Kubelet', path: 'status.nodeInfo.kubeletVersion' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
     } else if (resourceType === 'machines') {
@@ -207,6 +208,9 @@ function renderTable(resourceType, data) {
             { header: 'Name', path: 'metadata.name' },
             { header: 'Namespace', path: 'metadata.namespace' },
             { header: 'Phase', path: 'status.phase' },
+            { header: 'Intake #', path: 'metadata.labels.intake_number' },
+            { header: 'MAPID', path: 'metadata.labels.mapid' },
+            { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'VM Type', path: 'metadata.labels.["machine.openshift.io/instance-type"]' },
             { header: 'CPU (Cores)', path: '__enriched.cpu' },
             {
@@ -221,7 +225,12 @@ function renderTable(resourceType, data) {
         columns = [
             { header: 'Name', path: 'metadata.name' },
             { header: 'Namespace', path: 'metadata.namespace' },
+            { header: 'Intake #', path: 'metadata.labels.intake_number' },
+            { header: 'MAPID', path: 'metadata.labels.mapid' },
+            { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Replicas', path: 'spec.replicas' },
+            { header: 'Subnet', path: 'spec.template.spec.providerSpec.value.network.devices[0].networkName' },
+            { header: 'VM Size', path: 'spec.template.spec.providerSpec.value.vmSize' },
             { header: 'Available', path: 'status.availableReplicas' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
@@ -229,6 +238,9 @@ function renderTable(resourceType, data) {
         columns = [
             { header: 'Name', path: 'metadata.name' },
             { header: 'Status', path: 'status.phase' },
+            { header: 'Intake #', path: 'metadata.labels.intake_number' },
+            { header: 'MAPID', path: 'metadata.labels.mapid' },
+            { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Requester', path: 'metadata.annotations.["openshift.io/requester"]' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
@@ -297,10 +309,21 @@ function getValue(item, path) {
 function getNested(obj, path) {
     if (!path) return undefined;
     return path.split('.').reduce((acc, part) => {
-        if (!acc) return undefined;
+        if (acc === undefined || acc === null) return undefined;
+
+        // Handle bracket notation: ["foo.bar/baz"]
         if (part.startsWith('["') && part.endsWith('"]')) {
-            part = part.slice(2, -2);
+            return acc[part.slice(2, -2)];
         }
+
+        // Handle array index notation: foo[0]
+        const arrayMatch = part.match(/^(.+)\[(\d+)\]$/);
+        if (arrayMatch) {
+            const key = arrayMatch[1];
+            const index = parseInt(arrayMatch[2]);
+            return acc[key] ? acc[key][index] : undefined;
+        }
+
         return acc[part];
     }, obj);
 }

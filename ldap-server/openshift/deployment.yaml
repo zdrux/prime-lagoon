@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ldap-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ldap-server
+  template:
+    metadata:
+      labels:
+        app: ldap-server
+    spec:
+      containers:
+      - name: samba
+        image: image-registry.openshift-image-registry.svc:5000/$(oc project -q)/ldap-server:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 389
+          name: ldap
+        - containerPort: 445
+          name: smb
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/samba
+        securityContext:
+          runAsUser: 0 # Samba AD DC requires root to manage ACLs
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: ldap-data

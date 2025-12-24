@@ -138,15 +138,19 @@
                         <span style="font-size:0.7rem; opacity:0.7; margin-left: auto;">{{ cluster.environment }}</span>
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
-                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'nodes')">Nodes</a>
-                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'machines')">Machines</a>
                         <a href="#" class="sub-link"
-                            onclick="loadResource({{ cluster.id }}, 'machinesets')">MachineSets</a>
-                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'projects')">Projects</a>
+                            onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
                         <a href="#" class="sub-link"
-                            onclick="loadResource({{ cluster.id }}, 'machineautoscalers')">Autoscalers</a>
+                            onclick="loadResource({{ cluster.id }}, 'machines', '{{ cluster.name }}')">Machines</a>
                         <a href="#" class="sub-link"
-                            onclick="loadResource({{ cluster.id }}, 'ingresscontrollers')">Ingress Controllers</a>
+                            onclick="loadResource({{ cluster.id }}, 'machinesets', '{{ cluster.name }}')">MachineSets</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'projects', '{{ cluster.name }}')">Projects</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machineautoscalers', '{{ cluster.name }}')">Autoscalers</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'ingresscontrollers', '{{ cluster.name }}')">Ingress
+                            Controllers</a>
                     </div>
                 </li>
                 {% endfor %}
@@ -163,13 +167,16 @@
                         <span style="font-size:0.7rem; opacity:0.7; margin-left: auto;">{{ cluster.environment }}</span>
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
-                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'nodes')">Nodes</a>
-                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'machines')">Machines</a>
                         <a href="#" class="sub-link"
-                            onclick="loadResource({{ cluster.id }}, 'machinesets')">MachineSets</a>
-                        <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'projects')">Projects</a>
+                            onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
                         <a href="#" class="sub-link"
-                            onclick="loadResource({{ cluster.id }}, 'machineautoscalers')">Autoscalers</a>
+                            onclick="loadResource({{ cluster.id }}, 'machines', '{{ cluster.name }}')">Machines</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machinesets', '{{ cluster.name }}')">MachineSets</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'projects', '{{ cluster.name }}')">Projects</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'machineautoscalers', '{{ cluster.name }}')">Autoscalers</a>
                     </div>
                 </li>
                 {% endfor %}

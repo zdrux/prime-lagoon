@@ -225,8 +225,16 @@ function filterClusters() {
     });
 }
 
-async function loadResource(clusterId, resourceType) {
+async function loadResource(clusterId, resourceType, clusterName) {
     const contentDiv = document.getElementById('dashboard-content');
+
+    // Store globally for header rendering and highlighting
+    if (clusterName) window.currentClusterName = clusterName;
+    window.currentClusterId = clusterId;
+    window.currentResourceType = resourceType;
+
+    // Highlight sidebar
+    updateSidebarHighlighting(clusterId, resourceType);
 
     // If not on dashboard page, redirect to dashboard with params
     if (!contentDiv) {
@@ -365,9 +373,18 @@ function renderTable(resourceType, data) {
     }
 
 
+    let titleHtml = `<h1 class="page-title" style="text-transform: capitalize;">${resourceType}</h1>`;
+    if (window.currentClusterName) {
+        titleHtml = `<h1 class="page-title">
+            <span style="opacity:0.5; font-weight:400; font-size:0.9rem;">Cluster: </span>${window.currentClusterName} 
+            <i class="fas fa-chevron-right" style="font-size:0.7rem; margin:0 0.5rem; opacity:0.3;"></i> 
+            <span style="text-transform: capitalize;">${resourceType}</span>
+        </h1>`;
+    }
+
     let html = `
         <div class="page-header">
-            <h1 class="page-title" style="text-transform: capitalize;">${resourceType}</h1>
+            ${titleHtml}
             <div style="display:flex; align-items:center; gap:1rem;">
                 <input type="text" id="resource-filter" placeholder="Filter table..." class="form-input" style="width:250px;" onkeyup="filterTable()">
                 <div style="display:flex; gap:0.5rem;">
@@ -402,6 +419,31 @@ function renderTable(resourceType, data) {
     `;
 
     contentDiv.innerHTML = html;
+}
+
+function updateSidebarHighlighting(clusterId, resourceType) {
+    // Remove all active states
+    document.querySelectorAll('.nav-link, .sub-link').forEach(el => el.classList.remove('active'));
+
+    if (clusterId) {
+        // Highlight the cluster header
+        const clusterHeader = document.querySelector(`.submenu-toggle[data-target="submenu-${clusterId}"]`);
+        if (clusterHeader) clusterHeader.classList.add('active');
+
+        // Highlight the specific sub-link
+        // This is a bit tricky since we don't have unique IDs on sub-links, 
+        // but we can find them by their onclick behavior or text
+        const submenu = document.getElementById(`submenu-${clusterId}`);
+        if (submenu) {
+            const subLinks = submenu.querySelectorAll('.sub-link');
+            subLinks.forEach(link => {
+                const onclick = link.getAttribute('onclick') || '';
+                if (onclick.includes(`'${resourceType}'`)) {
+                    link.classList.add('active');
+                }
+            });
+        }
+    }
 }
 
 function filterTable() {

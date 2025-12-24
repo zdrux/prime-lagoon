@@ -102,11 +102,15 @@ def get_dashboard_summary(session: Session = Depends(get_session)):
         stats = get_cluster_stats(cluster, nodes=nodes)
         
         # Aggregate Global Stats
-        global_stats["total_nodes"] += len(nodes)
-        global_stats["total_licensed_nodes"] += lic_data["node_count"]
-        global_stats["total_vcpu"] += stats["total_vcpu"]
-        global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
-        global_stats["total_licenses"] += lic_data["total_licenses"]
+        try:
+            global_stats["total_nodes"] += len(nodes)
+            global_stats["total_licensed_nodes"] += lic_data["node_count"]
+            if isinstance(stats.get("vcpu_count"), (int, float)):
+                global_stats["total_vcpu"] += stats["vcpu_count"]
+            global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
+            global_stats["total_licenses"] += lic_data["total_licenses"]
+        except Exception as e:
+            print(f"Error aggregating stats for {cluster.name}: {e}")
 
         summary.append({
             "id": cluster.id,

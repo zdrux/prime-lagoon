@@ -46,15 +46,36 @@ async function loadSummary() {
         const res = await fetch('/api/dashboard/summary');
         if (!res.ok) throw new Error("Failed to load summary");
         const data = await res.json();
+        const clusters = data.clusters || [];
+        const global = data.global_stats || {};
 
-        if (data.length === 0) {
+        if (clusters.length === 0) {
             summaryDiv.innerHTML = '<div class="card" style="grid-column: 1/-1;">No clusters configured.</div>';
             return;
         }
 
-        // Render as a table as requested
-        summaryDiv.style.display = 'block'; // Remove grid
+        summaryDiv.style.display = 'block';
         summaryDiv.innerHTML = `
+        <!-- Global Summary Cards -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
+            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid var(--accent-color);">
+                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total Clusters</div>
+                <div style="font-size:2rem; font-weight:700;">${clusters.length}</div>
+            </div>
+            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid var(--success-color);">
+                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total Nodes</div>
+                <div style="font-size:2rem; font-weight:700;">${global.total_nodes} <span style="font-size:0.9rem; opacity:0.6;">(${global.total_licensed_nodes} Lic)</span></div>
+            </div>
+            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid #a855f7;">
+                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total vCPUs</div>
+                <div style="font-size:2rem; font-weight:700;">${global.total_vcpu.toFixed(0)} <span style="font-size:0.9rem; opacity:0.6;">(${global.total_licensed_vcpu.toFixed(0)} Lic)</span></div>
+            </div>
+            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
+                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total Licenses</div>
+                <div style="font-size:2.5rem; font-weight:800; color:var(--accent-color);">${global.total_licenses}</div>
+            </div>
+        </div>
+
         <div class="card fade-in">
             <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:700; font-size:1.1rem;">Cluster Inventory</span>
@@ -84,7 +105,7 @@ async function loadSummary() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${data.map(c => `
+                        ${clusters.map(c => `
                             <tr>
                                 <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
                                 <td>${c.stats.node_count}</td>

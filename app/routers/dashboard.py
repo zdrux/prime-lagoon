@@ -67,6 +67,13 @@ def get_dashboard_summary(session: Session = Depends(get_session)):
     rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
     
     summary = []
+    global_stats = {
+        "total_nodes": 0,
+        "total_licensed_nodes": 0,
+        "total_vcpu": 0,
+        "total_licensed_vcpu": 0,
+        "total_licenses": 0
+    }
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     for cluster in clusters:
@@ -80,19 +87,27 @@ def get_dashboard_summary(session: Session = Depends(get_session)):
         # Calculate Licenses
         lic_data = calculate_licenses(nodes, rules)
         
-        # Save History (Basic implementation: save every scan)
+        # Save History
         usage = LicenseUsage(
             cluster_id=cluster.id,
             timestamp=timestamp,
-            node_count=lic_data["node_count"], # This is filtered count!
+            node_count=lic_data["node_count"],
             total_vcpu=lic_data["total_vcpu"],
             license_count=lic_data["total_licenses"],
             details_json=json.dumps(lic_data["details"])
         )
         session.add(usage)
-        session.commit() # Commit to get ID
+        session.commit()
         
         stats = get_cluster_stats(cluster, nodes=nodes)
+        
+        # Aggregate Global Stats
+        global_stats["total_nodes"] += len(nodes)
+        global_stats["total_licensed_nodes"] += lic_data["node_count"]
+        global_stats["total_vcpu"] += stats["total_vcpu"]
+        global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
+        global_stats["total_licenses"] += lic_data["total_licenses"]
+
         summary.append({
             "id": cluster.id,
             "name": cluster.name,
@@ -106,7 +121,10 @@ def get_dashboard_summary(session: Session = Depends(get_session)):
                 "usage_id": usage.id
             }
         })
-    return summary
+    return {
+        "clusters": summary,
+        "global_stats": global_stats
+    }
 
 @router.get("/{cluster_id}/license-details/{usage_id}")
 def get_license_details(cluster_id: int, usage_id: int, session: Session = Depends(get_session)):

@@ -185,7 +185,9 @@ function filterClusterTable(query) {
 const activeFilters = {
     DEV: false,
     UAT: false,
-    PROD: false
+    PROD: false,
+    AZURE: false,
+    HCI: false
 };
 
 function toggleFilter(btn, filterName) {
@@ -200,30 +202,26 @@ function toggleFilter(btn, filterName) {
 }
 
 function filterClusters() {
-    const search = document.getElementById('cluster-search').value.toLowerCase();
-
-    // We no longer have DC filter dropdown, just Env checkboxes and search
-    // But we are grouping by DC in the UI now.
-
+    const search = (document.getElementById('cluster-search').value || '').toLowerCase();
     const items = document.querySelectorAll('.cluster-item');
 
-    // Check if any filters are active
-    const anyFilterActive = Object.values(activeFilters).some(v => v === true);
+    // Group filters
+    const envGroup = ['DEV', 'UAT', 'PROD'];
+    const dcGroup = ['AZURE', 'HCI'];
+
+    const anyEnvActive = envGroup.some(f => activeFilters[f]);
+    const anyDcActive = dcGroup.some(f => activeFilters[f]);
 
     items.forEach(item => {
-        const name = item.dataset.name;
-        const itemEnv = item.dataset.env || 'None';
+        const name = (item.dataset.name || '').toLowerCase();
+        const itemEnv = (item.dataset.env || 'None').toUpperCase();
+        const itemDc = (item.dataset.dc || 'None').toUpperCase();
 
-        let match = true;
-        if (search && !name.includes(search)) match = false;
+        let nameMatch = !search || name.includes(search);
+        let envMatch = !anyEnvActive || activeFilters[itemEnv];
+        let dcMatch = !anyDcActive || activeFilters[itemDc];
 
-        // If any filters are active, item must match one of them
-        // If no filters are active, show everything (subject to search)
-        if (anyFilterActive && !activeFilters[itemEnv]) {
-            match = false;
-        }
-
-        item.style.display = match ? 'block' : 'none';
+        item.style.display = (nameMatch && envMatch && dcMatch) ? 'block' : 'none';
     });
 }
 

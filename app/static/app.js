@@ -74,6 +74,7 @@ async function loadSummary() {
             <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
                 <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Licenses</div>
                 <div style="font-size:1.25rem; font-weight:800; color:var(--accent-color);">${global.total_licenses}</div>
+                <div style="font-size:0.55rem; opacity:0.5; margin-top:0.2rem;">(2 vCPUs per unit)</div>
             </div>
         </div>
 
@@ -103,7 +104,8 @@ async function loadSummary() {
                         <tr>
                             <th>Cluster Name</th>
                             <th>Total Nodes</th>
-                            <th>Licensed Nodes</th>
+                            <th>App Nodes</th>
+                            <th>Licenses</th>
                             <th>Total vCPUs</th>
                             <th>Total Licensed vCPUs</th>
                             <th>Console</th>
@@ -128,17 +130,23 @@ async function loadSummary() {
 
 function renderClusterRows(clusters) {
     if (clusters.length === 0) {
-        return '<tr><td colspan="10" style="text-align:center; padding:2rem; opacity:0.6;">No matching clusters found</td></tr>';
+        return '<tr><td colspan="11" style="text-align:center; padding:2rem; opacity:0.6;">No matching clusters found</td></tr>';
     }
     return clusters.map(c => `
         <tr>
             <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.node_count}</td>
             <td>
+                <span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-secondary); opacity:0.8;">
+                    ${c.licensed_node_count}
+                </span>
+            </td>
+            <td>
                 <span class="badge badge-purple" 
                         style="cursor:pointer;" 
-                        onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})">
-                    ${c.licensed_node_count}
+                        onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})"
+                        title="View License Breakdown">
+                    ${c.license_info.count}
                 </span>
             </td>
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.vcpu_count}</td>

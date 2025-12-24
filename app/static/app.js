@@ -48,6 +48,7 @@ async function loadSummary() {
         const data = await res.json();
         const clusters = data.clusters || [];
         const global = data.global_stats || {};
+        window._allClusters = clusters;
 
         if (clusters.length === 0) {
             summaryDiv.innerHTML = '<div class="card" style="grid-column: 1/-1;">No clusters configured.</div>';
@@ -57,28 +58,36 @@ async function loadSummary() {
         summaryDiv.style.display = 'block';
         summaryDiv.innerHTML = `
         <!-- Global Summary Cards -->
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
-            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid var(--accent-color);">
-                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total Clusters</div>
-                <div style="font-size:2rem; font-weight:700;">${clusters.length}</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color);">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Clusters</div>
+                <div style="font-size:1.1rem; font-weight:700;">${clusters.length}</div>
             </div>
-            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid var(--success-color);">
-                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total Nodes</div>
-                <div style="font-size:2rem; font-weight:700;">${global.total_nodes} <span style="font-size:0.9rem; opacity:0.6;">(${global.total_licensed_nodes} Lic)</span></div>
+            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--success-color);">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Nodes</div>
+                <div style="font-size:1.1rem; font-weight:700;">${global.total_nodes} <span style="font-size:0.75rem; opacity:0.6;">(${global.total_licensed_nodes})</span></div>
             </div>
-            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid #a855f7;">
-                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total vCPUs</div>
-                <div style="font-size:2rem; font-weight:700;">${global.total_vcpu.toFixed(0)} <span style="font-size:0.9rem; opacity:0.6;">(${global.total_licensed_vcpu.toFixed(0)} Lic)</span></div>
+            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid #a855f7;">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total vCPUs</div>
+                <div style="font-size:1.1rem; font-weight:700;">${global.total_vcpu.toFixed(0)} <span style="font-size:0.75rem; opacity:0.6;">(${global.total_licensed_vcpu.toFixed(0)})</span></div>
             </div>
-            <div class="card fade-in" style="margin:0; text-align:center; padding:1.5rem; border-bottom:4px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
-                <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem; text-transform:uppercase; letter-spacing:1px;">Total Licenses</div>
-                <div style="font-size:2.5rem; font-weight:800; color:var(--accent-color);">${global.total_licenses}</div>
+            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Licenses</div>
+                <div style="font-size:1.25rem; font-weight:800; color:var(--accent-color);">${global.total_licenses}</div>
             </div>
         </div>
 
         <div class="card fade-in">
-            <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:700; font-size:1.1rem;">Cluster Inventory</span>
+            <div class="resource-header" style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:1.5rem;">
+                    <span style="font-weight:700; font-size:1rem;">Cluster Inventory</span>
+                    <div style="position:relative;">
+                        <i class="fas fa-search" style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); font-size:0.8rem; color:var(--text-secondary);"></i>
+                        <input type="text" id="cluster-search" placeholder="Search clusters..." 
+                               style="padding:0.35rem 0.75rem 0.35rem 2rem; border-radius:15px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.8rem; width:220px;"
+                               oninput="filterClusterTable(this.value)">
+                    </div>
+                </div>
                 <div style="display:flex; gap:0.4rem;">
                     <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="exportTable('Cluster_Inventory', 'excel')">
                         <i class="fas fa-file-excel"></i> Excel
@@ -89,7 +98,7 @@ async function loadSummary() {
                 </div>
             </div>
             <div class="table-container">
-                <table class="data-table">
+                <table class="data-table" id="cluster-inventory-table">
                     <thead>
                         <tr>
                             <th>Cluster Name</th>
@@ -104,38 +113,8 @@ async function loadSummary() {
                             <th>Details</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        ${clusters.map(c => `
-                            <tr>
-                                <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
-                                <td>${c.stats.node_count}</td>
-                                <td>
-                                    <span class="badge badge-purple" 
-                                          style="cursor:pointer;" 
-                                          onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})">
-                                        ${c.licensed_node_count}
-                                    </span>
-                                </td>
-                                <td>${c.stats.vcpu_count}</td>
-                                <td>${c.licensed_vcpu_count}</td>
-                                <td>
-                                    ${c.stats.console_url && c.stats.console_url !== '#'
-                ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.75rem; border-radius:4px; display:inline-block;" title="Open Console">
-                                             <i class="fas fa-external-link-alt"></i>
-                                           </a>`
-                : '<span style="opacity:0.5;">-</span>'
-            }
-                                </td>
-                                <td><span class="badge badge-blue">${c.datacenter || '-'}</span></td>
-                                <td><span class="badge badge-green">${c.environment || '-'}</span></td>
-                                <td style="font-family:monospace; font-size:0.9rem; opacity:0.9;">${c.stats.version || '-'}</td>
-                                <td>
-                                    <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.75rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name}')">
-                                        <i class="fas fa-info-circle"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('')}
+                    <tbody id="cluster-inventory-body">
+                        ${renderClusterRows(clusters)}
                     </tbody>
                 </table>
             </div>
@@ -145,6 +124,53 @@ async function loadSummary() {
     } catch (e) {
         summaryDiv.innerHTML = `<div class="card" style="color:var(--danger-color);">Error loading summary: ${e.message}</div>`;
     }
+}
+
+function renderClusterRows(clusters) {
+    if (clusters.length === 0) {
+        return '<tr><td colspan="10" style="text-align:center; padding:2rem; opacity:0.6;">No matching clusters found</td></tr>';
+    }
+    return clusters.map(c => `
+        <tr>
+            <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.node_count}</td>
+            <td>
+                <span class="badge badge-purple" 
+                        style="cursor:pointer;" 
+                        onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})">
+                    ${c.licensed_node_count}
+                </span>
+            </td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.vcpu_count}</td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.licensed_vcpu_count}</td>
+            <td>
+                ${c.stats.console_url && c.stats.console_url !== '#'
+            ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.7rem; border-radius:4px; display:inline-block;" title="Open Console">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>`
+            : '<span style="opacity:0.5;">-</span>'
+        }
+            </td>
+            <td><span class="badge badge-blue" style="font-size:0.7rem;">${c.datacenter || '-'}</span></td>
+            <td><span class="badge badge-green" style="font-size:0.7rem;">${c.environment || '-'}</span></td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.version || '-'}</td>
+            <td>
+                <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name}')">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function filterClusterTable(query) {
+    const q = query.toLowerCase().trim();
+    const filtered = window._allClusters.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.datacenter && c.datacenter.toLowerCase().includes(q)) ||
+        (c.environment && c.environment.toLowerCase().includes(q))
+    );
+    document.getElementById('cluster-inventory-body').innerHTML = renderClusterRows(filtered);
 }
 
 // Initial filter state

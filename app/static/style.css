@@ -381,12 +381,11 @@ a:hover {
 
 .modal-content {
     background: var(--card-bg);
-    /* Use card-bg which is opaque #1e293b */
     border: 1px solid var(--border-color);
     padding: 2.5rem;
     border-radius: 1.5rem;
-    width: 600px;
-    max-width: 95%;
+    width: 90%;
+    max-width: 1300px;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     position: relative;
     max-height: 90vh;

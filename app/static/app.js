@@ -183,9 +183,9 @@ function filterClusterTable(query) {
 
 // Initial filter state
 const activeFilters = {
-    DEV: true,
-    UAT: true,
-    PROD: true
+    DEV: false,
+    UAT: false,
+    PROD: false
 };
 
 function toggleFilter(btn, filterName) {
@@ -206,17 +206,22 @@ function filterClusters() {
     // But we are grouping by DC in the UI now.
 
     const items = document.querySelectorAll('.cluster-item');
+
+    // Check if any filters are active
+    const anyFilterActive = Object.values(activeFilters).some(v => v === true);
+
     items.forEach(item => {
         const name = item.dataset.name;
-        // itemDc is not used for primary filtering anymore as they are grouped, 
-        // but we could still filter if we wanted.
         const itemEnv = item.dataset.env || 'None';
 
         let match = true;
         if (search && !name.includes(search)) match = false;
 
-        // Filter by Env Checkboxes
-        if (!activeFilters[itemEnv]) match = false;
+        // If any filters are active, item must match one of them
+        // If no filters are active, show everything (subject to search)
+        if (anyFilterActive && !activeFilters[itemEnv]) {
+            match = false;
+        }
 
         item.style.display = match ? 'block' : 'none';
     });

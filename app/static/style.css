@@ -277,6 +277,20 @@ a:hover {
     background: rgba(255, 255, 255, 0.02);
 }
 
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.sortable-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sortable-header:hover .sort-icon {
+    opacity: 0.6 !important;
+}
+
 /* Utils */
 .badge {
     padding: 0.25rem 0.5rem;

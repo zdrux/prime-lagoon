@@ -102,16 +102,34 @@ async function loadSummary() {
                 <table class="data-table" id="cluster-inventory-table">
                     <thead>
                         <tr>
-                            <th>Cluster Name</th>
-                            <th>Total Nodes</th>
-                            <th>App Nodes</th>
-                            <th>Licenses</th>
-                            <th>Total vCPUs</th>
-                            <th>Total Licensed vCPUs</th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 0)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Cluster Name <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 1)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Total Nodes <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 2)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">App Nodes <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 3)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Licenses <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 4)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Total vCPUs <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 5)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Total Licensed vCPUs <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
                             <th>Console</th>
-                            <th>Datacenter</th>
-                            <th>Environment</th>
-                            <th>Version</th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 7)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Datacenter <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 8)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Environment <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
+                            <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 9)">
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Version <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                            </th>
                             <th>Details</th>
                         </tr>
                     </thead>
@@ -404,7 +422,14 @@ function renderTable(resourceType, data) {
                 <table class="data-table" id="resource-table">
                     <thead>
                         <tr>
-                            ${columns.map(col => `<th>${col.header}</th>`).join('')}
+                            ${columns.map((col, idx) => `
+                                <th class="sortable-header" onclick="sortTable('resource-table', ${idx})">
+                                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                                        ${col.header}
+                                        <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i>
+                                    </div>
+                                </th>
+                            `).join('')}
                         </tr>
                     </thead>
                     <tbody>
@@ -418,7 +443,6 @@ function renderTable(resourceType, data) {
             </div>
         </div>
     `;
-
     contentDiv.innerHTML = html;
 }
 
@@ -432,8 +456,6 @@ function updateSidebarHighlighting(clusterId, resourceType) {
         if (clusterHeader) clusterHeader.classList.add('active');
 
         // Highlight the specific sub-link
-        // This is a bit tricky since we don't have unique IDs on sub-links, 
-        // but we can find them by their onclick behavior or text
         const submenu = document.getElementById(`submenu-${clusterId}`);
         if (submenu) {
             const subLinks = submenu.querySelectorAll('.sub-link');
@@ -447,9 +469,64 @@ function updateSidebarHighlighting(clusterId, resourceType) {
     }
 }
 
+function sortTable(tableId, colIndex) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const isAsc = table.dataset.sortCol == colIndex && table.dataset.sortDir === 'asc';
+    const direction = isAsc ? -1 : 1;
+
+    // Reset icons
+    table.querySelectorAll('.sort-icon').forEach(icon => {
+        icon.className = 'fas fa-sort sort-icon';
+        icon.style.opacity = '0.3';
+    });
+
+    // Set new icon
+    const activeHeader = table.querySelectorAll('th')[colIndex];
+    const activeIcon = activeHeader.querySelector('.sort-icon');
+    activeIcon.className = isAsc ? 'fas fa-sort-up sort-icon' : 'fas fa-sort-down sort-icon';
+    activeIcon.style.opacity = '1';
+
+    // Sort rows
+    const sortedRows = rows.sort((a, b) => {
+        const aCol = a.querySelectorAll('td')[colIndex];
+        const bCol = b.querySelectorAll('td')[colIndex];
+
+        // Try to get raw value if it's a progress bar or badge
+        let aVal = aCol.innerText.trim();
+        let bVal = bCol.innerText.trim();
+
+        // Handle numeric sorting (strip non-numeric chars like %, GB, version dots)
+        const isNumeric = !isNaN(parseFloat(aVal.replace(/[^0-9.-]/g, ''))) && !isNaN(parseFloat(bVal.replace(/[^0-9.-]/g, '')));
+
+        if (isNumeric && !aVal.includes('.') && !bVal.includes('.')) {
+            // Plain number sorting
+            const aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''));
+            const bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''));
+            return (aNum - bNum) * direction;
+        }
+
+        // Default string sorting
+        return aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' }) * direction;
+    });
+
+    // Update table data attributes
+    table.dataset.sortCol = colIndex;
+    table.dataset.sortDir = isAsc ? 'desc' : 'asc';
+
+    // Re-append rows
+    tbody.append(...sortedRows);
+}
+
 function filterTable() {
-    const filter = document.getElementById('resource-filter').value.toLowerCase();
+    const filterField = document.getElementById('resource-filter');
+    if (!filterField) return;
+    const filter = filterField.value.toLowerCase();
     const table = document.getElementById('resource-table');
+    if (!table) return;
     const tr = table.getElementsByTagName('tr');
 
     for (let i = 1; i < tr.length; i++) {

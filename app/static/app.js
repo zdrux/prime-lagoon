@@ -79,11 +79,11 @@ async function loadSummary() {
         <div class="card fade-in">
             <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:700; font-size:1.1rem;">Cluster Inventory</span>
-                <div style="display:flex; gap:0.5rem;">
-                    <button class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="exportTable('Cluster_Inventory', 'excel')">
+                <div style="display:flex; gap:0.4rem;">
+                    <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="exportTable('Cluster_Inventory', 'excel')">
                         <i class="fas fa-file-excel"></i> Excel
                     </button>
-                    <button class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="exportTable('Cluster_Inventory', 'csv')">
+                    <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="exportTable('Cluster_Inventory', 'csv')">
                         <i class="fas fa-file-csv"></i> CSV
                     </button>
                 </div>
@@ -120,7 +120,7 @@ async function loadSummary() {
                                 <td>${c.licensed_vcpu_count}</td>
                                 <td>
                                     ${c.stats.console_url && c.stats.console_url !== '#'
-                ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.25rem 0.6rem; border-radius:4px; display:inline-block;" title="Open Console">
+                ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.75rem; border-radius:4px; display:inline-block;" title="Open Console">
                                              <i class="fas fa-external-link-alt"></i>
                                            </a>`
                 : '<span style="opacity:0.5;">-</span>'
@@ -130,7 +130,7 @@ async function loadSummary() {
                                 <td><span class="badge badge-green">${c.environment || '-'}</span></td>
                                 <td style="font-family:monospace; font-size:0.9rem; opacity:0.9;">${c.stats.version || '-'}</td>
                                 <td>
-                                    <button class="btn btn-secondary" style="padding:0.25rem 0.6rem;" onclick="showClusterDetails(${c.id}, '${c.name}')">
+                                    <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.75rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name}')">
                                         <i class="fas fa-info-circle"></i>
                                     </button>
                                 </td>

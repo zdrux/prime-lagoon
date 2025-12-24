@@ -1,55 +1,313 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    .tab-nav {
+        display: flex;
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 1.5rem;
+    }
+
+    .tab-link {
+        padding: 0.8rem 1.5rem;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        opacity: 0.7;
+        font-weight: 600;
+        transition: 0.2s;
+    }
+
+    .tab-link:hover {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tab-link.active {
+        border-bottom-color: var(--accent-color);
+        color: var(--accent-color);
+        opacity: 1;
+    }
+
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+</style>
+
 <div class="page-header">
-    <h1 class="page-title">Cluster Admin</h1>
-    <button class="btn btn-primary" onclick="openModal()">
-        <i class="fas fa-plus"></i> Add Cluster
-    </button>
+    <h1 class="page-title">Administration</h1>
 </div>
 
-<!-- Cluster List -->
-<div class="card fade-in">
-    <div class="table-container">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Cluster Name</th>
-                    <th>API URL</th>
-                    <th>Metadata</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for cluster in clusters %}
-                <tr>
-                    <td>{{ cluster.name }}</td>
-                    <td>{{ cluster.api_url }}</td>
-                    <td>
-                        <span class="badge badge-blue">{{ cluster.datacenter }}</span>
-                        <span class="badge badge-green">{{ cluster.environment }}</span>
-                        <!-- Display Tags -->
-                        {% if cluster.tags %}
-                        {% set tags = cluster.tags | fromjson %}
-                        {% for k,v in tags.items() %}
-                        <span class="badge"
-                            style="background:var(--bg-secondary); border:1px solid var(--border-color); font-size:0.7em;">{{
-                            k }}={{ v }}</span>
-                        {% endfor %}
-                        {% endif %}
-                    </td>
-                    <td>
-                        <button class="btn btn-secondary" onclick="editCluster({{ cluster.id }})">
-                            <i class="fas fa-edit"></i>
+<div class="tab-nav">
+    <div class="tab-link active" onclick="switchTab('clusters')">Clusters</div>
+    <div class="tab-link" onclick="switchTab('schedulers')">Schedulers</div>
+    <div class="tab-link" onclick="switchTab('snapshots')">Snapshots</div>
+</div>
+
+<!-- Clusters Tab -->
+<div id="tab-clusters" class="tab-content active">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 style="margin:0;">Cluster Management</h3>
+        <button class="btn btn-primary" onclick="openModal()">
+            <i class="fas fa-plus"></i> Add Cluster
+        </button>
+    </div>
+
+    <div class="card fade-in">
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Cluster Name</th>
+                        <th>API URL</th>
+                        <th>Metadata</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cluster in clusters %}
+                    <tr>
+                        <td>{{ cluster.name }}</td>
+                        <td>{{ cluster.api_url }}</td>
+                        <td>
+                            <span class="badge badge-blue">{{ cluster.datacenter }}</span>
+                            <span class="badge badge-green">{{ cluster.environment }}</span>
+                            <!-- Display Tags -->
+                            {% if cluster.tags %}
+                            {% set tags = cluster.tags | fromjson %}
+                            {% for k,v in tags.items() %}
+                            <span class="badge"
+                                style="background:var(--bg-secondary); border:1px solid var(--border-color); font-size:0.7em;">{{
+                                k }}={{ v }}</span>
+                            {% endfor %}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-secondary" onclick="editCluster({{ cluster.id }})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteCluster({{ cluster.id }})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Schedulers Tab -->
+<div id="tab-schedulers" class="tab-content">
+    <div class="card fade-in">
+        <div style="padding:1rem; border-bottom:1px solid var(--border-color);">
+            <h4 style="color:var(--accent-color); margin:0;"><i class="fas fa-clock"></i> Snapshot Scheduler</h4>
+        </div>
+        <div style="padding:1.5rem;">
+
+            <div
+                style="margin-bottom:2rem; padding:1.5rem; background:rgba(56, 189, 248, 0.05); border-left:4px solid var(--accent-color); border-radius:4px;">
+                <h5 style="margin-top:0; color:var(--text-primary); font-size:1.1rem; margin-bottom:0.5rem;">About
+                    Background Snapshots</h5>
+                <p style="font-size:0.95rem; color:var(--text-secondary); margin-bottom:1rem; line-height:1.6;">
+                    The <strong>Snapshot Scheduler</strong> automatically connects to all configured clusters to fetch
+                    their latest inventory data (nodes, usage metrics, license status).
+                </p>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1rem;">
+                    <div>
+                        <strong style="color:var(--text-primary);"><i class="fas fa-history"></i> Time Travel</strong>
+                        <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.2rem;">
+                            Snapshots allow you to look back in time. Select a date from the sidebar to view the exact
+                            state of your infrastructure at that moment.
+                        </p>
+                    </div>
+                    <div>
+                        <strong style="color:var(--text-primary);"><i class="fas fa-archive"></i> Data
+                            Retention</strong>
+                        <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.2rem;">
+                            Historical data is distinct from live data. It is stored as a compressed record, ensuring
+                            performance is not impacted by history size.
+                        </p>
+                    </div>
+                </div>
+                <div
+                    style="font-size:0.85rem; opacity:0.8; padding-top:1rem; border-top:1px solid var(--border-color);">
+                    <i class="fas fa-info-circle"></i> <strong>Note:</strong> Set the interval below to control how
+                    frequently these automatic snapshots are taken. Lower intervals provide more granularity but
+                    increase database storage usage.
+                </div>
+            </div>
+
+            <div class="form-group" style="max-width:500px;">
+                <label class="form-label">Polling Configuration</label>
+                <div
+                    style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <span style="font-size:0.9rem;">Interval (Minutes)</span>
+                        <input type="number" id="poll-interval" class="form-input" min="5" max="1440" value="15"
+                            style="width:80px; text-align:center;">
+                    </div>
+                    <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                        <button class="btn btn-primary" onclick="saveSchedulerConfig()" style="flex:1;">
+                            <i class="fas fa-save"></i> Save Settings
                         </button>
-                        <button class="btn btn-danger" onclick="deleteCluster({{ cluster.id }})">
-                            <i class="fas fa-trash"></i>
+                        <button class="btn btn-secondary" onclick="openRunNowModal()" style="flex:1;">
+                            <i class="fas fa-play"></i> Run Now
                         </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </div>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.5rem; text-align:center;">
+                    Scheduler Status: <span style="color:var(--success-color);">Active</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="tab-snapshots" class="tab-content">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 style="margin:0;">Snapshot History</h3>
+        <div style="display:flex; gap:1rem; align-items:center;">
+            <div style="position:relative;">
+                <i class="fas fa-search"
+                    style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); font-size:0.8rem; color:var(--text-secondary);"></i>
+                <input type="text" id="snapshot-search" placeholder="Search snapshots..."
+                    style="padding:0.4rem 0.75rem 0.4rem 2rem; border-radius:4px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.9rem;"
+                    oninput="filterSnapshotsTable(this.value)">
+            </div>
+
+            <div
+                style="display:flex; align-items:center; gap:0.5rem; background:rgba(239, 68, 68, 0.05); padding:0.3rem 0.6rem; border-radius:4px; border:1px solid rgba(239, 68, 68, 0.2);">
+                <span style="font-size:0.8rem; color:var(--text-secondary);">Older than</span>
+                <input type="number" id="cleanup-days" value="30" min="1"
+                    style="width:50px; padding:0.2rem; border-radius:4px; border:1px solid var(--border-color); background:var(--bg-primary); color:var(--text-primary); font-size:0.85rem; text-align:center;">
+                <span style="font-size:0.8rem; color:var(--text-secondary);">days</span>
+                <button class="btn btn-danger btn-sm" onclick="massDeleteSnapshots()">
+                    <i class="fas fa-trash-sweep"></i> Mass Delete
+                </button>
+            </div>
+
+            <button class="btn btn-secondary" onclick="loadSnapshotsTable()">
+                <i class="fas fa-sync"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="card fade-in">
+        <div class="table-container">
+            <table class="data-table" id="snapshots-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Cluster</th>
+                        <th>Timestamp (EST)</th>
+                        <th>Status</th>
+                        <th>Stats</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="snapshots-table-body">
+                    <tr>
+                        <td colspan="6" style="text-align:center;">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Run Now Modal -->
+<div id="run-now-modal" class="modal">
+    <div class="modal-content" style="max-width:450px;">
+        <div class="modal-header">
+            <h3 id="run-modal-title">Trigger Manual Snapshot</h3>
+            <button onclick="closeRunModal()" class="close-btn" id="run-modal-close"><i
+                    class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" style="text-align:center; padding:2rem 1rem;">
+
+            <!-- Confimation State -->
+            <div id="run-step-confirm">
+                <div style="font-size:3rem; color:var(--accent-color); margin-bottom:1rem;">
+                    <i class="fas fa-cloud-download-alt"></i>
+                </div>
+                <p style="font-size:1.1rem; margin-bottom:0.5rem;">Ready to poll all clusters?</p>
+                <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:2rem;">
+                    This will immediately connect to all clusters to fetch the latest data. This process typically takes
+                    30-60 seconds.
+                </p>
+                <button class="btn btn-primary" onclick="confirmRunNow()"
+                    style="width:100%; font-size:1rem; padding:0.8rem;">
+                    Include All Clusters & Start
+                </button>
+            </div>
+
+            <!-- Loading State -->
+            <div id="run-step-loading" style="display:none;">
+                <div style="font-size:3rem; color:var(--accent-color); margin-bottom:1rem;">
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                </div>
+                <h4 id="run-loading-title" style="margin-bottom:0.5rem;">Polling Clusters...</h4>
+
+                <div id="run-progress-container"
+                    style="margin-top:1.5rem; text-align:left; background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.85rem;">
+                        <span id="run-current-cluster"
+                            style="font-weight:600; color:var(--accent-color);">Initializing...</span>
+                        <span id="run-cluster-index" style="opacity:0.7;">0/0</span>
+                    </div>
+                    <div
+                        style="width:100%; height:8px; background:var(--bg-primary); border-radius:4px; overflow:hidden; margin-bottom:1rem;">
+                        <div id="run-progress-bar"
+                            style="width:0%; height:100%; background:var(--accent-color); transition: width 0.3s ease;">
+                        </div>
+                    </div>
+                    <div
+                        style="font-size:0.8rem; color:var(--text-secondary); display:flex; align-items:center; gap:0.5rem;">
+                        <i class="fas fa-cog fa-spin"></i>
+                        <span id="run-current-resource">Connecting to cluster...</span>
+                    </div>
+                </div>
+
+                <p style="color:var(--text-secondary); font-size:0.8rem; margin-top:1rem;">
+                    Please wait while we gather the inventory data.
+                </p>
+            </div>
+
+            <!-- Success State -->
+            <div id="run-step-success" style="display:none;">
+                <div style="font-size:3rem; color:var(--success-color); margin-bottom:1rem;">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h4 style="margin-bottom:0.5rem;">Snapshot Created!</h4>
+                <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:2rem;">
+                    The background job has completed successfully.
+                </p>
+                <div style="display:flex; gap:1rem;">
+                    <button class="btn btn-secondary" onclick="closeRunModal()" style="flex:1;">Close</button>
+                    <button class="btn btn-primary" onclick="goToSnapshots()" style="flex:1;">View Snapshots</button>
+                </div>
+            </div>
+
+            <!-- Error State -->
+            <div id="run-step-error" style="display:none;">
+                <div style="font-size:3rem; color:var(--danger-color); margin-bottom:1rem;">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <h4 style="margin-bottom:0.5rem;">Polling Failed</h4>
+                <p id="run-error-msg" style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:2rem;">
+                    An unknown error occurred.
+                </p>
+                <button class="btn btn-secondary" onclick="closeRunModal()" style="width:100%;">Close</button>
+            </div>
+
+        </div>
     </div>
 </div>
 
@@ -115,8 +373,272 @@
     </div>
 </div>
 
-
 <script>
+    // Tab Logic
+    function switchTab(tabName) {
+        // Update Links
+        document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
+        const activeLink = Array.from(document.querySelectorAll('.tab-link')).find(el => el.innerText.toLowerCase().includes(tabName) || el.getAttribute('onclick').includes(tabName));
+        if (activeLink) activeLink.classList.add('active');
+
+        // Update Content
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+
+        // Lazy Load
+        if (tabName === 'snapshots') {
+            loadSnapshotsTable();
+        }
+    }
+
+    // Snapshots Logic
+    let _allSnapshots = [];
+
+    async function loadSnapshotsTable() {
+        const tbody = document.getElementById('snapshots-table-body');
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;"><i class="fas fa-circle-notch fa-spin"></i> Loading...</td></tr>';
+
+        try {
+            const res = await fetch('/api/admin/clusters/snapshots?limit=50');
+            if (!res.ok) throw new Error("Failed to fetch snapshots");
+
+            _allSnapshots = await res.json();
+            renderSnapshotRows(_allSnapshots);
+
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
+        }
+    }
+
+    function renderSnapshotRows(snapshots) {
+        const tbody = document.getElementById('snapshots-table-body');
+        if (snapshots.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; opacity:0.6;">No snapshots found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = snapshots.map(s => {
+            // Ensure timestamp is treated as UTC
+            let ts = s.timestamp;
+            if (!ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
+
+            return `
+            <tr>
+                <td><small>${s.id}</small></td>
+                <td style="font-weight:600; color:var(--accent-color);">${s.cluster_name}</td>
+                <td>${new Date(ts).toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })}</td>
+                <td><span class="badge ${s.status === 'Success' ? 'badge-green' : 'badge-red'}">${s.status}</span></td>
+                <td style="font-family:monospace; font-size:0.85rem;">${s.node_count} Nodes, ${s.vcpu_count} vCPU</td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            `;
+        }).join('');
+    }
+
+    function filterSnapshotsTable(query) {
+        const q = query.toLowerCase().trim();
+        const filtered = _allSnapshots.filter(s =>
+            s.cluster_name.toLowerCase().includes(q) ||
+            s.id.toString().includes(q) ||
+            s.status.toLowerCase().includes(q)
+        );
+        renderSnapshotRows(filtered);
+    }
+
+    async function massDeleteSnapshots() {
+        const days = document.getElementById('cleanup-days').value;
+        if (!confirm(`Are you sure you want to delete ALL snapshots older than ${days} days? This cannot be undone.`)) return;
+
+        try {
+            const btn = document.querySelector('button[onclick="massDeleteSnapshots()"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Deleting...';
+
+            const res = await fetch('/api/admin/clusters/snapshots/cleanup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: parseInt(days) })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                alert(`Successfully deleted ${data.deleted_count} snapshots.`);
+                loadSnapshotsTable();
+            } else {
+                alert("Failed to perform mass deletion.");
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+
+    async function deleteSnapshot(id) {
+        if (!confirm(`Delete snapshot ID ${id}? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`/api/admin/clusters/snapshots/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadSnapshotsTable(); // Refresh
+                // Potentially refresh global nav snapshots via optional call?
+            } else {
+                alert("Failed to delete snapshot.");
+            }
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+
+
+    async function saveSchedulerConfig() {
+        const interval = document.getElementById('poll-interval').value;
+        try {
+            const res = await fetch('/api/admin/clusters/config/scheduler', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ poll_interval_minutes: parseInt(interval) })
+            });
+            if (res.ok) {
+                alert("Scheduler configuration saved!");
+            } else {
+                alert("Failed to save configuration.");
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+
+    async function runSchedulerNow() {
+        if (!confirm("Trigger immediate background poll? This checks all clusters and might take a minute.")) return;
+
+        const btn = document.querySelector('button[onclick="runSchedulerNow()"]');
+        const originalText = btn.innerHTML;
+        const msgDiv = document.getElementById('scheduler-status-msg') || document.createElement('div');
+
+        // Ensure msgDiv exists in DOM if not found (fallback)
+        if (!document.getElementById('scheduler-status-msg')) {
+            msgDiv.id = 'scheduler-status-msg';
+            msgDiv.style.marginTop = '1rem';
+            btn.parentElement.parentElement.appendChild(msgDiv);
+        }
+
+        // UI Loading State
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Running...';
+        msgDiv.style.display = 'block';
+        msgDiv.innerHTML = '<div style="color:var(--text-secondary);"><i class="fas fa-clock"></i> Polling all clusters... please wait.</div>';
+
+        try {
+            const res = await fetch('/api/admin/clusters/config/scheduler/run', { method: 'POST' });
+            if (res.ok) {
+                msgDiv.innerHTML = '<div style="color:var(--success-color); font-weight:600;"><i class="fas fa-check-circle"></i> Poll completed successfully!</div>';
+
+                // Prompt to view
+                setTimeout(() => {
+                    if (confirm("Poll completed. View new snapshots?")) {
+                        switchTab('snapshots');
+                    }
+                }, 500);
+            } else {
+                const err = await res.json();
+                msgDiv.innerHTML = `<div style="color:var(--danger-color);"><i class="fas fa-exclamation-circle"></i> Failed: ${err.detail || 'Unknown error'}</div>`;
+            }
+        } catch (e) {
+            msgDiv.innerHTML = `<div style="color:var(--danger-color);"><i class="fas fa-exclamation-circle"></i> Error: ${e.message}</div>`;
+        } finally {
+            // Restore button
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+
+            // Hide message after a while if successful
+            setTimeout(() => {
+                if (msgDiv.innerText.includes("successfully")) {
+                    msgDiv.style.display = 'none';
+                }
+            }, 5000);
+        }
+    }
+    async function openRunNowModal() {
+        // Reset state
+        document.getElementById('run-step-confirm').style.display = 'block';
+        document.getElementById('run-step-loading').style.display = 'none';
+        document.getElementById('run-step-success').style.display = 'none';
+        document.getElementById('run-step-error').style.display = 'none';
+        document.getElementById('run-modal-close').style.display = 'block';
+
+        document.getElementById('run-now-modal').classList.add('open');
+    }
+
+    function closeRunModal() {
+        document.getElementById('run-now-modal').classList.remove('open');
+    }
+
+    function goToSnapshots() {
+        closeRunModal();
+        switchTab('snapshots');
+    }
+
+    async function confirmRunNow() {
+        // Switch to loading
+        document.getElementById('run-step-confirm').style.display = 'none';
+        document.getElementById('run-step-loading').style.display = 'block';
+        document.getElementById('run-modal-close').style.display = 'none';
+
+        const clusterEl = document.getElementById('run-current-cluster');
+        const indexEl = document.getElementById('run-cluster-index');
+        const resourceEl = document.getElementById('run-current-resource');
+        const progressBar = document.getElementById('run-progress-bar');
+
+        // Reset indicators
+        clusterEl.innerText = 'Connecting...';
+        indexEl.innerText = '-/-';
+        resourceEl.innerText = 'Initializing stream...';
+        progressBar.style.width = '0%';
+
+        const eventSource = new EventSource('/api/admin/clusters/config/scheduler/run-stream');
+
+        eventSource.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'cluster_start') {
+                clusterEl.innerText = data.cluster;
+                indexEl.innerText = `${data.index}/${data.total}`;
+                const pct = (data.index / data.total) * 100;
+                progressBar.style.width = `${pct}%`;
+            } else if (data.type === 'resource_start') {
+                resourceEl.innerText = `Fetching ${data.resource}... (${data.resource_index}/${data.resource_total})`;
+            } else if (data.type === 'error') {
+                console.error("Poll Error:", data.message);
+                // We don't stop immediately unless it's a fatal stream error
+            } else if (data.type === 'done') {
+                eventSource.close();
+                document.getElementById('run-step-loading').style.display = 'none';
+                document.getElementById('run-step-success').style.display = 'block';
+                document.getElementById('run-modal-close').style.display = 'block';
+            }
+        };
+
+        eventSource.onerror = function (err) {
+            console.error("SSE Error:", err);
+            eventSource.close();
+
+            // Only show error if we didn't finish successfully
+            if (document.getElementById('run-step-loading').style.display !== 'none') {
+                document.getElementById('run-step-loading').style.display = 'none';
+                document.getElementById('run-step-error').style.display = 'block';
+                document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still be running.";
+                document.getElementById('run-modal-close').style.display = 'block';
+            }
+        };
+    }
+
     let currentTags = {};
 
     function renderTags() {

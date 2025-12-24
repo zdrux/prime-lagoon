@@ -90,6 +90,28 @@ def ldap_settings_page(
         "clusters_by_dc": clusters_by_dc
     })
 
+@router.get("/db-stats", response_class=HTMLResponse)
+def db_stats_page(
+    request: Request, 
+    session: Session = Depends(get_session),
+    user: User = Depends(admin_required)
+):
+    clusters = session.exec(select(Cluster)).all()
+    # Group clusters by Datacenter for the sidebar
+    clusters_by_dc = {}
+    for c in clusters:
+        dc = c.datacenter or "Uncategorized"
+        if dc not in clusters_by_dc:
+            clusters_by_dc[dc] = []
+        clusters_by_dc[dc].append(c)
+        
+    return templates.TemplateResponse("settings_db_stats.html", {
+        "request": request,
+        "user": user,
+        "page": "settings_db_stats",
+        "clusters_by_dc": clusters_by_dc
+    })
+
 @router.get("/api/users", response_model=List[User])
 def get_users(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     return session.exec(select(User)).all()

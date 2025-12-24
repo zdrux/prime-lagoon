@@ -1,5 +1,6 @@
 from typing import Optional
-from sqlmodel import Field, SQLModel
+from datetime import datetime
+from sqlmodel import Field, SQLModel, Column, Text
 
 class ClusterBase(SQLModel):
     name: str = Field(index=True, unique=True)
@@ -97,3 +98,18 @@ class User(SQLModel, table=True):
 class AppConfig(SQLModel, table=True):
     key: str = Field(primary_key=True)
     value: Optional[str] = None
+
+class ClusterSnapshot(SQLModel, table=True):
+    __tablename__ = "clustersnapshot"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cluster_id: int = Field(foreign_key="cluster.id", index=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+    status: str = Field(default="Success") # Success, Partial, Failed
+    
+    # Store key metrics for quick lookup/graphs
+    node_count: int = Field(default=0)
+    vcpu_count: float = Field(default=0.0)
+    
+    # Store full data dump
+    data_json: str = Field(sa_column=Column(Text)) # Stores compressed/large JSON blob

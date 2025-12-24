@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display:flex; align-items:center; gap:1rem;">
+        <h1 class="page-title">Database Statistics</h1>
+        <span class="badge badge-blue">Admin Settings</span>
+    </div>
+    <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-secondary" onclick="loadDbStats()" style="font-size:0.85rem; padding:0.5rem 1rem;">
+            <i class="fas fa-sync"></i> Refresh Stats
+        </button>
+    </div>
+</div>
+
+<div class="card fade-in" style="max-width: 900px;">
+    <div
+        style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:0.75rem;">
+        <i class="fas fa-database" style="color:var(--accent-color);"></i>
+        <h4 style="margin:0;">Database Overview</h4>
+    </div>
+    <div style="padding:1.5rem;">
+        <div
+            style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
+            <div
+                style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
+                <div
+                    style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
+                    Storage Used</div>
+                <div id="db-size" style="font-size:2rem; font-weight:800; color:var(--accent-color);">- MB</div>
+            </div>
+            <div
+                style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
+                <div
+                    style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
+                    Total Snapshots</div>
+                <div id="db-snapshots" style="font-size:2rem; font-weight:800;">-</div>
+            </div>
+            <div
+                style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
+                <div
+                    style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
+                    Avg Size / Snapshot</div>
+                <div id="db-avg-size" style="font-size:2rem; font-weight:800;">- KB</div>
+            </div>
+        </div>
+
+        <div
+            style="padding:1.25rem; background:rgba(56, 189, 248, 0.05); border-radius:4px; border-left:4px solid var(--accent-color);">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem; align-items:center;">
+                <span style="font-weight:600; font-size:1rem;">Database Configuration</span>
+                <span id="db-path"
+                    style="font-family:monospace; font-size:0.85rem; opacity:0.8; background:var(--bg-primary); padding:0.2rem 0.5rem; border-radius:4px;">-</span>
+            </div>
+            <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.6; margin:0;">
+                <i class="fas fa-info-circle"></i> This database stores cluster inventory snapshots and audit logs.
+                Storage usage increases over time as new snapshots are taken. You can manage data retention in the
+                <a href="/admin" style="color:var(--accent-color); text-decoration:none; font-weight:600;">Admin >
+                    Snapshots</a> tab by deleting historical data.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', loadDbStats);
+
+    async function loadDbStats() {
+        const sizeEl = document.getElementById('db-size');
+        const snapEl = document.getElementById('db-snapshots');
+        const avgEl = document.getElementById('db-avg-size');
+        const pathEl = document.getElementById('db-path');
+
+        sizeEl.innerText = 'Loading...';
+
+        try {
+            const res = await fetch('/api/admin/clusters/config/db-stats');
+            if (res.ok) {
+                const data = await res.json();
+                sizeEl.innerText = data.file_size_mb + ' MB';
+                snapEl.innerText = data.snapshot_count;
+                avgEl.innerText = data.avg_snapshot_size_kb + ' KB';
+                pathEl.innerText = data.db_filename;
+            } else {
+                sizeEl.innerText = 'Error';
+            }
+        } catch (e) {
+            sizeEl.innerText = 'Error';
+            console.error(e);
+        }
+    }
+</script>
+{% endblock %}

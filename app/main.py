@@ -6,6 +6,9 @@ from app.database import create_db_and_tables
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_db_and_tables()
+    # Start Scheduler
+    from app.services.scheduler import start_scheduler
+    start_scheduler()
     yield
 
 app = FastAPI(lifespan=lifespan)

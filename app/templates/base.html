@@ -49,6 +49,25 @@
                 </li>
                 {% endif %}
 
+                <!-- Time Travel -->
+                <li
+                    style="padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem;">
+                    <div
+                        style="font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); margin-bottom: 0.3rem; display:flex; justify-content:space-between; align-items:center;">
+                        TIME TRAVEL <i class="fas fa-history"></i>
+                    </div>
+                    <select id="snapshot-selector" class="form-input"
+                        style="font-size:0.75rem; padding:0.2rem; margin-bottom:0.3rem; width:100%; color:var(--text-primary); background:var(--bg-secondary); border:1px solid var(--border-color);"
+                        onchange="toggleTimeTravel(this.value)">
+                        <option value="">Live Mode (Real-time)</option>
+                        <!-- Populated by JS -->
+                    </select>
+                    <div id="time-travel-indicator"
+                        style="display:none; color:var(--warning-color); font-size:0.75rem; text-align:center; background:rgba(234, 179, 8, 0.1); padding:0.2rem; border-radius:4px; margin-top:0.2rem;">
+                        <i class="fas fa-exclamation-triangle"></i> Historical View
+                    </div>
+                </li>
+
                 <!-- Administration Group -->
                 {% if user.is_admin %}
                 <li
@@ -89,6 +108,10 @@
                         <a href="/settings/license"
                             class="sub-link {% if page == 'settings_license' %}active{% endif %}">
                             <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Licenses
+                        </a>
+                        <a href="/settings/db-stats"
+                            class="sub-link {% if page == 'settings_db_stats' %}active{% endif %}">
+                            <i class="fas fa-database" style="width:16px;"></i> DB Stats
                         </a>
                     </div>
                 </li>

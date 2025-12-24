@@ -74,23 +74,108 @@ def parse_cpu(cpu_val: Any) -> float:
 
 def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None):
     """
-    Generic fetcher.
-    Example: 
-        fetch_resources(c, 'v1', 'Node')
-        fetch_resources(c, 'machine.openshift.io/v1beta1', 'Machine')
+    Generic fetcher with enrichment for specific types.
     """
     dyn_client = get_dynamic_client(cluster)
     resource_api = dyn_client.resources.get(api_version=api_version, kind=kind)
     
-    # Fetch list
-    # The return object is a ResourceList, which has 'items'.
-    # Each item is a ResourceInstance (dict-like).
-    
     resp = resource_api.get(namespace=namespace)
-    return resp.items
+    items = resp.items
+    
+    # Enrichment
+    if kind == 'Node':
+        items = enrich_nodes_with_metrics(cluster, dyn_client, items)
+    elif kind == 'Machine':
+        items = enrich_machines(items)
+        
+    return items
 
-def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None):
+def enrich_nodes_with_metrics(cluster: Cluster, dyn_client: DynamicClient, nodes: List[Any]) -> List[Any]:
+    """Fetches metrics for all nodes and attaches to node objects."""
+    metrics_map = {}
     try:
+        metrics_api = dyn_client.resources.get(api_version='metrics.k8s.io/v1beta1', kind='NodeMetrics')
+        m_resp = metrics_api.get()
+        for m in m_resp.items:
+            metrics_map[m.metadata.name] = m
+    except Exception as e:
+        print(f"Error fetching node metrics for {cluster.name}: {e}")
+
+    enriched = []
+    for node in nodes:
+        node_name = node.metadata.name
+        m = metrics_map.get(node_name)
+        
+        # Base dict for JSON serialization
+        n_dict = dict(node)
+        n_dict['__metrics'] = None
+        
+        if m:
+            cpu_usage = parse_cpu(m.usage.cpu)
+            mem_usage_bytes = parse_memory_to_gb(m.usage.memory) * (1024**3) # Convert back to bytes for consistency if needed, or just use GB
+            
+            capacity_cpu = parse_cpu(node.status.capacity.cpu)
+            capacity_mem = parse_memory_to_gb(node.status.capacity.memory)
+            
+            n_dict['__metrics'] = {
+                "cpu_usage": cpu_usage,
+                "mem_usage_gb": parse_memory_to_gb(m.usage.memory),
+                "cpu_percent": round((cpu_usage / capacity_cpu * 100), 1) if capacity_cpu > 0 else 0,
+                "mem_percent": round((parse_memory_to_gb(m.usage.memory) / capacity_mem * 100), 1) if capacity_mem > 0 else 0
+            }
+        enriched.append(n_dict)
+    return enriched
+
+def enrich_machines(machines: List[Any]) -> List[Any]:
+    """Adds capacity info to machines for UI consistency."""
+    enriched = []
+    for m in machines:
+        m_dict = dict(m)
+        # Machine doesn't have live metrics usually, but we can extract capacity from labels/spec if needed
+        # For now just ensure __enriched exists to avoid JS errors if any
+        m_dict['__enriched'] = {
+            "cpu": parse_cpu(m.metadata.labels.get('machine.openshift.io/instance-type')), # Placeholder logic
+            "memory": 0 # Placeholder
+        }
+        # Actually, machine.openshift.io/instance-type is just a name. 
+        # For machines, we usually just want to see the type.
+        enriched.append(m_dict)
+    return enriched
+
+def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snapshot_data: Optional[dict] = None):
+    try:
+        if snapshot_data:
+            # Offline Mode from Snapshot
+            nodes = snapshot_data.get("nodes", [])
+            node_count = len(nodes)
+            vcpu_count = 0
+            for node in nodes:
+                 # In snapshot, node is a dict, not a K8s object
+                 # Capacity is usually at node['status']['capacity']['cpu']
+                 try:
+                     cpu = node['status']['capacity']['cpu']
+                     vcpu_count += parse_cpu(cpu)
+                 except:
+                     pass
+                     
+            cluster_version = "N/A"
+            # Attempt to find version in clusteroperators or infrastructures if stored? 
+            # Or assume we stored it specifically? 
+            # For now, let's look at clusteroperators if we store them
+            pass # TODO: Extract version from snapshot if possible
+            
+            console_url = "N/A"
+            # TODO: Extract console from route snapshot
+            
+            # Simple return for snapshot mode for now
+            return {
+                "id": cluster.id,
+                "node_count": node_count,
+                "vcpu_count": int(vcpu_count),
+                "version": cluster_version,
+                "console_url": console_url
+            }
+
         dyn_client = get_dynamic_client(cluster)
         
         # Nodes and vCPUs
@@ -140,8 +225,40 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None):
             "version": "-",
             "console_url": "#"
         }
-def get_detailed_stats(cluster: Cluster):
+def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
     try:
+        if snapshot_data:
+            # Offline extraction
+            nodes = snapshot_data.get("nodes", [])
+            machines = snapshot_data.get("machines", [])
+            machinesets = snapshot_data.get("machinesets", [])
+            autoscalers = snapshot_data.get("machineautoscalers", [])
+            projects = snapshot_data.get("projects", [])
+            ingress = snapshot_data.get("ingresscontrollers", [])
+
+            # Summaries
+            node_roles = {}
+            for n in nodes:
+                roles = [l.split('/')[1] for l in n['metadata'].get('labels', {}) if l.startswith('node-role.kubernetes.io/')]
+                role = roles[0] if roles else 'worker'
+                node_roles[role] = node_roles.get(role, 0) + 1
+
+            # Build response
+            return {
+                "cluster_name": cluster.name,
+                "api_url": cluster.api_url,
+                "version": "Snapshot", # TODO: enhance
+                "console_url": "#",    # TODO: enhance
+                "node_count": len(nodes),
+                "node_roles": node_roles,
+                "machine_count": len(machines),
+                "machineset_count": len(machinesets),
+                "autoscaler_count": len(autoscalers),
+                "project_count": len(projects),
+                "ingress_count": len(ingress),
+                "status_message": "Snapshot View"
+            }
+
         dyn_client = get_dynamic_client(cluster)
         
         # 1. Cluster Version
@@ -196,8 +313,26 @@ def get_detailed_stats(cluster: Cluster):
         print(f"Error fetching detailed stats for {cluster.name}: {e}")
         raise e
 
-def get_ingress_details(cluster: Cluster, name: str):
+def get_ingress_details(cluster: Cluster, name: str, snapshot_data: Optional[dict] = None):
     try:
+        if snapshot_data:
+            # Offline Logic
+            ingress = snapshot_data.get("ingresscontrollers", [])
+            target_ic = next((i for i in ingress if i['metadata']['name'] == name), None)
+            if not target_ic:
+                return {"error": "Ingress not found in snapshot"}
+            
+            # TODO: We might not have full deployment/pod details in the raw lists unless we dump them all
+            # For this MVP, let's return the IC spec itself
+            return {
+                "name": name,
+                "domain": target_ic['status'].get('domain', 'N/A'),
+                "replicas": target_ic['spec'].get('replicas', 2),
+                "strategy": "Snapshot View",
+                "nodeSelector": target_ic['spec'].get('nodePlacement', {}).get('nodeSelector', {}),
+                "tolerations": target_ic['spec'].get('nodePlacement', {}).get('tolerations', []),
+                "pods": [] # Detailed pods might be heavy to store freely?
+            }
         dyn_client = get_dynamic_client(cluster)
         
         # 1. Fetch IngressController CR (for domain etc)
@@ -263,8 +398,24 @@ def get_ingress_details(cluster: Cluster, name: str):
         print(f"Error fetching ingress details for {name} on {cluster.name}: {e}")
         raise e
 
-def get_node_details(cluster: Cluster, node_name: str):
+def get_node_details(cluster: Cluster, node_name: str, snapshot_data: Optional[dict] = None):
     try:
+        if snapshot_data:
+            nodes = snapshot_data.get("nodes", [])
+            node = next((n for n in nodes if n['metadata']['name'] == node_name), None)
+            if not node:
+                 return {"error": "Node not found in snapshot"}
+            
+            return {
+                "name": node_name,
+                "role": "worker", # parse form labels
+                "status": "Ready", # parse from conditions
+                "labels": node['metadata'].get('labels', {}),
+                "capacity": node['status'].get('capacity', {}),
+                "allocatable": node['status'].get('allocatable', {}),
+                "conditions": node['status'].get('conditions', []),
+                "events": [] # Events are not snapshotted usually
+            }
         dyn_client = get_dynamic_client(cluster)
         
         # 1. Fetch Node object

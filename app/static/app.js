@@ -375,12 +375,12 @@ function renderTable(resourceType, data) {
 
     let titleHtml = `<h1 class="page-title" style="text-transform: capitalize;">${resourceType}</h1>`;
     if (window.currentClusterName) {
-        titleHtml = `<h1 class="page-title">
-            <span style="text-transform: capitalize;">${resourceType}</span>
-            <i class="fas fa-chevron-right" style="font-size:0.7rem; margin:0 0.5rem; opacity:0.3;"></i> 
-            <span style="opacity:0.8; font-weight:400; font-size:0.9rem;">Cluster: </span>
-            <span style="font-weight:400; font-size:0.9rem; opacity:0.9;">${window.currentClusterName}</span>
-        </h1>`;
+        titleHtml = `<div style="display:flex; align-items:baseline;">
+            <h1 class="page-title" style="text-transform: capitalize; margin:0;">${resourceType}</h1>
+            <i class="fas fa-chevron-right" style="font-size:0.7rem; margin:0 0.8rem; opacity:0.3;"></i> 
+            <span style="color: var(--text-secondary); font-weight:400; font-size:0.9rem; margin-right: 0.3rem;">Cluster: </span>
+            <span style="color: var(--accent-color); font-weight:500; font-size:0.9rem;">${window.currentClusterName}</span>
+        </div>`;
     }
 
     let html = `

@@ -18,11 +18,11 @@
             <h3>RedHat License Usage Details</h3>
             <div style="display:flex; gap:0.5rem; margin-left:auto; margin-right:1.5rem;">
                 <button class="btn btn-secondary btn-sm" title="Export to Excel"
-                    onclick="exportTable('License_Details', 'excel')">
+                    onclick="exportTable('License_Details', 'excel', 'lic-details-table')">
                     <i class="fas fa-file-excel"></i>
                 </button>
                 <button class="btn btn-secondary btn-sm" title="Export to CSV"
-                    onclick="exportTable('License_Details', 'csv')">
+                    onclick="exportTable('License_Details', 'csv', 'lic-details-table')">
                     <i class="fas fa-file-csv"></i>
                 </button>
             </div>
@@ -49,7 +49,7 @@
                 </div>
             </div>
             <div style="max-height:400px; overflow-y:auto;">
-                <table class="data-table">
+                <table class="data-table" id="lic-details-table">
                     <thead>
                         <tr>
                             <th>Node Name</th>

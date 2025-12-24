@@ -502,18 +502,24 @@ function closeLicenseModal() {
  * Export table data to Excel or CSV using SheetJS
  * @param {string} filename Base filename for the download
  * @param {string} format 'excel' or 'csv'
+ * @param {string} tableId Optional specific table ID to export
  */
-function exportTable(filename, format) {
-    // We try to find the active table in the dashboard content or specific ID
-    const contentDiv = document.getElementById('dashboard-content');
+function exportTable(filename, format, tableId = null) {
     let table = null;
 
-    if (contentDiv) {
-        table = contentDiv.querySelector('table');
+    if (tableId) {
+        table = document.getElementById(tableId);
     }
 
     if (!table) {
         // Fallback or specific case like audit pages
+        const contentDiv = document.getElementById('dashboard-content');
+        if (contentDiv) {
+            table = contentDiv.querySelector('table');
+        }
+    }
+
+    if (!table) {
         table = document.querySelector('.data-table');
     }
 

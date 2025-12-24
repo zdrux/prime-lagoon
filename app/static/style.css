@@ -48,20 +48,20 @@ a:hover {
 }
 
 .sidebar {
-    width: 260px;
+    width: 240px;
     background-color: var(--sidebar-bg);
     backdrop-filter: blur(10px);
     border-right: 1px solid var(--glass-border);
     display: flex;
     flex-direction: column;
-    padding: 1.5rem;
+    padding: 1rem;
     box-sizing: border-box;
     transition: all 0.3s ease;
 }
 
 .sidebar-header {
-    margin-bottom: 2rem;
-    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--accent-color);
     letter-spacing: 0.5px;
@@ -75,6 +75,21 @@ a:hover {
     padding: 0;
     margin: 0;
     flex-grow: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.nav-links::-webkit-scrollbar {
+    width: 4px;
+}
+
+.nav-links::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.nav-links::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
 }
 
 .nav-item {
@@ -84,12 +99,13 @@ a:hover {
 .nav-link {
     display: flex;
     align-items: center;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
     color: var(--text-secondary);
     text-decoration: none;
     transition: all 0.2s ease;
     font-weight: 500;
+    font-size: 0.85rem;
 }
 
 .nav-link:hover,
@@ -124,10 +140,10 @@ a:hover {
 
 .sub-link {
     display: block;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.75rem;
     color: var(--text-secondary);
     text-decoration: none;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     border-left: 1px solid var(--border-color);
     margin-bottom: 0.25rem;
     transition: all 0.2s;

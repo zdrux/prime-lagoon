@@ -27,17 +27,17 @@
                 <!-- User Profile Section -->
                 {% if user %}
                 <li
-                    style="padding: 1rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.8rem;">
+                    style="padding: 0.5rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.3rem; display: flex; align-items: center; gap: 0.5rem;">
                     <div
-                        style="width: 32px; height: 32px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white;">
+                        style="width: 28px; height: 28px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; font-size: 0.8rem;">
                         {{ user.username[0]|upper }}
                     </div>
                     <div style="flex: 1; overflow: hidden;">
                         <div
-                            style="font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            style="font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                             {{ user.username }}</div>
-                        <div style="font-size: 0.7rem; opacity: 0.6; display: flex; align-items: center; gap: 0.3rem;">
-                            <i class="fas fa-circle" style="font-size: 0.4rem; color: var(--success-color);"></i>
+                        <div style="font-size: 0.65rem; opacity: 0.6; display: flex; align-items: center; gap: 0.3rem;">
+                            <i class="fas fa-circle" style="font-size: 0.35rem; color: var(--success-color);"></i>
                             {% if user.is_admin %}Administrator{% else %}Regular User{% endif %}
                         </div>
                     </div>
@@ -52,7 +52,7 @@
                 <!-- Administration Group -->
                 {% if user.is_admin %}
                 <li
-                    style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.5rem; margin-bottom:0.2rem;">
+                    style="padding: 0.4rem 0.6rem; font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.4rem; margin-bottom:0.1rem;">
                     Administration
                 </li>
                 <li class="nav-item">
@@ -95,31 +95,31 @@
                 {% endif %}
 
                 <li class="nav-item"
-                    style="margin-top: 1rem; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 0.5rem 0; margin-bottom: 0.5rem;">
+                    style="margin-top: 0.5rem; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 0.25rem 0; margin-bottom: 0.25rem;">
                     <a href="/dashboard" class="nav-link">
                         <i class="fas fa-th-large"></i> All Clusters
                     </a>
                 </li>
 
-                <li style="padding: 0.5rem 1rem; margin-bottom: 0.5rem;">
+                <li style="padding: 0.4rem 0.6rem; margin-bottom: 0.3rem;">
                     <input type="text" id="cluster-search" placeholder="Search clusters..." class="form-input"
-                        style="font-size:0.85rem; padding:0.4rem; margin-bottom: 0.5rem; width:100%; box-sizing:border-box;"
+                        style="font-size:0.8rem; padding:0.35rem; margin-bottom: 0.4rem; width:100%; box-sizing:border-box;"
                         onkeyup="filterClusters()">
 
-                    <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
                         <button class="filter-btn active" onclick="toggleFilter(this, 'DEV')" data-filter="DEV"
-                            style="flex:1; font-size:0.75rem; padding:0.3rem;">DEV</button>
+                            style="flex:1; font-size:0.7rem; padding:0.25rem;">DEV</button>
                         <button class="filter-btn active" onclick="toggleFilter(this, 'UAT')" data-filter="UAT"
-                            style="flex:1; font-size:0.75rem; padding:0.3rem;">UAT</button>
+                            style="flex:1; font-size:0.7rem; padding:0.25rem;">UAT</button>
                         <button class="filter-btn active" onclick="toggleFilter(this, 'PROD')" data-filter="PROD"
-                            style="flex:1; font-size:0.75rem; padding:0.3rem;">PROD</button>
+                            style="flex:1; font-size:0.7rem; padding:0.25rem;">PROD</button>
                     </div>
                 </li>
 
                 {% if clusters_by_dc %}
                 {% for dc, dc_clusters in clusters_by_dc.items() %}
                 <li
-                    style="padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 1rem;">
+                    style="padding: 0.3rem 0.6rem; font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.75rem;">
                     {{ dc }}
                 </li>
 

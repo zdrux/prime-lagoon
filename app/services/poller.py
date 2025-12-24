@@ -68,7 +68,8 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None):
                 
                 items = fetch_resources(cluster, meta["api_version"], meta["kind"])
                 # Convert K8s objects to pure dicts for JSON serialization
-                snapshot_data[key] = [dict(item) for item in items]
+                # Use .to_dict() if available for recursive serialization, otherwise use dict()
+                snapshot_data[key] = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
             except Exception as e:
                 logger.error(f"Error fetching {key} for {cluster.name}: {e}")
                 snapshot_data[key] = []

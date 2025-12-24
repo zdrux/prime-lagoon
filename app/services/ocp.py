@@ -107,7 +107,7 @@ def enrich_nodes_with_metrics(cluster: Cluster, dyn_client: DynamicClient, nodes
         m = metrics_map.get(node_name)
         
         # Base dict for JSON serialization
-        n_dict = dict(node)
+        n_dict = node.to_dict()
         n_dict['__metrics'] = None
         
         if m:
@@ -130,7 +130,7 @@ def enrich_machines(machines: List[Any]) -> List[Any]:
     """Adds capacity info to machines for UI consistency."""
     enriched = []
     for m in machines:
-        m_dict = dict(m)
+        m_dict = m.to_dict()
         # Machine doesn't have live metrics usually, but we can extract capacity from labels/spec if needed
         # For now just ensure __enriched exists to avoid JS errors if any
         m_dict['__enriched'] = {

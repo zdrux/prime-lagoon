@@ -7,9 +7,21 @@
         <p style="opacity:0.6; font-size:0.9rem; margin-top:0.2rem;">Monitor and manage cluster compliance status across
             your fleet.</p>
     </div>
-    <button class="btn btn-primary" onclick="openMassAuditModal()">
-        <i class="fas fa-layer-group" style="margin-right:0.5rem;"></i> Mass Audit Dispatcher
-    </button>
+    <div style="display:flex; gap:0.5rem; align-items:center;">
+        <div style="display:flex; gap:0.3rem; margin-right:1rem;">
+            <button class="btn btn-secondary" style="padding:0.4rem 0.8rem;"
+                onclick="exportTable('Compliance_Summary', 'excel')">
+                <i class="fas fa-file-excel"></i> Excel
+            </button>
+            <button class="btn btn-secondary" style="padding:0.4rem 0.8rem;"
+                onclick="exportTable('Compliance_Summary', 'csv')">
+                <i class="fas fa-file-csv"></i> CSV
+            </button>
+        </div>
+        <button class="btn btn-primary" onclick="openMassAuditModal()">
+            <i class="fas fa-layer-group" style="margin-right:0.5rem;"></i> Mass Audit Dispatcher
+        </button>
+    </div>
 </div>
 
 <!-- Cluster Table -->
@@ -42,6 +54,14 @@
         style="width:800px; max-width:95vh; max-height:90vh; display:flex; flex-direction:column;">
         <div class="modal-header">
             <h3 id="modal-title">Audit Results</h3>
+            <div style="display:flex; gap:0.5rem; margin-left:auto; margin-right:1rem;">
+                <button class="btn btn-secondary btn-sm" onclick="exportTable('Audit_Results', 'excel')">
+                    <i class="fas fa-file-excel"></i>
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="exportTable('Audit_Results', 'csv')">
+                    <i class="fas fa-file-csv"></i>
+                </button>
+            </div>
             <button onclick="closeModal()" class="close-btn"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body" id="modal-body" style="overflow-y:auto; flex:1;">

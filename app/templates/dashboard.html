@@ -13,18 +13,40 @@
 
 <!-- License Details Modal -->
 <div id="license-modal" class="modal">
-    <div class="modal-content" style="max-width: 800px;">
+    <div class="modal-content" style="max-width: 1100px; width: 95%;">
         <div class="modal-header">
             <h3>RedHat License Usage Details</h3>
+            <div style="display:flex; gap:0.5rem; margin-left:auto; margin-right:1.5rem;">
+                <button class="btn btn-secondary btn-sm" title="Export to Excel"
+                    onclick="exportTable('License_Details', 'excel')">
+                    <i class="fas fa-file-excel"></i>
+                </button>
+                <button class="btn btn-secondary btn-sm" title="Export to CSV"
+                    onclick="exportTable('License_Details', 'csv')">
+                    <i class="fas fa-file-csv"></i>
+                </button>
+            </div>
             <span class="close-btn" onclick="closeLicenseModal()">&times;</span>
         </div>
         <div class="modal-body">
             <div
-                style="display:flex; justify-content:space-between; margin-bottom:1rem; padding:1rem; background:rgba(255,255,255,0.05); border-radius:8px;">
-                <div><strong>Total Nodes:</strong> <span id="lic-total-nodes">-</span></div>
-                <div><strong>Total vCPU:</strong> <span id="lic-total-vcpu">-</span></div>
-                <div><strong>Licenses Required:</strong> <span id="lic-total-count"
-                        style="color:var(--accent-color); font-size:1.2rem; font-weight:bold;">-</span></div>
+                style="display:flex; justify-content:space-around; margin-bottom:1.5rem; padding:1.2rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:12px;">
+                <div style="text-align:center;">
+                    <div style="font-size:0.75rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px;">Total
+                        Nodes</div>
+                    <div id="lic-total-nodes" style="font-size:1.5rem; font-weight:700;">-</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.75rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px;">Total
+                        vCPU</div>
+                    <div id="lic-total-vcpu" style="font-size:1.5rem; font-weight:700;">-</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:0.75rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px;">Licenses
+                        Required</div>
+                    <div id="lic-total-count" style="font-size:1.8rem; font-weight:800; color:var(--accent-color);">-
+                    </div>
+                </div>
             </div>
             <div style="max-height:400px; overflow-y:auto;">
                 <table class="data-table">
@@ -43,6 +65,49 @@
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeLicenseModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Cluster Details Modal -->
+<div id="details-modal" class="modal">
+    <div class="modal-content" style="max-width: 1200px; width: 95%;">
+        <div class="modal-header">
+            <h3>Cluster Technical Details</h3>
+            <span class="close-btn" onclick="closeDetailsModal()">&times;</span>
+        </div>
+        <div class="modal-body" id="details-modal-body">
+            <!-- Content injected here -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeDetailsModal()">Close</button>
+        </div>
+    </div>
+</div>
+<!-- Ingress Controller Details Modal -->
+<div id="ingress-modal" class="modal">
+    <div class="modal-content" style="max-width: 1000px;">
+        <div class="modal-header">
+            <h3>Ingress Controller Details</h3>
+            <span class="close" onclick="closeIngressModal()">&times;</span>
+        </div>
+        <div id="ingress-modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeIngressModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Node Details Modal -->
+<div id="node-modal" class="modal">
+    <div class="modal-content" style="max-width: 1100px;">
+        <div class="modal-header">
+            <h3>Node Details</h3>
+            <span class="close" onclick="closeNodeModal()">&times;</span>
+        </div>
+        <div id="node-modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeNodeModal()">Close</button>
         </div>
     </div>
 </div>

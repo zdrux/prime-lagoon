@@ -56,8 +56,16 @@ async function loadSummary() {
         summaryDiv.style.display = 'block'; // Remove grid
         summaryDiv.innerHTML = `
         <div class="card fade-in">
-            <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700; font-size:1.1rem;">
-                Cluster Inventory
+            <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:700; font-size:1.1rem;">Cluster Inventory</span>
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="exportTable('Cluster_Inventory', 'excel')">
+                        <i class="fas fa-file-excel"></i> Excel
+                    </button>
+                    <button class="btn btn-secondary" style="padding:0.3rem 0.6rem; font-size:0.8rem;" onclick="exportTable('Cluster_Inventory', 'csv')">
+                        <i class="fas fa-file-csv"></i> CSV
+                    </button>
+                </div>
             </div>
             <div class="table-container">
                 <table class="data-table">
@@ -65,11 +73,14 @@ async function loadSummary() {
                         <tr>
                             <th>Cluster Name</th>
                             <th>Total Nodes</th>
+                            <th>Licensed Nodes</th>
                             <th>Total vCPUs</th>
-                            <th>Licenses</th>
+                            <th>Total Licensed vCPUs</th>
                             <th>Console</th>
                             <th>Datacenter</th>
                             <th>Environment</th>
+                            <th>Version</th>
+                            <th>Details</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -77,14 +88,15 @@ async function loadSummary() {
                             <tr>
                                 <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
                                 <td>${c.stats.node_count}</td>
-                                <td>${c.stats.vcpu_count}</td>
                                 <td>
                                     <span class="badge badge-purple" 
                                           style="cursor:pointer;" 
                                           onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})">
-                                        ${c.license_info.count}
+                                        ${c.licensed_node_count}
                                     </span>
                                 </td>
+                                <td>${c.stats.vcpu_count}</td>
+                                <td>${c.licensed_vcpu_count}</td>
                                 <td>
                                     ${c.stats.console_url && c.stats.console_url !== '#'
                 ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.25rem 0.6rem; border-radius:4px; display:inline-block;" title="Open Console">
@@ -95,6 +107,12 @@ async function loadSummary() {
                                 </td>
                                 <td><span class="badge badge-blue">${c.datacenter || '-'}</span></td>
                                 <td><span class="badge badge-green">${c.environment || '-'}</span></td>
+                                <td style="font-family:monospace; font-size:0.9rem; opacity:0.9;">${c.stats.version || '-'}</td>
+                                <td>
+                                    <button class="btn btn-secondary" style="padding:0.25rem 0.6rem;" onclick="showClusterDetails(${c.id}, '${c.name}')">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                </td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -170,6 +188,7 @@ async function loadResource(clusterId, resourceType) {
         // Better to attach to callback or closure, but for simplicity:
         window.currentResourceData = data;
         window.currentResourceType = resourceType;
+        window.currentClusterId = clusterId; // Track cluster id for modal actions
         renderTable(resourceType, data);
     } catch (error) {
         contentDiv.innerHTML = `<div class="card" style="color: var(--danger-color);"><i class="fas fa-exclamation-triangle"></i> ${error.message}</div>`;
@@ -201,7 +220,32 @@ function renderTable(resourceType, data) {
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Roles', path: item => Object.keys(getNested(item, 'metadata.labels') || {}).filter(k => k.startsWith('node-role.kubernetes.io/')).map(k => k.split('/')[1]).join(', ') },
             { header: 'Arch', path: 'status.nodeInfo.architecture' },
-            { header: 'Created', path: 'metadata.creationTimestamp' }
+            {
+                header: 'CPU Usage',
+                path: item => item.__metrics ? `
+                    <div class="progress-bar-container" title="${item.__metrics.cpu_usage} cores">
+                        <div class="progress-bar" style="width: ${item.__metrics.cpu_percent}%"></div>
+                        <span class="progress-text">${item.__metrics.cpu_percent}%</span>
+                    </div>
+                ` : '-'
+            },
+            {
+                header: 'Mem Usage',
+                path: item => item.__metrics ? `
+                    <div class="progress-bar-container" title="${item.__metrics.mem_usage_gb} GB">
+                        <div class="progress-bar" style="width: ${item.__metrics.mem_percent}%"></div>
+                        <span class="progress-text">${item.__metrics.mem_percent}%</span>
+                    </div>
+                ` : '-'
+            },
+            { header: 'Created', path: 'metadata.creationTimestamp' },
+            {
+                header: 'Actions', path: item => `
+                <button class="btn btn-secondary btn-sm" onclick="showNodeDetails(${window.currentClusterId}, '${item.metadata.name}')">
+                    <i class="fas fa-microchip"></i> Details
+                </button>
+            `
+            }
         ];
     } else if (resourceType === 'machines') {
         columns = [
@@ -244,6 +288,22 @@ function renderTable(resourceType, data) {
             { header: 'Requester', path: 'metadata.annotations.["openshift.io/requester"]' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
+    } else if (resourceType === 'ingresscontrollers') {
+        columns = [
+            { header: 'Name', path: 'metadata.name' },
+            { header: 'Domain', path: 'status.domain' },
+            { header: 'Namespace', path: 'metadata.namespace' },
+            { header: 'Status', path: item => getNested(item, 'status.conditions')?.find(c => c.type === 'Available')?.status === 'True' ? 'Available' : 'Unavailable' },
+            { header: 'Replicas', path: 'spec.replicas' },
+            { header: 'Created', path: 'metadata.creationTimestamp' },
+            {
+                header: 'Actions', path: item => `
+                <button class="btn btn-secondary btn-sm" onclick="showIngressDetails(${window.currentClusterId}, '${item.metadata.name}')">
+                    <i class="fas fa-info-circle"></i> View Details
+                </button>
+            `
+            }
+        ];
     }
 
 
@@ -252,6 +312,14 @@ function renderTable(resourceType, data) {
             <h1 class="page-title" style="text-transform: capitalize;">${resourceType}</h1>
             <div style="display:flex; align-items:center; gap:1rem;">
                 <input type="text" id="resource-filter" placeholder="Filter table..." class="form-input" style="width:250px;" onkeyup="filterTable()">
+                <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-secondary" title="Export to Excel" onclick="exportTable('${resourceType}', 'excel')">
+                        <i class="fas fa-file-excel"></i>
+                    </button>
+                    <button class="btn btn-secondary" title="Export to CSV" onclick="exportTable('${resourceType}', 'csv')">
+                        <i class="fas fa-file-csv"></i>
+                    </button>
+                </div>
                 <span class="badge badge-blue">${data.length} items</span>
             </div>
         </div>
@@ -373,4 +441,297 @@ async function showLicenseDetails(clusterId, usageId) {
 
 function closeLicenseModal() {
     document.getElementById('license-modal').classList.remove('open');
+}
+
+/**
+ * Export table data to Excel or CSV using SheetJS
+ * @param {string} filename Base filename for the download
+ * @param {string} format 'excel' or 'csv'
+ */
+function exportTable(filename, format) {
+    // We try to find the active table in the dashboard content or specific ID
+    const contentDiv = document.getElementById('dashboard-content');
+    let table = null;
+
+    if (contentDiv) {
+        table = contentDiv.querySelector('table');
+    }
+
+    if (!table) {
+        // Fallback or specific case like audit pages
+        table = document.querySelector('.data-table');
+    }
+
+    if (!table) {
+        alert("No table found to export.");
+        return;
+    }
+
+    // Capture visible rows if filtered
+    const wb = XLSX.utils.table_to_book(table, {
+        sheet: "Data",
+        display: true // Only export visible rows (works with display:none)
+    });
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const fullFilename = `${filename}_${timestamp}`;
+
+    if (format === 'excel') {
+        XLSX.writeFile(wb, `${fullFilename}.xlsx`);
+    } else {
+        XLSX.writeFile(wb, `${fullFilename}.csv`, { bookType: 'csv' });
+    }
+}
+
+async function showClusterDetails(clusterId, clusterName) {
+    const modal = document.getElementById('details-modal');
+    const body = document.getElementById('details-modal-body');
+
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Fetching technical details...</div>';
+
+    try {
+        const res = await fetch(`/api/dashboard/${clusterId}/details`);
+        if (!res.ok) throw new Error("Failed to load cluster details");
+        const data = await res.json();
+
+        // Count unhealthy operators
+        const unhealthy = data.operators.filter(o => !o.status.available || o.status.degraded).length;
+
+        body.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:2rem;">
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-info-circle"></i> Basic Info</h4>
+                    <div style="display:grid; grid-template-columns:100px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">API URL:</span> <code style="word-break:break-all;">${data.api_url}</code>
+                        <span style="opacity:0.6;">Console:</span> <a href="${data.console_url}" target="_blank">${data.console_url}</a>
+                        <span style="opacity:0.6;">Type:</span> <strong>${data.infrastructure.type}</strong>
+                        <span style="opacity:0.6;">Infra Name:</span> <code>${data.infrastructure.infrastructure_name}</code>
+                    </div>
+                </div>
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-code-branch"></i> Version Info</h4>
+                    <div style="display:grid; grid-template-columns:100px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">Desired:</span> <strong>${data.version_info.desired_version}</strong>
+                        <span style="opacity:0.6;">Cluster ID:</span> <small><code>${data.version_info.cluster_id}</code></small>
+                        <span style="opacity:0.6;">History:</span> 
+                        <div style="max-height:80px; overflow-y:auto;">
+                            ${data.version_info.history.slice(0, 3).map(h => `<div>${h.version} (${h.state})</div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin:0;">
+                <div style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="color:var(--accent-color);"><i class="fas fa-cog"></i> Cluster Operators</h4>
+                    <span class="badge ${unhealthy === 0 ? 'badge-green' : 'badge-red'}">
+                        ${data.operators.length - unhealthy} / ${data.operators.length} Healthy
+                    </span>
+                </div>
+                <div style="max-height:300px; overflow-y:auto;">
+                    <table class="data-table" style="margin:0;">
+                        <thead>
+                            <tr>
+                                <th>Operator</th>
+                                <th>Available</th>
+                                <th>Progressing</th>
+                                <th>Degraded</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.operators.map(o => `
+                                <tr>
+                                    <td style="font-weight:600;">${o.name}</td>
+                                    <td><i class="fas ${o.status.available ? 'fa-check-circle' : 'fa-times-circle'}" style="color:${o.status.available ? 'var(--success-color)' : 'var(--danger-color)'}"></i></td>
+                                    <td><i class="fas ${o.status.progressing ? 'fa-spinner fa-spin' : 'fa-minus'}" style="color:${o.status.progressing ? 'var(--warning-color)' : 'inherit'}"></i></td>
+                                    <td><i class="fas ${o.status.degraded ? 'fa-exclamation-triangle' : 'fa-check'}" style="color:${o.status.degraded ? 'var(--danger-color)' : 'var(--success-color)'}"></i></td>
+                                    <td><small style="opacity:0.75; font-size:0.8rem; word-break:break-word;">${o.message || '-'}</small></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+    } catch (e) {
+        body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;"><i class="fas fa-exclamation-triangle fa-2x"></i><br><br>${e.message}</div>`;
+    }
+}
+
+function closeDetailsModal() {
+    document.getElementById('details-modal').classList.remove('open');
+}
+
+async function showIngressDetails(clusterId, name) {
+    const modal = document.getElementById('ingress-modal');
+    const body = document.getElementById('ingress-modal-body');
+
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Fetching ingress details...</div>';
+
+    try {
+        const response = await fetch(`/api/dashboard/${clusterId}/ingress/${name}/details`);
+        if (!response.ok) throw new Error("Failed to fetch ingress details");
+        const data = await response.json();
+
+        body.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:2rem;">
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-cog"></i> Configuration</h4>
+                    <div style="display:grid; grid-template-columns:120px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">Name:</span> <strong>${data.name}</strong>
+                        <span style="opacity:0.6;">Domain:</span> <code>${data.spec.domain || '-'}</code>
+                        <span style="opacity:0.6;">Replicas:</span> <strong>${data.spec.replicas || 'Default'}</strong>
+                        <span style="opacity:0.6;">Endpoint Pub:</span> <span>${data.spec.endpointPublishingStrategy ? data.spec.endpointPublishingStrategy.type : 'Default'}</span>
+                    </div>
+                </div>
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-network-wired"></i> Deployment Placement</h4>
+                    <div style="display:grid; grid-template-columns:120px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">Node Selector:</span> <pre style="font-size:0.75rem; margin:0;">${JSON.stringify(data.deployment.node_selector || {}, null, 2)}</pre>
+                        <span style="opacity:0.6;">Tolerations:</span> <pre style="font-size:0.75rem; margin:0;">${JSON.stringify(data.deployment.tolerations || [], null, 2)}</pre>
+                        <span style="grid-column: 1 / -1; font-size: 0.75rem; opacity: 0.5; margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding-top: 0.3rem;">
+                            <i class="fas fa-info-circle"></i> Config fetched from <code>openshift-ingress/${data.deployment.name}</code>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid var(--accent-color);">
+                <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-server"></i> Active Router Pods</h4>
+                <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th>Pod Name</th>
+                                <th>Status</th>
+                                <th>Ready</th>
+                                <th>Restarts</th>
+                                <th>Node</th>
+                                <th>Start Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.pods.length > 0
+                ? data.pods.map(p => `
+                                    <tr>
+                                        <td style="font-family: monospace; font-size: 0.8rem;">${p.name}</td>
+                                        <td><span class="badge ${p.status === 'Running' ? 'badge-green' : 'badge-blue'}">${p.status}</span></td>
+                                        <td style="text-align:center;"><i class="fas ${p.ready ? 'fa-check-circle' : 'fa-times-circle'}" style="color:${p.ready ? 'var(--success-color)' : 'var(--danger-color)'}"></i></td>
+                                        <td style="text-align:center;">${p.restarts}</td>
+                                        <td style="font-size: 0.75rem;">${p.node}</td>
+                                        <td style="font-size: 0.75rem; white-space: nowrap;">${p.startTime ? new Date(p.startTime).toLocaleString() : '-'}</td>
+                                    </tr>
+                                `).join('')
+                : '<tr><td colspan="6" style="text-align:center; opacity:0.5;">No pods found for this ingress controller.</td></tr>'
+            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        `;
+    } catch (error) {
+        body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;"><i class="fas fa-exclamation-triangle fa-2x"></i><br><br>${error.message}</div>`;
+    }
+}
+
+function closeIngressModal() {
+    document.getElementById('ingress-modal').classList.remove('open');
+}
+
+async function showNodeDetails(clusterId, name) {
+    const modal = document.getElementById('node-modal');
+    const body = document.getElementById('node-modal-body');
+
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Fetching node details...</div>';
+
+    try {
+        const response = await fetch(`/api/dashboard/${clusterId}/nodes/${name}/details`);
+        if (!response.ok) throw new Error("Failed to fetch node details");
+        const data = await response.json();
+
+        body.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-microchip"></i> Resource Usage</h4>
+                    <div style="display:grid; grid-template-columns:100px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">CPU (Cores):</span> <strong>${data.usage.cpu.toFixed(2)} / ${data.capacity.cpu}</strong>
+                        <div style="grid-column: 1 / -1;">
+                            <div class="progress-bar-container" style="height:12px;">
+                                <div class="progress-bar" style="width: ${data.usage.cpu_percent}%"></div>
+                            </div>
+                        </div>
+                        <span style="opacity:0.6;">Memory (GB):</span> <strong>${data.usage.memory.toFixed(2)} / ${data.capacity.memory.toFixed(0)}</strong>
+                        <div style="grid-column: 1 / -1;">
+                            <div class="progress-bar-container" style="height:12px;">
+                                <div class="progress-bar" style="width: ${data.usage.mem_percent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-chart-pie"></i> Requests & Limits</h4>
+                    <div style="display:grid; grid-template-columns:100px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">CPU Req:</span> <strong>${data.requests_limits.cpu_req.toFixed(2)} (${data.requests_limits.cpu_req_percent.toFixed(1)}%)</strong>
+                        <span style="opacity:0.6;">CPU Limit:</span> <strong>${data.requests_limits.cpu_lim.toFixed(2)}</strong>
+                        <span style="opacity:0.6;">Mem Req:</span> <strong>${data.requests_limits.mem_req.toFixed(2)} GB (${data.requests_limits.mem_req_percent.toFixed(1)}%)</strong>
+                        <span style="opacity:0.6;">Mem Limit:</span> <strong>${data.requests_limits.mem_lim.toFixed(2)} GB</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid var(--accent-color); margin-bottom:1.5rem;">
+                <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-history"></i> Recent Node Events</h4>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 0.8rem;">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Reason</th>
+                                <th>Message</th>
+                                <th>Count</th>
+                                <th>Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.events.length > 0
+                ? data.events.map(e => `
+                                    <tr>
+                                        <td><span class="badge ${e.type === 'Normal' ? 'badge-blue' : 'badge-orange'}">${e.type}</span></td>
+                                        <td style="font-weight:600;">${e.reason}</td>
+                                        <td style="font-size: 0.75rem;">${e.message}</td>
+                                        <td style="text-align:center;">${e.count}</td>
+                                        <td style="white-space:nowrap;">${e.lastTimestamp ? new Date(e.lastTimestamp).toLocaleString() : '-'}</td>
+                                    </tr>
+                                `).join('')
+                : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No recent events found.</td></tr>'
+            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="margin-top:1rem;">
+                <h5 style="margin-bottom:0.5rem; opacity:0.7;">Labels</h5>
+                <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+                    ${Object.entries(data.labels).map(([k, v]) => `
+                        <span style="font-size:0.7rem; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; border:1px solid var(--border-color);">
+                            ${k}: ${v}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;"><i class="fas fa-exclamation-triangle fa-2x"></i><br><br>${error.message}</div>`;
+    }
+}
+
+function closeNodeModal() {
+    document.getElementById('node-modal').classList.remove('open');
 }

@@ -10,6 +10,7 @@
     <!-- Optional for icons, using text fallback if not loading -->
     <!-- Using local simple icons or just text if fontawesome setup is complex without key. I'll use simple ASCII or text/emoji fallback if needed, or link a CDN that works -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -138,6 +139,8 @@
                         <a href="#" class="sub-link" onclick="loadResource({{ cluster.id }}, 'projects')">Projects</a>
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'machineautoscalers')">Autoscalers</a>
+                        <a href="#" class="sub-link"
+                            onclick="loadResource({{ cluster.id }}, 'ingresscontrollers')">Ingress Controllers</a>
                     </div>
                 </li>
                 {% endfor %}

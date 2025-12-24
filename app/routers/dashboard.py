@@ -229,47 +229,35 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), session: S
 
     for cluster in clusters:
         # Determine stats source
-        node_count = 0
-        vcpu_count = 0
-        lic_data = None
-        cluster_version = "-"
-        console_url = "#"
-        
         snapshot_data = None
         if target_dt:
              snap = get_snapshot_for_cluster(session, cluster.id, target_dt)
              if snap and snap.data_json:
-                 # Optimize: If we just need summary stats, we trust the snapshot model columns!
-                 # Except for detailed license breakdown which we usually recalculate or trust usage history?
-                 # For consistency with 'live' view which recalculates, let's recalculate from the full JSON.
                  snapshot_data = json.loads(snap.data_json)
-                 
-                 # Basic fields
                  stats = get_cluster_stats(cluster, snapshot_data=snapshot_data)
+                 s_nodes = snapshot_data.get("nodes", [])
+                 lic_data = calculate_licenses(s_nodes, rules)
+                 
                  summary.append({
                     "id": cluster.id,
                     "name": cluster.name,
                     "datacenter": cluster.datacenter,
                     "environment": cluster.environment,
                     "stats": stats,
-                    "license_info": calculate_licenses(snapshot_data.get("nodes", []), rules), # Recalculate based on snapshot nodes
-                    "licensed_node_count": sum(1 for n in snapshot_data.get("nodes", []) if any(l.startswith('node-role.kubernetes.io/worker') for l in (n.get('metadata', {}).get('labels', {}) or {} ))), # Approximation, re-use calc logic better
-                    "licensed_vcpu_count": 0 # TODO calculate
+                    "license_info": {
+                        "count": lic_data["total_licenses"],
+                        "usage_id": "null" # Signal to JS that this is snapshot-based
+                    },
+                    "licensed_node_count": lic_data["node_count"],
+                    "licensed_vcpu_count": lic_data["total_vcpu"]
                  })
-                 
-                 # Fix up Licensed Node Count properly
-                 s_nodes = snapshot_data.get("nodes", [])
-                 l_data = calculate_licenses(s_nodes, rules)
-                 summary[-1]["license_info"] = l_data
-                 summary[-1]["licensed_node_count"] = l_data["node_count"] # This is licensed nodes
-                 summary[-1]["licensed_vcpu_count"] = l_data["total_vcpu"] # This is licensed vcpu
                  
                  # Accumulate Globals
                  global_stats["total_nodes"] += stats["node_count"]
-                 global_stats["total_licensed_nodes"] += l_data["node_count"]
+                 global_stats["total_licensed_nodes"] += lic_data["node_count"]
                  global_stats["total_vcpu"] += stats["vcpu_count"]
-                 global_stats["total_licensed_vcpu"] += l_data["total_vcpu"]
-                 global_stats["total_licenses"] += l_data["total_licenses"]
+                 global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
+                 global_stats["total_licenses"] += lic_data["total_licenses"]
                  
                  continue # Next cluster
              else:

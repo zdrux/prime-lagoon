@@ -19,6 +19,8 @@ POLL_RESOURCES = {
     "ingresscontrollers": {"api_version": "operator.openshift.io/v1", "kind": "IngressController"},
     "clusteroperators": {"api_version": "config.openshift.io/v1", "kind": "ClusterOperator"},
     "infrastructures": {"api_version": "config.openshift.io/v1", "kind": "Infrastructure"},
+    "clusterversions": {"api_version": "config.openshift.io/v1", "kind": "ClusterVersion"},
+    "routes": {"api_version": "route.openshift.io/v1", "kind": "Route"},
 }
 
 def poll_all_clusters(progress_callback=None):

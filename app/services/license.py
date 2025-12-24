@@ -1,22 +1,8 @@
 import math
 import json
 from typing import List, Dict, Any, Optional
-from app.services.ocp import parse_cpu
-
+from app.services.ocp import parse_cpu, get_val
 from app.models import LicenseRule
-
-def get_val(obj, path):
-    """Helper to safely get nested values from object or dict."""
-    parts = path.split('.')
-    curr = obj
-    for p in parts:
-        if curr is None:
-            return None
-        if isinstance(curr, dict):
-            curr = curr.get(p)
-        else:
-            curr = getattr(curr, p, None)
-    return curr
 
 def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = []) -> Dict[str, Any]:
     """

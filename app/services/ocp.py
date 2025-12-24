@@ -7,6 +7,19 @@ from app.models import Cluster
 # Disable insecure request warnings for now as many internal OCP clusters use self-signed certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+def get_val(obj, path):
+    """Helper to safely get nested values from object or dict."""
+    parts = path.split('.')
+    curr = obj
+    for p in parts:
+        if curr is None:
+            return None
+        if isinstance(curr, dict):
+            curr = curr.get(p)
+        else:
+            curr = getattr(curr, p, None)
+    return curr
+
 def get_dynamic_client(cluster: Cluster) -> DynamicClient:
     configuration = client.Configuration()
     configuration.host = cluster.api_url
@@ -152,22 +165,25 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             for node in nodes:
                  # In snapshot, node is a dict, not a K8s object
                  # Capacity is usually at node['status']['capacity']['cpu']
-                 try:
-                     cpu = node['status']['capacity']['cpu']
-                     vcpu_count += parse_cpu(cpu)
-                 except:
-                     pass
-                     
+                 cpu = get_val(node, 'status.capacity.cpu')
+                 vcpu_count += parse_cpu(cpu)
+                      
             cluster_version = "N/A"
-            # Attempt to find version in clusteroperators or infrastructures if stored? 
-            # Or assume we stored it specifically? 
-            # For now, let's look at clusteroperators if we store them
-            pass # TODO: Extract version from snapshot if possible
+            # Try to get from clusterversions list if captured (new poller)
+            cv_list = snapshot_data.get("clusterversions", [])
+            target_cv = next((cv for cv in cv_list if get_val(cv, 'metadata.name') == 'version'), None)
+            if target_cv:
+                cluster_version = get_val(target_cv, 'status.desired.version') or "N/A"
             
-            console_url = "N/A"
-            # TODO: Extract console from route snapshot
+            console_url = "#"
+            # Try to get from routes list if captured (new poller)
+            routes = snapshot_data.get("routes", [])
+            console_route = next((r for r in routes if get_val(r, 'metadata.name') == 'console' and get_val(r, 'metadata.namespace') == 'openshift-console'), None)
+            if console_route:
+                host = get_val(console_route, 'spec.host')
+                if host:
+                    console_url = f"https://{host}"
             
-            # Simple return for snapshot mode for now
             return {
                 "id": cluster.id,
                 "node_count": node_count,
@@ -186,8 +202,8 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
         
         vcpu_count = 0
         for node in nodes:
-            # Capacity is usually a string like "4" or "4000m"
-            cpu = node.status.capacity.cpu
+            # Handle both dicts (enriched) and K8s objects
+            cpu = get_val(node, 'status.capacity.cpu')
             vcpu_count += parse_cpu(cpu)
                  
         # Version Info

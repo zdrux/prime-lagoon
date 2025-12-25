@@ -367,13 +367,79 @@
                 </div>
             </div>
 
-            <button class="btn btn-primary" onclick="saveCluster()" style="width:100%; margin-top:1rem;">Save
-                Cluster</button>
+            <!-- Connection Status Area -->
+            <div id="connection-status"
+                style="margin-top:1rem; display:none; padding:0.75rem; border-radius:6px; font-size:0.9rem;"></div>
+
+            <div style="display:flex; gap:1rem; margin-top:1rem;">
+                <button class="btn btn-secondary" onclick="testConnection()" style="flex:1;">
+                    <i class="fas fa-plug"></i> Test Connection
+                </button>
+                <button class="btn btn-primary" onclick="saveCluster()" style="flex:2;">
+                    Save Cluster
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
+    // ... (existing functions) ...
+
+    async function testConnection() {
+        const url = document.getElementById('c-url').value;
+        const token = document.getElementById('c-token').value;
+        const btn = document.querySelector('button[onclick="testConnection()"]');
+        const statusDiv = document.getElementById('connection-status');
+
+        statusDiv.style.display = 'none';
+        statusDiv.className = '';
+
+        if (!url || !token) {
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+            statusDiv.style.color = 'var(--danger-color)';
+            statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter API URL and Token first.';
+            return;
+        }
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Testing...';
+
+        try {
+            const res = await fetch('/api/admin/clusters/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_url: url, token: token })
+            });
+            const data = await res.json();
+
+            statusDiv.style.display = 'block';
+            if (data.success) {
+                statusDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+                statusDiv.style.color = 'var(--success-color)';
+                statusDiv.style.border = '1px solid rgba(16, 185, 129, 0.2)';
+                statusDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
+            } else {
+                statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+                statusDiv.style.color = 'var(--danger-color)';
+                statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+                statusDiv.innerHTML = `<i class="fas fa-times-circle"></i> Connection Failed: ${data.message}`;
+            }
+        } catch (e) {
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+            statusDiv.style.color = 'var(--danger-color)';
+            statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            statusDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${e.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
     // Tab Logic
     function switchTab(tabName) {
         // Update Links
@@ -410,33 +476,97 @@
         }
     }
 
-    function renderSnapshotRows(snapshots) {
+    function renderSnapshotRows(groups) {
         const tbody = document.getElementById('snapshots-table-body');
-        if (snapshots.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; opacity:0.6;">No snapshots found.</td></tr>';
+        if (groups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; opacity:0.6;">No snapshots found.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = snapshots.map(s => {
+        tbody.innerHTML = groups.map((g, index) => {
             // Ensure timestamp is treated as UTC
-            let ts = s.timestamp;
-            if (!ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
+            let ts = g.timestamp;
+            if (ts && !ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
+
+            const rowId = `group-${index}`;
+            const detailsId = `details-${index}`;
+
+            // Build sub-rows
+            const subRows = g.snapshots.map(s => `
+                <tr style="background-color: rgba(255,255,255,0.03);">
+                    <td></td>
+                    <td><small>${s.id}</small></td>
+                    <td style="color:var(--accent-color);">${s.cluster_name}</td>
+                    <td><span class="badge ${s.status === 'Success' ? 'badge-green' : 'badge-red'}">${s.status}</span></td>
+                    <td style="font-family:monospace; font-size:0.85rem;">${s.node_count} Nodes, ${s.vcpu_count} vCPU</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                    <td></td>
+                </tr>
+            `).join('');
 
             return `
-            <tr>
-                <td><small>${s.id}</small></td>
-                <td style="font-weight:600; color:var(--accent-color);">${s.cluster_name}</td>
+            <!-- Group Row -->
+            <tr style="cursor:pointer; font-weight:600;" onclick="toggleSnapshotDetails('${detailsId}')">
+                <td><i class="fas fa-chevron-right" id="icon-${detailsId}"></i></td>
+                <td>Run</td>
                 <td>${new Date(ts).toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })}</td>
-                <td><span class="badge ${s.status === 'Success' ? 'badge-green' : 'badge-red'}">${s.status}</span></td>
-                <td style="font-family:monospace; font-size:0.85rem;">${s.node_count} Nodes, ${s.vcpu_count} vCPU</td>
+                <td><span class="badge ${g.status === 'Success' ? 'badge-green' : 'badge-red'}">${g.status}</span></td>
+                <td>${g.total_clusters} Clusters (${g.total_nodes} Nodes)</td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})">
-                        <i class="fas fa-trash"></i>
+                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSnapshotGroup('${g.group_id}')">
+                         Mass Delete
                     </button>
+                </td>
+            </tr>
+            <!-- Details Row (Hidden) -->
+            <tr id="${detailsId}" style="display:none;">
+                <td colspan="7" style="padding:0;">
+                    <table style="width:100%; margin:0; background:rgba(0,0,0,0.2);">
+                        ${subRows}
+                    </table>
                 </td>
             </tr>
             `;
         }).join('');
+    }
+
+    function toggleSnapshotDetails(id) {
+        const row = document.getElementById(id);
+        const icon = document.getElementById(`icon-${id}`);
+        if (row.style.display === 'none') {
+            row.style.display = 'table-row';
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+        } else {
+            row.style.display = 'none';
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        }
+    }
+
+    async function deleteSnapshotGroup(timestamp_str) {
+        if (!confirm('Are you sure you want to delete ALL snapshots in this run?')) return;
+        // TODO: Implement backend group delete or loop? 
+        // For MVP let's just loop locally or add a query param endpoint
+        // Actually, let's use the new cleanup endpoint logic or extended mass delete.
+        // Simpler: Just refresh for now as the user didn't ask for full implementation yet? 
+        // Wait, the user asked for "Mass Delete" button on group row.
+        // Let's implement a loop for now or tell user it's coming.
+        // Actually, let's just loop through the snapshots in that group from memory _allSnapshots?
+
+        // Find group
+        const group = _allSnapshots.find(g => g.group_id === timestamp_str);
+        if (!group) return;
+
+        for (let s of group.snapshots) {
+            await fetch(`/api/admin/clusters/snapshots/${s.id}`, { method: 'DELETE' });
+        }
+        loadSnapshotsTable();
+        loadDbStats();
     }
 
     function filterSnapshotsTable(query) {
@@ -676,6 +806,11 @@
         document.getElementById('c-url').value = '';
         document.getElementById('c-token').value = '';
         document.getElementById('modal-title').innerText = "Add Cluster";
+
+        // Reset status
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) statusDiv.style.display = 'none';
+
         currentTags = {};
         renderTags();
         document.getElementById('cluster-modal').classList.add('open');
@@ -695,6 +830,10 @@
         document.getElementById('c-token').value = c.token; // usually hidden
         document.getElementById('c-dc').value = c.datacenter || 'Azure';
         document.getElementById('c-env').value = c.environment || 'DEV';
+
+        // Reset status
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) statusDiv.style.display = 'none';
 
         try {
             currentTags = JSON.parse(c.tags || '{}');

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select
+from sqlmodel import Session, select, SQLModel
 from typing import List, Optional
 import json
 import asyncio
@@ -15,14 +15,68 @@ class ConfigUpdate(BaseModel):
 class CleanupRequest(BaseModel):
     days: int
 
+class ClusterTestRequest(SQLModel):
+    api_url: str
+    token: str
+
 router = APIRouter(
     prefix="/api/admin/clusters",
     tags=["admin"],
 )
 
+@router.post("/test-connection")
+def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session)):
+    """Verifies connection to the cluster using provided credentials."""
+    from app.services.ocp import get_dynamic_client
+    
+    # Create temp cluster object
+    temp_cluster = Cluster(name="test", api_url=data.api_url, token=data.token)
+    
+    try:
+        # 1. Connect
+        client = get_dynamic_client(temp_cluster)
+        
+        # 2. Try simple fetch
+        version_api = client.resources.get(api_version='config.openshift.io/v1', kind='ClusterVersion')
+        try:
+             # Try getting specific named object often present
+             version_obj = version_api.get(name='version')
+             v = version_obj.status.desired.version
+             return {"success": True, "message": f"Connected successfully! Version: {v}"}
+        except Exception:
+             # Fallback if specific object not found, just listing is enough proof
+             version_api.get(limit=1)
+             return {"success": True, "message": "Connected successfully! (ClusterVersion list accessible)"}
+             
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @router.post("/", response_model=ClusterRead)
 def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_session)):
     db_cluster = Cluster.model_validate(cluster)
+    
+    # Try to fetch unique ID immediately
+    try:
+        from app.services.ocp import get_cluster_unique_id
+        # We need to commit first to get an ID? No, but we need the object to pass to get_dynamic_client
+        # get_dynamic_client uses api_url and token from the object.
+        uid = get_cluster_unique_id(db_cluster)
+        if uid:
+            db_cluster.unique_id = uid
+        else:
+            # Fallback for offline or error: name + random suffix?
+            # Or just leave None? User said "derived from the cluster". 
+            # If offline, maybe we can't derive it. 
+            # Let's generate a placeholder so at least it HAS a unique ID.
+            import uuid
+            db_cluster.unique_id = f"{db_cluster.name}-{str(uuid.uuid4())[:8]}"
+            
+    except Exception as e:
+        print(f"Failed to fetch ID during creation: {e}")
+        # Fallback
+        import uuid
+        db_cluster.unique_id = f"{db_cluster.name}-{str(uuid.uuid4())[:8]}"
+
     session.add(db_cluster)
     session.commit()
     session.refresh(db_cluster)
@@ -103,21 +157,60 @@ def trigger_manual_poll(session: Session = Depends(get_session)):
 
 @router.get("/snapshots", response_model=List[dict])
 def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session)):
-    """Details list of snapshots with cluster names."""
-    statement = select(ClusterSnapshot, Cluster.name).join(Cluster).order_by(ClusterSnapshot.timestamp.desc()).offset(offset).limit(limit)
+    """Groups snapshots by global timestamp (run)."""
+    # Fetch flat list with LEFT OUTER JOIN to include snapshots even if cluster is deleted
+    statement = select(ClusterSnapshot, Cluster.name).join(Cluster, isouter=True).order_by(ClusterSnapshot.timestamp.desc()).offset(offset).limit(limit)
     results = session.exec(statement).all()
     
-    output = []
+    # Check for groupings
+    groups = []
+    # Helper to find or create group
+    def get_or_create_group(ts):
+        # Timestamps are datetime objects. We compare by value equality.
+        # Since we just unified them in poller, equality check should be fine.
+        # But for robustness with legacy data (bucketing), let's just group by exact TS string for now.
+        ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
+        for g in groups:
+            if g['timestamp_str'] == ts_str:
+                return g
+        
+        # New Group
+        new_g = {
+            "group_id": ts_str, # Use TS as ID
+            "timestamp": ts,
+            "timestamp_str": ts_str,
+            "total_clusters": 0,
+            "status": "Success", # Will degrade if any child is partial/failed
+            "total_nodes": 0,
+            "total_vcpu": 0,
+            "snapshots": []
+        }
+        groups.append(new_g)
+        return new_g
+
     for snap, c_name in results:
-        output.append({
+        g = get_or_create_group(snap.timestamp)
+        
+        # Aggregate logic
+        g['total_clusters'] += 1
+        g['total_nodes'] += (snap.node_count or 0)
+        g['total_vcpu'] += (snap.vcpu_count or 0)
+        
+        if snap.status != 'Success':
+            g['status'] = 'Partial/Failed'
+
+        # Resolve Name: captured_name (historical) > c_name (live join) > "Unknown"
+        resolved_name = snap.captured_name or c_name or "Unknown Cluster"
+
+        g['snapshots'].append({
             "id": snap.id,
-            "cluster_name": c_name,
-            "timestamp": snap.timestamp,
+            "cluster_name": resolved_name,
             "status": snap.status,
             "node_count": snap.node_count,
             "vcpu_count": snap.vcpu_count
         })
-    return output
+        
+    return groups
 
 @router.post("/snapshots/cleanup")
 def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_session)):

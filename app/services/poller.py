@@ -16,7 +16,7 @@ POLL_RESOURCES = {
     "machinesets": {"api_version": "machine.openshift.io/v1beta1", "kind": "MachineSet"},
     "projects": {"api_version": "project.openshift.io/v1", "kind": "Project"},
     "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
-    "ingresscontrollers": {"api_version": "operator.openshift.io/v1", "kind": "IngressController"},
+    "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
     "clusteroperators": {"api_version": "config.openshift.io/v1", "kind": "ClusterOperator"},
     "infrastructures": {"api_version": "config.openshift.io/v1", "kind": "Infrastructure"},
     "clusterversions": {"api_version": "config.openshift.io/v1", "kind": "ClusterVersion"},
@@ -26,6 +26,8 @@ POLL_RESOURCES = {
 def poll_all_clusters(progress_callback=None):
     """Main entry point for the scheduler."""
     logger.info("Starting background poll of all clusters...")
+    run_timestamp = datetime.utcnow() # Unified timestamp for the entire run
+    
     with Session(engine) as session:
         clusters = session.exec(select(Cluster)).all()
         rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
@@ -35,7 +37,7 @@ def poll_all_clusters(progress_callback=None):
         try:
             if progress_callback:
                 progress_callback({"type": "cluster_start", "cluster": cluster.name, "index": i + 1, "total": total})
-            poll_cluster(cluster.id, rules, progress_callback)
+            poll_cluster(cluster.id, rules, progress_callback, run_timestamp)
             if progress_callback:
                 progress_callback({"type": "cluster_end", "cluster": cluster.name})
         except Exception as e:
@@ -43,8 +45,11 @@ def poll_all_clusters(progress_callback=None):
             if progress_callback:
                 progress_callback({"type": "error", "cluster": cluster.name, "message": str(e)})
 
-def poll_cluster(cluster_id: int, rules: list, progress_callback=None):
+def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_timestamp=None):
     """Fetches all resources for a cluster, saves snapshot, and updates license usage."""
+    if run_timestamp is None:
+        run_timestamp = datetime.utcnow()
+
     with Session(engine) as session:
         cluster = session.get(Cluster, cluster_id)
         if not cluster:
@@ -83,10 +88,9 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None):
         lic_data = calculate_licenses(nodes, rules)
         
         # Save License Usage Record
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         usage = LicenseUsage(
             cluster_id=cluster.id,
-            timestamp=timestamp,
+            timestamp=run_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             node_count=lic_data["node_count"],
             total_vcpu=lic_data["total_vcpu"],
             license_count=lic_data["total_licenses"],
@@ -97,8 +101,10 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None):
         # 3. Create ClusterSnapshot
         snapshot = ClusterSnapshot(
             cluster_id=cluster.id,
-            timestamp=datetime.utcnow(),
+            timestamp=run_timestamp,
             status=status,
+            captured_name=cluster.name,          # Freeze name
+            captured_unique_id=cluster.unique_id, # Freeze unique ID
             node_count=lic_data["node_count"],
             vcpu_count=lic_data["total_vcpu"],
             data_json=json.dumps(snapshot_data, default=str) # default=str handles datetime objects in k8s responses

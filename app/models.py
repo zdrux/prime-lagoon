@@ -4,6 +4,7 @@ from sqlmodel import Field, SQLModel, Column, Text
 
 class ClusterBase(SQLModel):
     name: str = Field(index=True, unique=True)
+    unique_id: Optional[str] = Field(default=None, index=True) # OpenShift Cluster ID
     api_url: str
     token: str
     datacenter: Optional[str] = Field(default="Azure")
@@ -21,6 +22,7 @@ class ClusterRead(ClusterBase):
 
 class ClusterUpdate(SQLModel):
     name: Optional[str] = None
+    unique_id: Optional[str] = None
     api_url: Optional[str] = None
     token: Optional[str] = None
     datacenter: Optional[str] = None
@@ -106,6 +108,10 @@ class ClusterSnapshot(SQLModel, table=True):
     cluster_id: int = Field(foreign_key="cluster.id", index=True)
     timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
     status: str = Field(default="Success") # Success, Partial, Failed
+    
+    # Identity freeze
+    captured_name: Optional[str] = None
+    captured_unique_id: Optional[str] = None
     
     # Store key metrics for quick lookup/graphs
     node_count: int = Field(default=0)

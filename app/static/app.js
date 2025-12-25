@@ -191,9 +191,16 @@ async function loadSummary() {
     const summaryDiv = document.getElementById('dashboard-summary');
     try {
         let url = '/api/dashboard/summary';
+        let fastMode = false;
+
         if (window.currentSnapshotTime) {
             url += `?snapshot_time=${window.currentSnapshotTime}`;
+        } else {
+            // Live mode: use fast snapshot first
+            url += `?mode=fast`;
+            fastMode = true;
         }
+
         const res = await fetch(url);
         if (!res.ok) throw new Error("Failed to load summary");
         const data = await res.json();
@@ -292,6 +299,13 @@ async function loadSummary() {
         </div>
         `;
 
+        // Trigger Live Updates in Background
+        if (fastMode) {
+            window._allClusters.forEach(c => {
+                refreshClusterLive(c.id);
+            });
+        }
+
     } catch (e) {
         summaryDiv.innerHTML = `<div class="card" style="color:var(--danger-color);">Error loading summary: ${e.message}</div>`;
     }
@@ -301,9 +315,20 @@ function renderClusterRows(clusters) {
     if (clusters.length === 0) {
         return '<tr><td colspan="11" style="text-align:center; padding:2rem; opacity:0.6;">No matching clusters found</td></tr>';
     }
-    return clusters.map(c => `
-        <tr>
-            <td style="font-weight:600; color:var(--accent-color);">${c.name}</td>
+    return clusters.map(c => {
+        let statusColor = 'var(--text-secondary)';
+        let statusTitle = 'Unknown';
+        if (c.status === 'green') { statusColor = 'var(--success-color)'; statusTitle = 'Healthy'; }
+        else if (c.status === 'yellow') { statusColor = 'var(--warning-color)'; statusTitle = 'Stale / Polling'; }
+        else if (c.status === 'red') { statusColor = 'var(--danger-color)'; statusTitle = 'Error / Degraded'; }
+        else if (c.status === 'gray') { statusColor = 'var(--text-secondary)'; statusTitle = 'No Data'; }
+
+        return `
+        <tr id="cluster-row-${c.id}">
+            <td style="font-weight:600; color:var(--accent-color);">
+                <i class="fas fa-circle" style="color:${statusColor}; font-size:0.6rem; margin-right:0.5rem;" title="${statusTitle}"></i>
+                ${c.name}
+            </td>
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.node_count}</td>
             <td>
                 <span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-secondary); opacity:0.8;">
@@ -322,22 +347,74 @@ function renderClusterRows(clusters) {
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.licensed_vcpu_count}</td>
             <td>
                 ${c.stats.console_url && c.stats.console_url !== '#'
-            ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.7rem; border-radius:4px; display:inline-block;" title="Open Console">
+                ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.7rem; border-radius:4px; display:inline-block;" title="Open Console">
                             <i class="fas fa-external-link-alt"></i>
                         </a>`
-            : '<span style="opacity:0.5;">-</span>'
-        }
+                : '<span style="opacity:0.5;">-</span>'
+            }
             </td>
             <td><span class="badge badge-blue" style="font-size:0.7rem;">${c.datacenter || '-'}</span></td>
             <td><span class="badge badge-green" style="font-size:0.7rem;">${c.environment || '-'}</span></td>
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.version || '-'}</td>
             <td>
+                <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="refreshClusterLive(${c.id})" title="Refresh Now">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
                 <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name}')">
                     <i class="fas fa-info-circle"></i>
                 </button>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
+}
+
+async function refreshClusterLive(clusterId) {
+    const row = document.getElementById(`cluster-row-${clusterId}`);
+    if (!row) return;
+
+    // Optional: Show loading state in status icon
+    const icon = row.querySelector('.fa-circle');
+    if (icon) icon.classList.add('fa-pulse');
+
+    try {
+        const res = await fetch(`/api/dashboard/${clusterId}/live_stats`);
+        if (res.ok) {
+            const data = await res.json();
+
+            // Update Global State
+            const idx = window._allClusters.findIndex(c => c.id === clusterId);
+            if (idx !== -1) {
+                window._allClusters[idx] = {
+                    ...window._allClusters[idx],
+                    ...data,
+                    status: data.status
+                };
+
+                // Update DOM strictly by replacing the row
+                const temp = document.createElement('tbody');
+                temp.innerHTML = renderClusterRows([window._allClusters[idx]]);
+                const newRow = temp.firstElementChild;
+                row.replaceWith(newRow);
+            }
+        } else {
+            throw new Error("Failed to refresh");
+        }
+    } catch (e) {
+        console.error("Cluster refresh failed", e);
+        if (icon) {
+            icon.classList.remove('fa-pulse');
+            // Set to red if failed? Or keep yellow?
+            // Maybe switch to Red/Yellow pulsing?
+            icon.style.color = 'var(--danger-color)';
+            icon.title = 'Refresh Failed';
+
+            // Update state to red so filters know
+            const idx = window._allClusters.findIndex(c => c.id === clusterId);
+            if (idx !== -1) {
+                window._allClusters[idx].status = 'red';
+            }
+        }
+    }
 }
 
 function filterClusterTable(query) {
@@ -526,22 +603,6 @@ function renderTable(resourceType, data) {
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Requester', path: 'metadata.annotations.["openshift.io/requester"]' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
-        ];
-    } else if (resourceType === 'ingresscontrollers') {
-        columns = [
-            { header: 'Name', path: 'metadata.name' },
-            { header: 'Domain', path: 'status.domain' },
-            { header: 'Namespace', path: 'metadata.namespace' },
-            { header: 'Status', path: item => getNested(item, 'status.conditions')?.find(c => c.type === 'Available')?.status === 'True' ? 'Available' : 'Unavailable' },
-            { header: 'Replicas', path: 'spec.replicas' },
-            { header: 'Created', path: 'metadata.creationTimestamp' },
-            {
-                header: 'Actions', path: item => `
-                <button class="btn btn-secondary btn-sm" onclick="showIngressDetails(${window.currentClusterId}, '${item.metadata.name}')">
-                    <i class="fas fa-info-circle"></i> View Details
-                </button>
-            `
-            }
         ];
     }
 

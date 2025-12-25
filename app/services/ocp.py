@@ -100,8 +100,24 @@ def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Op
         items = enrich_nodes_with_metrics(cluster, dyn_client, items)
     elif kind == 'Machine':
         items = enrich_machines(items)
+    else:
+        # Ensure we return dicts, as ResourceInstance objects might not be fully serializable by FastAPI
+        # effectively handling IngressController, Project, etc.
+        items = [item.to_dict() if hasattr(item, 'to_dict') else item for item in items]
         
     return items
+
+def get_cluster_unique_id(cluster: Cluster) -> Optional[str]:
+    """Fetches the unique OpenShift Cluster ID from the ClusterVersion resource."""
+    try:
+        dyn_client = get_dynamic_client(cluster)
+        version_api = dyn_client.resources.get(api_version='config.openshift.io/v1', kind='ClusterVersion')
+        # OpenShift usually has a singleton ClusterVersion named 'version'
+        version_obj = version_api.get(name='version')
+        return version_obj.spec.clusterID
+    except Exception as e:
+        print(f"Error fetching cluster ID for {cluster.name}: {e}")
+        return None
 
 def enrich_nodes_with_metrics(cluster: Cluster, dyn_client: DynamicClient, nodes: List[Any]) -> List[Any]:
     """Fetches metrics for all nodes and attaches to node objects."""

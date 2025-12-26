@@ -111,10 +111,10 @@
                         </td>
                         <td>
                             <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
-                                data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
-                                data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
-                                data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
-                                data-val="{{ rule.expected_value or "" }}"
+                                data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
+                                data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
+                                data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
+                                data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
                                 data-res-name="{{ rule.match_resource_name or "" }}"
                                 data-logic="{{ rule.condition_logic }}"
                                 data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
@@ -215,7 +215,7 @@
                         %}
                     </td>
                     <td>
-                        <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
+                        <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}" data-bundle-id=""
                             data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
                             data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
                             data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
@@ -638,17 +638,17 @@
         openRuleModalForEdit(
             d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
             d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
-            d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]'
+            d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
+            d.bundleId || null
         );
     });
 
-    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras) {
+    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, bundleId) {
         // Find if this rule has a bundle_id (passed via data attributes in table)
-        // Check if the button that triggered this is in a bundle table
-        const btn = document.querySelector(`.btn-rule-edit[data-id="${id}"]`);
-        const isBundled = btn ? !!btn.closest('.bundle-card') : false;
+        const isBundled = !!bundleId;
 
         document.getElementById('r-id').value = id || '';
+        document.getElementById('r-bundle-id').value = bundleId || '';
         document.getElementById('r-name').value = name || '';
         document.getElementById('r-kind').value = kind || '';
         document.getElementById('r-api').value = api || '';

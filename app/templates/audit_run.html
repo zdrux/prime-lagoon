@@ -67,7 +67,8 @@
         <div class="modal-body" id="modal-body" style="overflow-y:auto; flex:1;">
             <!-- Results injected here -->
         </div>
-        <div style="margin-top:1rem; text-align:right;">
+        <div id="audit-modal-footer"
+            style="padding:1rem; border-top:1px solid var(--border-color); text-align:right; display:flex; justify-content:flex-end; gap:0.5rem;">
             <button class="btn btn-secondary" onclick="closeModal()">Close</button>
         </div>
     </div>
@@ -237,6 +238,7 @@
 <script>
     let ruleBundles = [];
     let adhocRules = [];
+    let allClusters = [];
 
     async function loadData() {
         const [clusters, bundles, rules, scores] = await Promise.all([
@@ -247,6 +249,7 @@
         ]);
         ruleBundles = bundles;
         adhocRules = rules;
+        allClusters = clusters;
         renderClusters(clusters, scores);
     }
 
@@ -400,20 +403,92 @@
     }
 
     function openAuditModal(clusterId, clusterName) {
-        document.getElementById('modal-title').innerText = `Audit: ${clusterName}`;
-        const body = document.getElementById('modal-body');
-        body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Running audit checks...</div>';
-        document.getElementById('audit-modal').classList.add('open');
+        const cluster = allClusters.find(c => c.id === clusterId);
+        if (!cluster) return;
 
-        runAudit(clusterId);
+        const cTags = parseTags(cluster.tags);
+        const matchedBundles = ruleBundles.filter(b => {
+            if (b.match_datacenter && b.match_datacenter !== cluster.datacenter) return false;
+            if (b.match_environment && b.match_environment !== cluster.environment) return false;
+            return tagsMatch(parseTags(b.tags), cTags);
+        });
+
+        const matchedAdhoc = adhocRules.filter(r => {
+            if (r.bundle_id) return false;
+            if (r.match_datacenter && r.match_datacenter !== cluster.datacenter) return false;
+            if (r.match_environment && r.match_environment !== cluster.environment) return false;
+            return tagsMatch(parseTags(r.tags), cTags);
+        });
+
+        document.getElementById('modal-title').innerText = `Confirm Audit Execution`;
+        const body = document.getElementById('modal-body');
+        const footer = document.getElementById('audit-modal-footer');
+
+        let html = `
+            <div style="padding:1rem;">
+                <div style="margin-bottom:1.5rem; border-left:4px solid var(--accent-color); padding-left:1rem;">
+                    <h4 style="margin:0 0 0.5rem 0;">Target Cluster</h4>
+                    <div style="font-size:1.1rem; font-weight:700;">${clusterName}</div>
+                    <div style="font-size:0.85rem; opacity:0.6;">DC: ${cluster.datacenter || 'N/A'} | Env: ${cluster.environment || 'N/A'}</div>
+                </div>
+
+                <p style="margin-bottom:1rem; opacity:0.8;">The following rules and bundles match this cluster and will be executed:</p>
+                
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        `;
+
+        matchedBundles.forEach(b => {
+            const rules = adhocRules.filter(r => r.bundle_id === b.id);
+            html += `
+                <div style="background:rgba(58,134,255,0.05); border:1px solid rgba(58,134,255,0.2); padding:0.8rem; border-radius:6px;">
+                    <div style="font-weight:600; color:var(--accent-color); display:flex; justify-content:space-between;">
+                        <span><i class="fas fa-box"></i> ${b.name}</span>
+                        <span style="font-size:0.8rem; opacity:0.6;">${rules.length} Rules</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        if (matchedAdhoc.length > 0) {
+            html += `
+                <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); padding:0.8rem; border-radius:6px;">
+                    <div style="font-weight:600; display:flex; justify-content:space-between;">
+                        <span><i class="fas fa-list"></i> Ad-hoc Rules</span>
+                        <span style="font-size:0.8rem; opacity:0.6;">${matchedAdhoc.length} Rules</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (matchedBundles.length === 0 && matchedAdhoc.length === 0) {
+            html += `<div class="card" style="text-align:center; color:var(--danger-color); border-color:var(--danger-color);">No matching rules found for this cluster context.</div>`;
+        }
+
+        html += `</div></div>`;
+        body.innerHTML = html;
+
+        footer.innerHTML = `
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="runAudit(${clusterId}, '${clusterName}')" ${matchedBundles.length === 0 && matchedAdhoc.length === 0 ? 'disabled' : ''}>
+                <i class="fas fa-rocket"></i> Launch Execution
+            </button>
+        `;
+
+        document.getElementById('audit-modal').classList.add('open');
     }
 
     function closeModal() {
         document.getElementById('audit-modal').classList.remove('open');
     }
 
-    async function runAudit(clusterId) {
+    async function runAudit(clusterId, clusterName) {
+        document.getElementById('modal-title').innerText = `Auditing: ${clusterName}`;
         const body = document.getElementById('modal-body');
+        const footer = document.getElementById('audit-modal-footer');
+
+        body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Scanning cluster resources...</div>';
+        footer.innerHTML = '<button class="btn btn-secondary" disabled>Executing Scan...</button>';
+
         try {
             const res = await fetch(`/api/audit/run?cluster_id=${clusterId}`, { method: 'POST' });
             const results = await res.json();
@@ -477,6 +552,7 @@
                 `;
             }
             body.innerHTML = html;
+            footer.innerHTML = '<button class="btn btn-secondary" onclick="closeModal()">Close</button>';
 
         } catch (e) {
             body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;">

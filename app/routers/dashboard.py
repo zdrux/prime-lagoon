@@ -144,9 +144,10 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
             if snap and snap.data_json:
                 data = json.loads(snap.data_json)
                 nodes = data.get("nodes", [])
-                from app.models import LicenseRule
+                from app.models import LicenseRule, AppConfig
                 rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-                lic_data = calculate_licenses(nodes, rules)
+                default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+                lic_data = calculate_licenses(nodes, rules, default_include=default_include)
                 return {
                     "node_count": lic_data["node_count"],
                     "total_vcpu": lic_data["total_vcpu"],
@@ -178,9 +179,10 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
         
     try:
         nodes = fetch_resources(cluster, "v1", "Node")
-        from app.models import LicenseRule
+        from app.models import LicenseRule, AppConfig
         rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-        lic_data = calculate_licenses(nodes, rules)
+        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+        lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         return {
             "node_count": lic_data["node_count"],
             "total_vcpu": lic_data["total_vcpu"],
@@ -196,6 +198,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     
     # Fetch Config
     rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+    default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
     
     global_stats = {
         "total_nodes": 0,
@@ -229,7 +232,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                 snapshot_data = json.loads(snap.data_json)
                 stats = get_cluster_stats(cluster, snapshot_data=snapshot_data)
                 s_nodes = snapshot_data.get("nodes", [])
-                lic_data = calculate_licenses(s_nodes, rules)
+                lic_data = calculate_licenses(s_nodes, rules, default_include=default_include)
                 
                 # Use frozen identity if available (for snapshots)
                 c_name = snap.captured_name or cluster.name
@@ -345,7 +348,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                  snapshot_data = json.loads(snap.data_json)
                  stats = get_cluster_stats(cluster, snapshot_data=snapshot_data)
                  s_nodes = snapshot_data.get("nodes", [])
-                 lic_data = calculate_licenses(s_nodes, rules)
+                 lic_data = calculate_licenses(s_nodes, rules, default_include=default_include)
                  
                  # Use frozen identity if available (for snapshots)
                  c_name = snap.captured_name or cluster.name
@@ -408,7 +411,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                     op_status = res.get("operator_status", "green")
                     
                     # Lic calc (safe to run in main thread)
-                    lic_data = calculate_licenses(nodes, rules)
+                    lic_data = calculate_licenses(nodes, rules, default_include=default_include)
                     
                     # Save History
                     usage = LicenseUsage(
@@ -533,9 +536,10 @@ def get_cluster_live_stats(cluster_id: int, session: Session = Depends(get_sessi
              operator_status = "red"
 
         # 3. Calculate Licenses
-        from app.models import LicenseRule
+        from app.models import LicenseRule, AppConfig
         rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-        lic_data = calculate_licenses(nodes, rules)
+        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+        lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         
         # 4. Save History
         # We should save history even for single updates? Yes, why not.

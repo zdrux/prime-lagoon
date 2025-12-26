@@ -238,7 +238,8 @@ def license_settings_page(
         "page": "settings_license",
         "rules": rules,
         "clusters": clusters,
-        "clusters_by_dc": clusters_by_dc
+        "clusters_by_dc": clusters_by_dc,
+        "default_include": (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
     })
 
 class LicenseRuleCreate(BaseModel):
@@ -285,10 +286,26 @@ def delete_license_rule(rule_id: int, session: Session = Depends(get_session), u
     session.commit()
     return {"ok": True}
 
+class ConfigUpdate(BaseModel):
+    value: str
+
+@router.post("/api/license/config/default")
+def update_license_default_config(req: ConfigUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    key = "LICENSE_DEFAULT_INCLUDE"
+    db_cfg = session.get(AppConfig, key)
+    if not db_cfg:
+        db_cfg = AppConfig(key=key, value=req.value)
+    else:
+        db_cfg.value = req.value
+    session.add(db_cfg)
+    session.commit()
+    return {"ok": True}
+
 class LicensePreviewRequest(BaseModel):
     cluster_id: int
     # Optional temporary rules for preview
     temp_rules: Optional[List[LicenseRuleCreate]] = None
+    default_include: Optional[bool] = None
 
 @router.post("/api/license/preview")
 def preview_license_config(req: LicensePreviewRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
@@ -310,7 +327,12 @@ def preview_license_config(req: LicensePreviewRequest, session: Session = Depend
              # Use DB rules
              rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
              
-        result = calculate_licenses(nodes, rules)
+        if req.default_include is not None:
+            default_include = req.default_include
+        else:
+            default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+
+        result = calculate_licenses(nodes, rules, default_include=default_include)
         return {"ok": True, "result": result}
     except Exception as e:
         return {"ok": False, "error": str(e)}

@@ -334,8 +334,9 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
 
                 for item in resources:
                     item_data = item.to_dict() if hasattr(item, 'to_dict') else item
+                    item_name = item_data.get('metadata', {}).get('name', '?')
                     
-                    cond_results = []
+                    cond_matches = []
                     for cond in conditions:
                         actual = get_nested_value(item_data, cond["path"])
                         op = cond["op"]
@@ -349,17 +350,22 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                         elif op == "contains":
                             m = str(exp) in str(actual) if actual else False
                         
-                        cond_results.append(m)
+                        cond_matches.append({"match": m, "cond": cond, "actual": actual})
                     
                     # Evaluate item based on logic
-                    item_pass = False
-                    if rule.condition_logic == "OR":
-                        item_pass = any(cond_results)
-                    else:
-                        item_pass = all(cond_results)
+                    passed_list = [c["match"] for c in cond_matches]
+                    item_pass = any(passed_list) if rule.condition_logic == "OR" else all(passed_list)
                     
                     if not item_pass:
-                        fail_reasons.append(f"Item {item_data.get('metadata',{}).get('name','?')} failed logic ({rule.condition_logic})")
+                        # Build a descriptive failure string for this item
+                        failed_details = []
+                        for cm in cond_matches:
+                            if not cm["match"]:
+                                c = cm["cond"]
+                                actual_str = f"'{cm['actual']}'" if cm['actual'] is not None else "None"
+                                failed_details.append(f"'{c['path']}' {c['op']} '{c['val']}' (Actual: {actual_str})")
+                        
+                        fail_reasons.append(f"Item '{item_name}' failed: " + "; ".join(failed_details))
                     else:
                         pass_count += 1
                         
@@ -389,6 +395,13 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                     ))
                     
             except Exception as e:
+                error_msg = str(e)
+                # Detect common K8s API errors and provide user-friendly messages
+                if "403" in error_msg or "Forbidden" in error_msg:
+                    error_msg = f"Forbidden: Service account lacks permissions for {rule.resource_kind} ({rule.api_version})"
+                elif "404" in error_msg or "Not Found" in error_msg:
+                    error_msg = f"Not Found: Resource kind {rule.resource_kind} or API {rule.api_version} not available on this cluster"
+
                 results.append(AuditResult(
                     cluster_name=cluster.name,
                     cluster_id=cluster.id,
@@ -396,7 +409,7 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                     bundle_name=bundle_name,
                     bundle_id=bundle_id,
                     status="ERROR",
-                    detail=str(e),
+                    detail=error_msg,
                     resource_kind=rule.resource_kind,
                     namespace=rule.namespace
                 ))

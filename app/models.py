@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import Field, SQLModel, Column, Text
+from pydantic import field_validator
 
 class ClusterBase(SQLModel):
     name: str = Field(index=True, unique=True)
@@ -19,6 +20,11 @@ class ClusterCreate(ClusterBase):
 
 class ClusterRead(ClusterBase):
     id: int
+
+    @field_validator('token')
+    @classmethod
+    def mask_token(cls, v: str) -> str:
+        return "********"
 
 class ClusterUpdate(SQLModel):
     name: Optional[str] = None

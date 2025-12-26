@@ -570,12 +570,12 @@ function renderTable(resourceType, data) {
             { header: 'Intake #', path: 'metadata.labels.intake_number' },
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'LOB', path: 'metadata.labels.lob' },
-            { header: 'VM Type', path: 'metadata.labels.["machine.openshift.io/instance-type"]' },
+            { header: 'VM Type', path: '__enriched.vm_type' },
             { header: 'CPU (Cores)', path: '__enriched.cpu' },
             {
                 header: 'Memory (GB)', path: item => {
                     const gb = getNested(item, '__enriched.memory_gb');
-                    return gb !== undefined ? gb + ' GB' : '-';
+                    return (gb !== undefined && gb !== 0) ? gb.toFixed(1) + ' GB' : '-';
                 }
             },
             { header: 'Created', path: 'metadata.creationTimestamp' }
@@ -780,23 +780,26 @@ function getValue(item, path) {
 
 function getNested(obj, path) {
     if (!path) return undefined;
-    return path.split('.').reduce((acc, part) => {
+    // Matches either plain fields or bracketed strings ["foo.bar"] or ['foo.bar']
+    const parts = path.match(/([^.\[\]]+)|\["([^"\]]+)"\]|\[\'([^\'\]]+)\'\]/g);
+    if (!parts) return undefined;
+
+    return parts.reduce((acc, part) => {
         if (acc === undefined || acc === null) return undefined;
 
-        // Handle bracket notation: ["foo.bar/baz"]
+        let key = part;
         if (part.startsWith('["') && part.endsWith('"]')) {
-            return acc[part.slice(2, -2)];
+            key = part.slice(2, -2);
+        } else if (part.startsWith("['") && part.endsWith("']")) {
+            key = part.slice(2, -2);
+        } else if (part.startsWith('[') && part.endsWith(']')) {
+            // Handle indices like [0]
+            const index = parseInt(part.slice(1, -1));
+            if (!isNaN(index)) return acc[index];
+            key = part.slice(1, -1);
         }
 
-        // Handle array index notation: foo[0]
-        const arrayMatch = part.match(/^(.+)\[(\d+)\]$/);
-        if (arrayMatch) {
-            const key = arrayMatch[1];
-            const index = parseInt(arrayMatch[2]);
-            return acc[key] ? acc[key][index] : undefined;
-        }
-
-        return acc[part];
+        return acc[key];
     }, obj);
 }
 

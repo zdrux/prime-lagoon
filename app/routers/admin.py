@@ -18,6 +18,7 @@ class CleanupRequest(BaseModel):
 class ClusterTestRequest(SQLModel):
     api_url: str
     token: str
+    cluster_id: Optional[int] = None
 
 router = APIRouter(
     prefix="/api/admin/clusters",
@@ -29,8 +30,16 @@ def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depend
     """Verifies connection to the cluster using provided credentials."""
     from app.services.ocp import get_dynamic_client
     
+    token_to_use = data.token
+    
+    # If token is masked and we have a cluster_id, fetch the real token from DB
+    if token_to_use == "********" and data.cluster_id:
+        db_cluster = session.get(Cluster, data.cluster_id)
+        if db_cluster:
+            token_to_use = db_cluster.token
+            
     # Create temp cluster object
-    temp_cluster = Cluster(name="test", api_url=data.api_url, token=data.token)
+    temp_cluster = Cluster(name="test", api_url=data.api_url, token=token_to_use)
     
     try:
         # 1. Connect
@@ -295,6 +304,11 @@ def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = D
         raise HTTPException(status_code=404, detail="Cluster not found")
     
     cluster_data = cluster.model_dump(exclude_unset=True)
+    
+    # If token is masked, remove it from update so we don't overwrite with '********'
+    if cluster_data.get('token') == "********":
+        del cluster_data['token']
+        
     for key, value in cluster_data.items():
         setattr(db_cluster, key, value)
         

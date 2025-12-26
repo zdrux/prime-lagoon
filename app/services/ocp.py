@@ -1,4 +1,5 @@
 import urllib3
+import re
 from typing import Optional, List, Any
 from kubernetes import client
 from openshift.dynamic import DynamicClient
@@ -8,10 +9,14 @@ from app.models import Cluster
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_val(obj, path):
-    """Helper to safely get nested values from object or dict."""
-    parts = path.split('.')
+    """Helper to safely get nested values from object or dict. Handles metadata.labels['foo.bar']"""
+    if not path:
+        return obj
+    # Matches either plain fields (field) or bracketed strings ["bracketed"]
+    parts = re.findall(r'([^.\[\]]+)|\["([^"\]]+)"\]|\[\'([^\'\]]+)\'\]', path)
     curr = obj
-    for p in parts:
+    for field, bracketed_double, bracketed_single in parts:
+        p = field or bracketed_double or bracketed_single
         if curr is None:
             return None
         if isinstance(curr, dict):
@@ -163,15 +168,28 @@ def enrich_machines(machines: List[Any]) -> List[Any]:
     """Adds capacity info to machines for UI consistency."""
     enriched = []
     for m in machines:
-        m_dict = m.to_dict()
-        # Machine doesn't have live metrics usually, but we can extract capacity from labels/spec if needed
-        # For now just ensure __enriched exists to avoid JS errors if any
+        m_dict = m.to_dict() if hasattr(m, 'to_dict') else m
+        
+        # 1. Capture VM Type (Size)
+        # Try different common paths for OCP Machine objects
+        vm_type = get_val(m, 'spec.providerSpec.value.vmSize') or \
+                  get_val(m, 'spec.providerSpec.value.instanceType') or \
+                  get_val(m, 'metadata.labels["machine.openshift.io/instance-type"]') or \
+                  get_val(m, 'status.providerStatus.instanceType') # AWS fallback
+        
+        # 2. Capture CPU/Memory from status.capacity if present 
+        # (Standard for some Machine API versions/providers)
+        cpu_raw = get_val(m, 'status.capacity.cpu')
+        mem_raw = get_val(m, 'status.capacity.memory')
+        
+        # 3. Fallback for Infrastructure Labels if they are in status summary
+        # Some machines report it in status.nodeRef's linked node, but here we only have the machine.
+        
         m_dict['__enriched'] = {
-            "cpu": parse_cpu(m.metadata.labels.get('machine.openshift.io/instance-type')), # Placeholder logic
-            "memory": 0 # Placeholder
+            "vm_type": vm_type or "-",
+            "cpu": parse_cpu(cpu_raw) if cpu_raw else 0,
+            "memory_gb": parse_memory_to_gb(mem_raw) if mem_raw else 0
         }
-        # Actually, machine.openshift.io/instance-type is just a name. 
-        # For machines, we usually just want to see the type.
         enriched.append(m_dict)
     return enriched
 

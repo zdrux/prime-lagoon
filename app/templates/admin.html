@@ -389,6 +389,7 @@
     async function testConnection() {
         const url = document.getElementById('c-url').value;
         const token = document.getElementById('c-token').value;
+        const clusterId = document.getElementById('c-id').value;
         const btn = document.querySelector('button[onclick="testConnection()"]');
         const statusDiv = document.getElementById('connection-status');
 
@@ -412,7 +413,11 @@
             const res = await fetch('/api/admin/clusters/test-connection', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ api_url: url, token: token })
+                body: JSON.stringify({
+                    api_url: url,
+                    token: token,
+                    cluster_id: clusterId ? parseInt(clusterId) : null
+                })
             });
             const data = await res.json();
 

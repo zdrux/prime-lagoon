@@ -333,7 +333,7 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                     except: pass
 
                 for item in resources:
-                    item_data = item.to_dict()
+                    item_data = item.to_dict() if hasattr(item, 'to_dict') else item
                     
                     cond_results = []
                     for cond in conditions:

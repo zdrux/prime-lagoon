@@ -117,6 +117,151 @@ def delete_rule(rule_id: int, session: Session = Depends(get_session)):
     session.commit()
     return {"ok": True}
 
+@router.post("/rules/{rule_id}/duplicate", response_model=AuditRule)
+def duplicate_rule(rule_id: int, session: Session = Depends(get_session)):
+    db_rule = session.get(AuditRule, rule_id)
+    if not db_rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    
+    # Create a clone
+    new_rule = AuditRule.model_validate(db_rule)
+    new_rule.id = None # Let DB assign new ID
+    new_rule.name = f"Copy of {new_rule.name}"
+    
+    session.add(new_rule)
+    session.commit()
+    session.refresh(new_rule)
+    return new_rule
+
+# --- Export/Import ---
+
+class ExportRequest(BaseModel):
+    rule_ids: List[int]
+    bundle_ids: List[int]
+
+@router.post("/export")
+def export_rules(req: ExportRequest, session: Session = Depends(get_session)):
+    bundles = []
+    if req.bundle_ids:
+        bundles = session.exec(select(AuditBundle).where(AuditBundle.id.in_(req.bundle_ids))).all()
+    
+    # Fetch rules explicitly requested
+    rules = []
+    if req.rule_ids:
+        rules = session.exec(select(AuditRule).where(AuditRule.id.in_(req.rule_ids))).all()
+    
+    # Also fetch all rules belonging to exported bundles to ensure consistency
+    if req.bundle_ids:
+        bundle_rules = session.exec(select(AuditRule).where(AuditRule.bundle_id.in_(req.bundle_ids))).all()
+        # Merge and avoid duplicates
+        rule_ids_present = {r.id for r in rules}
+        for br in bundle_rules:
+            if br.id not in rule_ids_present:
+                rules.append(br)
+    
+    return {
+        "version": "1.0",
+        "exported_at": datetime.now().isoformat(),
+        "bundles": [b.model_dump() for b in bundles],
+        "rules": [r.model_dump() for r in rules]
+    }
+
+class ImportData(BaseModel):
+    bundles: List[dict]
+    rules: List[dict]
+
+@router.post("/import/preview")
+def import_preview(data: ImportData, session: Session = Depends(get_session)):
+    # Check for name conflicts
+    existing_bundles = session.exec(select(AuditBundle)).all()
+    existing_rules = session.exec(select(AuditRule)).all()
+    
+    bundle_names = {b.name: b for b in existing_bundles}
+    rule_names = {r.name: r for r in existing_rules}
+    
+    preview = {
+        "bundles": [],
+        "rules": []
+    }
+    
+    for b in data.bundles:
+        conflict = b["name"] in bundle_names
+        preview["bundles"].append({
+            "name": b["name"],
+            "status": "CONFLICT" if conflict else "NEW",
+            "existing_id": bundle_names[b["name"]].id if conflict else None,
+            "data": b
+        })
+        
+    for r in data.rules:
+        conflict = r["name"] in rule_names
+        preview["rules"].append({
+            "name": r["name"],
+            "status": "CONFLICT" if conflict else "NEW",
+            "existing_id": rule_names[r["name"]].id if conflict else None,
+            "data": r
+        })
+        
+    return preview
+
+class ImportConfirmRow(BaseModel):
+    name: str
+    action: str # "CREATE", "OVERWRITE", "SKIP"
+    existing_id: Optional[int] = None
+    data: dict
+
+class ImportConfirmRequest(BaseModel):
+    bundles: List[ImportConfirmRow]
+    rules: List[ImportConfirmRow]
+
+@router.post("/import/confirm")
+def import_confirm(req: ImportConfirmRequest, session: Session = Depends(get_session)):
+    # 1. Process Bundles
+    bundle_id_map = {} # Maps old (exported) ID to new DB ID
+    
+    for b_req in req.bundles:
+        if b_req.action == "SKIP":
+            continue
+            
+        if b_req.action == "OVERWRITE" and b_req.existing_id:
+            db_bundle = session.get(AuditBundle, b_req.existing_id)
+            if db_bundle:
+                for k, v in b_req.data.items():
+                    if k != "id": setattr(db_bundle, k, v)
+                session.add(db_bundle)
+                bundle_id_map[b_req.data.get("id")] = db_bundle.id
+        else:
+            # CREATE
+            new_bundle = AuditBundle(**{k: v for k, v in b_req.data.items() if k != "id"})
+            session.add(new_bundle)
+            session.flush() # Get ID
+            bundle_id_map[b_req.data.get("id")] = new_bundle.id
+            
+    # 2. Process Rules
+    for r_req in req.rules:
+        if r_req.action == "SKIP":
+            continue
+            
+        # Update bundle_id reference if it was part of the import
+        r_data = r_req.data.copy()
+        old_bundle_id = r_data.get("bundle_id")
+        if old_bundle_id in bundle_id_map:
+            r_data["bundle_id"] = bundle_id_map[old_bundle_id]
+            
+        if r_req.action == "OVERWRITE" and r_req.existing_id:
+            db_rule = session.get(AuditRule, r_req.existing_id)
+            if db_rule:
+                for k, v in r_data.items():
+                    if k != "id": setattr(db_rule, k, v)
+                session.add(db_rule)
+        else:
+            # CREATE
+            new_rule = AuditRule(**{k: v for k, v in r_data.items() if k != "id"})
+            session.add(new_rule)
+            
+    session.commit()
+    return {"ok": True}
+
 # --- Matching Logic ---
 
 def parse_tags(tag_str: Optional[str]) -> Dict[str, str]:

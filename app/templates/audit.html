@@ -4,6 +4,12 @@
 <div class="page-header">
     <h1 class="page-title">Audit Rules</h1>
     <div style="display:flex; gap:1rem;">
+        <button class="btn btn-secondary" onclick="openExportModal()">
+            <i class="fas fa-file-export"></i> Export Rules
+        </button>
+        <button class="btn btn-secondary" onclick="openImportModal()">
+            <i class="fas fa-file-import"></i> Import Rules
+        </button>
         <button class="btn btn-secondary" onclick="openBundleModal()">
             <i class="fas fa-box"></i> New Bundle
         </button>
@@ -61,7 +67,7 @@
                         <th style="width:20%;">Rule Name</th>
                         <th style="width:20%;">Resource</th>
                         <th style="width:25%;">Logic</th>
-                        <th style="width:20%;">Actions</th>
+                        <th style="width:25%;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -111,11 +117,16 @@
                                 data-val="{{ rule.expected_value or "" }}"
                                 data-res-name="{{ rule.match_resource_name or "" }}"
                                 data-logic="{{ rule.condition_logic }}"
-                                data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;">
+                                data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
+                                title="Edit Rule">
                                 <i class="fas fa-edit"></i>
                             </button>
+                            <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
+                                style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
+                                <i class="fas fa-copy"></i>
+                            </button>
                             <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
-                                style="padding:0.2rem 0.5rem;">
+                                style="padding:0.2rem 0.5rem;" title="Delete Rule">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
@@ -211,11 +222,16 @@
                             data-val="{{ rule.expected_value or "" }}" data-dc="{{ rule.match_datacenter or "" }}"
                             data-env="{{ rule.match_environment or "" }}" data-tags='{{ rule.tags or "{}" }}'
                             data-res-name="{{ rule.match_resource_name or "" }}" data-logic="{{ rule.condition_logic }}"
-                            data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;">
+                            data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
+                            title="Edit Rule">
                             <i class="fas fa-edit"></i>
                         </button>
+                        <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
+                            style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
+                            <i class="fas fa-copy"></i>
+                        </button>
                         <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
-                            style="padding:0.2rem 0.5rem;">
+                            style="padding:0.2rem 0.5rem;" title="Delete Rule">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -418,6 +434,76 @@
     </div>
 </div>
 
+<!-- Export Modal -->
+<div id="export-modal" class="modal">
+    <div class="modal-content" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3>Export Rules</h3>
+            <button onclick="closeExportModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom:1.5rem; opacity:0.8;">Select the bundles and ad-hoc rules you wish to export as a
+                JSON file.</p>
+
+            <div style="margin-bottom:1rem; display:flex; gap:1rem; align-items:center;">
+                <button class="btn btn-secondary" onclick="exportSelectAll(true)"
+                    style="padding:0.4rem 0.8rem; font-size:0.8rem;">Select All</button>
+                <button class="btn btn-secondary" onclick="exportSelectAll(false)"
+                    style="padding:0.4rem 0.8rem; font-size:0.8rem;">Deselect All</button>
+            </div>
+
+            <div id="export-list"
+                style="max-height: 400px; overflow-y: auto; background: rgba(0,0,0,0.1); border-radius: 8px; padding: 1rem; border: 1px solid var(--border-color);">
+                <!-- Populated by JS -->
+            </div>
+
+            <div style="text-align: right; margin-top: 1.5rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button class="btn btn-secondary" onclick="closeExportModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="downloadExport()">
+                    <i class="fas fa-download"></i> Download Export
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div id="import-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h3>Import Rules</h3>
+            <button onclick="closeImportModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div id="import-upload-section">
+                <div style="border: 2px dashed var(--border-color); padding: 3rem; text-align: center; border-radius: 12px; transition: border-color 0.2s; cursor: pointer;"
+                    onclick="document.getElementById('import-file-input').click()"
+                    onmouseover="this.style.borderColor='var(--accent-color)'"
+                    onmouseout="this.style.borderColor='var(--border-color)'">
+                    <i class="fas fa-cloud-upload-alt fa-3x" style="margin-bottom:1rem; opacity:0.5;"></i>
+                    <h4>Click to upload export file</h4>
+                    <p style="opacity:0.6; font-size:0.9rem;">Select the .json file you previously exported.</p>
+                    <input type="file" id="import-file-input" style="display:none;" accept=".json"
+                        onchange="handleImportFile(this)">
+                </div>
+            </div>
+
+            <div id="import-preview-section" style="display:none;">
+                <p style="margin-bottom:1rem; opacity:0.8;">Review the items to be imported. Conflicts indicate names
+                    already present in the database.</p>
+                <div id="import-preview-table-container" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Table populated by JS -->
+                </div>
+                <div style="text-align: right; margin-top: 1.5rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn btn-secondary" onclick="resetImportModal()">Back</button>
+                    <button class="btn btn-primary" onclick="finalizeImport()">
+                        Confirm Import
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     let bundleTags = {};
@@ -598,6 +684,279 @@
 
     function closeRuleModal() {
         document.getElementById('rule-modal').classList.remove('open');
+    }
+
+    async function duplicateRule(id) {
+        if (!confirm("Duplicate this rule?")) return;
+        const res = await fetch(`/api/audit/rules/${id}/duplicate`, { method: 'POST' });
+        if (res.ok) window.location.reload();
+        else alert("Failed to duplicate rule");
+    }
+
+    // --- Export ---
+    let exportData = { bundles: [], adhoc: [] };
+
+    function openExportModal() {
+        const listDiv = document.getElementById('export-list');
+        listDiv.innerHTML = '';
+
+        // Find all bundles and their rules
+        const bundleCards = document.querySelectorAll('.bundle-card');
+        bundleCards.forEach(card => {
+            const bundleName = card.querySelector('.resource-header span').innerText;
+            // Get bundle ID from edit button
+            const editBtn = card.querySelector('button[onclick^="editBundle"]');
+            const bundleIdMatch = editBtn.getAttribute('onclick').match(/editBundle\((\d+)/);
+            const bundleId = bundleIdMatch ? bundleIdMatch[1] : null;
+
+            const bundleDiv = document.createElement('div');
+            bundleDiv.style.marginBottom = '1.5rem';
+            bundleDiv.innerHTML = `
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:0.3rem;">
+                    <input type="checkbox" class="export-bundle-cb" data-id="${bundleId}" onchange="toggleBundleRules(this)">
+                    <strong style="color:var(--accent-color);"><i class="fas fa-box"></i> ${bundleName}</strong>
+                </div>
+                <div class="bundle-rules-list" style="padding-left:1.5rem; display:flex; flex-direction:column; gap:0.3rem;">
+                </div>
+            `;
+
+            const ruleRows = card.querySelectorAll('tbody tr');
+            const ruleList = bundleDiv.querySelector('.bundle-rules-list');
+            ruleRows.forEach(row => {
+                const ruleName = row.cells[0].innerText;
+                const editBtn = row.querySelector('.btn-rule-edit');
+                const ruleId = editBtn.dataset.id;
+
+                if (ruleId) {
+                    const ruleDiv = document.createElement('div');
+                    ruleDiv.innerHTML = `
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" class="export-rule-cb" data-id="${ruleId}" data-bundle-id="${bundleId}">
+                            <span>${ruleName}</span>
+                        </label>
+                    `;
+                    ruleList.appendChild(ruleDiv);
+                }
+            });
+            listDiv.appendChild(bundleDiv);
+        });
+
+        // Ad-hoc
+        const adhocTable = document.querySelector('div.card:not(.bundle-card) table');
+        if (adhocTable) {
+            const adhocDiv = document.createElement('div');
+            adhocDiv.innerHTML = `
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:0.3rem;">
+                    <strong><i class="fas fa-list"></i> Ad-hoc Rules</strong>
+                </div>
+                <div class="adhoc-rules-list" style="padding-left:1.5rem; display:flex; flex-direction:column; gap:0.3rem;">
+                </div>
+            `;
+            const rows = adhocTable.querySelectorAll('tbody tr');
+            const list = adhocDiv.querySelector('.adhoc-rules-list');
+            rows.forEach(row => {
+                const ruleName = row.cells[0].innerText;
+                if (ruleName === "No ad-hoc rules.") return;
+                const editBtn = row.querySelector('.btn-rule-edit');
+                const ruleId = editBtn ? editBtn.dataset.id : null;
+
+                if (ruleId) {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.innerHTML = `
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" class="export-rule-cb" data-id="${ruleId}">
+                            <span>${ruleName}</span>
+                        </label>
+                    `;
+                    list.appendChild(itemDiv);
+                }
+            });
+            listDiv.appendChild(adhocDiv);
+        }
+
+        document.getElementById('export-modal').classList.add('open');
+    }
+
+    function toggleBundleRules(cb) {
+        const bundleId = cb.dataset.id;
+        const rules = document.querySelectorAll(`.export-rule-cb[data-bundle-id="${bundleId}"]`);
+        rules.forEach(r => r.checked = cb.checked);
+    }
+
+    function exportSelectAll(val) {
+        document.querySelectorAll('.export-bundle-cb, .export-rule-cb').forEach(c => c.checked = val);
+    }
+
+    function closeExportModal() {
+        document.getElementById('export-modal').classList.remove('open');
+    }
+
+    async function downloadExport() {
+        const bundleIds = Array.from(document.querySelectorAll('.export-bundle-cb:checked')).map(c => parseInt(c.dataset.id));
+        const ruleIds = Array.from(document.querySelectorAll('.export-rule-cb:checked')).map(c => parseInt(c.dataset.id));
+
+        if (bundleIds.length === 0 && ruleIds.length === 0) return alert("Select at least one item");
+
+        const res = await fetch('/api/audit/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bundle_ids: bundleIds, rule_ids: ruleIds })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit_rules_export_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            closeExportModal();
+        } else {
+            alert("Export failed");
+        }
+    }
+
+    // --- Import ---
+    let pendingImport = null;
+
+    function openImportModal() {
+        resetImportModal();
+        document.getElementById('import-modal').classList.add('open');
+    }
+
+    function closeImportModal() {
+        document.getElementById('import-modal').classList.remove('open');
+    }
+
+    function resetImportModal() {
+        document.getElementById('import-upload-section').style.display = 'block';
+        document.getElementById('import-preview-section').style.display = 'none';
+        document.getElementById('import-file-input').value = '';
+        pendingImport = null;
+    }
+
+    async function handleImportFile(input) {
+        if (!input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                const res = await fetch('/api/audit/import/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (res.ok) {
+                    pendingImport = await res.json();
+                    renderImportPreview();
+                } else {
+                    alert("Invalid export file");
+                }
+            } catch (err) {
+                alert("Error parsing JSON file");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function renderImportPreview() {
+        document.getElementById('import-upload-section').style.display = 'none';
+        document.getElementById('import-preview-section').style.display = 'block';
+
+        const container = document.getElementById('import-preview-table-container');
+        let html = `
+            <table class="data-table" style="font-size:0.9rem;">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">Import</th>
+                        <th>Type</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        pendingImport.bundles.forEach((b, idx) => {
+            html += `
+                <tr class="import-row" data-type="bundle" data-idx="${idx}">
+                    <td style="text-align:center;"><input type="checkbox" checked class="import-cb"></td>
+                    <td><span class="badge badge-purple">Bundle</span></td>
+                    <td>${b.name}</td>
+                    <td>${b.status === 'CONFLICT' ? '<span class="badge badge-orange">Conflict (Exists)</span>' : '<span class="badge badge-green">New</span>'}</td>
+                    <td>
+                        <select class="form-input import-action" style="padding:0.2rem; font-size:0.8rem;">
+                            ${b.status === 'CONFLICT' ? '<option value="OVERWRITE">Overwrite</option><option value="SKIP">Skip</option>' : '<option value="CREATE">Create</option>'}
+                        </select>
+                    </td>
+                </tr>
+            `;
+        });
+
+        pendingImport.rules.forEach((r, idx) => {
+            html += `
+                <tr class="import-row" data-type="rule" data-idx="${idx}">
+                    <td style="text-align:center;"><input type="checkbox" checked class="import-cb"></td>
+                    <td><span class="badge badge-blue">Rule</span></td>
+                    <td>${r.name}</td>
+                    <td>${r.status === 'CONFLICT' ? '<span class="badge badge-orange">Conflict (Exists)</span>' : '<span class="badge badge-green">New</span>'}</td>
+                    <td>
+                        <select class="form-input import-action" style="padding:0.2rem; font-size:0.8rem;">
+                            ${r.status === 'CONFLICT' ? '<option value="OVERWRITE">Overwrite</option><option value="SKIP">Skip</option>' : '<option value="CREATE">Create</option>'}
+                        </select>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    async function finalizeImport() {
+        const rows = document.querySelectorAll('.import-row');
+        const req = { bundles: [], rules: [] };
+
+        rows.forEach(row => {
+            const cb = row.querySelector('.import-cb');
+            if (!cb.checked) return;
+
+            const type = row.dataset.type;
+            const idx = parseInt(row.dataset.idx);
+            const action = row.querySelector('.import-action').value;
+            const item = type === 'bundle' ? pendingImport.bundles[idx] : pendingImport.rules[idx];
+
+            const rowData = {
+                name: item.name,
+                action: action,
+                existing_id: item.existing_id,
+                data: item.data
+            };
+
+            if (type === 'bundle') req.bundles.push(rowData);
+            else req.rules.push(rowData);
+        });
+
+        if (req.bundles.length === 0 && req.rules.length === 0) return alert("Nothing selected to import");
+
+        const res = await fetch('/api/audit/import/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req)
+        });
+
+        if (res.ok) {
+            window.location.reload();
+        } else {
+            alert("Import failed");
+        }
     }
 
     // --- API ---

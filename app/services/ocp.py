@@ -63,7 +63,7 @@ def parse_memory_to_gb(mem_str: str) -> float:
 def parse_cpu(cpu_val: Any) -> float:
     """
     Robustly parses Kubernetes CPU quantity to float cores.
-    Handles: "4", 4, "4000m", "500m", "0.5"
+    Handles: "4", 4, "4000m", "500m", "0.5", "100n", "100u"
     """
     if cpu_val is None:
         return 0.0
@@ -80,6 +80,10 @@ def parse_cpu(cpu_val: Any) -> float:
             
         if s.endswith('m'):
             return float(s[:-1]) / 1000.0
+        if s.endswith('u'):
+            return float(s[:-1]) / 1000000.0
+        if s.endswith('n'):
+            return float(s[:-1]) / 1000000000.0
             
         return float(s)
     except Exception:

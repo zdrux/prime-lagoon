@@ -535,7 +535,6 @@ function renderTable(resourceType, data) {
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Roles', path: item => Object.keys(getNested(item, 'metadata.labels') || {}).filter(k => k.startsWith('node-role.kubernetes.io/')).map(k => k.split('/')[1]).join(', ') },
-            { header: 'Arch', path: 'status.nodeInfo.architecture' },
             {
                 header: 'CPU Usage',
                 path: item => item.__metrics ? `

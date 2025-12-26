@@ -8,3 +8,7 @@ python-multipart
 requests
 ldap3
 itsdangerous
+apscheduler
+kubernetes
+pydantic
+cryptography

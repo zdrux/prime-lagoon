@@ -207,12 +207,12 @@ def test_ldap(req: LDAPTestRequest, session: Session = Depends(get_session), use
 
 # --- License Settings ---
 
-class LicenseConfigModel(BaseModel):
-    rules_json: str
-
 class LicensePreviewRequest(BaseModel):
     cluster_id: int
     rules_json: str
+
+class LicenseReorderRequest(BaseModel):
+    rule_ids: List[int]
 
 @router.get("/license", response_class=HTMLResponse)
 def license_settings_page(
@@ -222,7 +222,7 @@ def license_settings_page(
 ):
     today = datetime.now().strftime("%Y-%m-%d")
     clusters = session.exec(select(Cluster)).all()
-    rules = session.exec(select(LicenseRule).order_by(LicenseRule.id)).all()
+    rules = session.exec(select(LicenseRule).order_by(LicenseRule.order, LicenseRule.id)).all()
     
     # Group clusters by Datacenter for the sidebar
     clusters_by_dc = {}
@@ -250,16 +250,31 @@ class LicenseRuleCreate(BaseModel):
 
 @router.post("/api/license/rules")
 def create_license_rule(rule: LicenseRuleCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    # Get max order
+    from sqlmodel import func
+    max_order = session.exec(select(func.max(LicenseRule.order))).one() or 0
+    
     db_rule = LicenseRule(
         name=rule.name,
         rule_type=rule.rule_type,
         match_value=rule.match_value,
-        action=rule.action
+        action=rule.action,
+        order=max_order + 1
     )
     session.add(db_rule)
     session.commit()
     session.refresh(db_rule)
     return {"ok": True, "rule": db_rule}
+
+@router.post("/api/license/rules/reorder")
+def reorder_license_rules(req: LicenseReorderRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    for index, rule_id in enumerate(req.rule_ids):
+        rule = session.get(LicenseRule, rule_id)
+        if rule:
+            rule.order = index
+            session.add(rule)
+    session.commit()
+    return {"ok": True}
 
 @router.put("/api/license/rules/{rule_id}")
 def update_license_rule(rule_id: int, updated_rule: LicenseRuleCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
@@ -324,8 +339,8 @@ def preview_license_config(req: LicensePreviewRequest, session: Session = Depend
                  for r in req.temp_rules
              ]
         else:
-             # Use DB rules
-             rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+             # Use DB rules - IMPORTANT: Must be ordered
+             rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order)).all()
              
         if req.default_include is not None:
             default_include = req.default_include

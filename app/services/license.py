@@ -20,82 +20,52 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
     
     details = []
     
-    # Pre-process rules
-    include_rules = [r for r in rules if r.action == "INCLUDE" and r.is_active]
-    exclude_rules = [r for r in rules if r.action == "EXCLUDE" and r.is_active]
-    
     for node in nodes:
         name = get_val(node, 'metadata.name')
         labels = get_val(node, 'metadata.labels')
-        node_labels = labels if labels else {} # Handle None
+        node_labels = labels if labels else {}
         
         is_included = default_include
         inclusion_reason = "Include All by Default" if default_include else "Exclude All by Default"
         
-        # 1. Check Includes (Only if not already included by default)
-        if not is_included:
-            if not include_rules:
-                 inclusion_reason = "No matching include rule"
-            else:
-                 for r in include_rules:
-                     matched = False
-                     if r.rule_type == "name_match":
-                         import re
-                         try:
-                             if re.search(r.match_value, name):
-                                 matched = True
-                         except:
-                             pass
-                     elif r.rule_type == "label_match":
-                         if "=" in r.match_value:
-                             k, v = r.match_value.split("=", 1)
-                             if node_labels.get(k) == v:
-                                 matched = True
-                         else:
-                             if r.match_value in node_labels:
-                                 matched = True
-                     
-                     if matched:
-                         is_included = True
-                         inclusion_reason = f"Matched include rule: {r.name}"
-                         break
-        
-        # 2. Check Excludes (Override)
-        if is_included:
-            for r in exclude_rules:
-                 matched = False
-                 if r.rule_type == "name_match":
-                     import re
-                     try:
-                         if re.search(r.match_value, name):
-                             matched = True
-                     except:
-                         pass
-                 elif r.rule_type == "label_match":
-                     if "=" in r.match_value:
-                         k, v = r.match_value.split("=", 1)
-                         if node_labels.get(k) == v:
-                             matched = True
-                     else:
-                         if r.match_value in node_labels:
-                             matched = True
-                 
-                 if matched:
-                     is_included = False
-                     inclusion_reason = f"Excluded by rule: {r.name}"
-                     break # Stop checking excludes
+        # Sequential Rule Check: First match wins
+        for r in rules:
+            if not r.is_active:
+                continue
+                
+            matched = False
+            if r.rule_type == "name_match":
+                import re
+                try:
+                    if re.search(r.match_value, name):
+                        matched = True
+                except:
+                    pass
+            elif r.rule_type == "label_match":
+                if "=" in r.match_value:
+                    k, v = r.match_value.split("=", 1)
+                    if node_labels.get(k) == v:
+                        matched = True
+                else:
+                    if r.match_value in node_labels:
+                        matched = True
+            
+            if matched:
+                is_included = (r.action == "INCLUDE")
+                inclusion_reason = f"Matched rule: {r.name} ({r.action})"
+                break # First match wins!
         
         # 3. Calculate
         if is_included:
-             raw_cpu = get_val(node, 'status.capacity.cpu')
-             vcpu = parse_cpu(raw_cpu)
-             licenses = math.ceil(vcpu / 4)
-             
-             total_nodes += 1
-             total_vcpu += vcpu
-             total_licenses += licenses
-             
-             details.append({
+            raw_cpu = get_val(node, 'status.capacity.cpu')
+            vcpu = parse_cpu(raw_cpu)
+            licenses = math.ceil(vcpu / 4)
+            
+            total_nodes += 1
+            total_vcpu += vcpu
+            total_licenses += licenses
+            
+            details.append({
                 "name": name,
                 "status": "INCLUDED",
                 "reason": inclusion_reason,
@@ -103,7 +73,7 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
                 "licenses": licenses
             })
         else:
-             details.append({
+            details.append({
                 "name": name,
                 "status": "EXCLUDED",
                 "reason": inclusion_reason,

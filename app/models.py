@@ -96,6 +96,7 @@ class LicenseRule(SQLModel, table=True):
     rule_type: str = Field(default="name_match") # "name_match", "label_match"
     match_value: str # regex for name, or "key=value" for label
     action: str = Field(default="INCLUDE") # "INCLUDE", "EXCLUDE"
+    order: int = Field(default=0)
     is_active: bool = Field(default=True)
 
 class User(SQLModel, table=True):

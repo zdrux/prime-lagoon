@@ -23,9 +23,12 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters(clusters)
     
-    # Get current poll interval
+    # Get configs
     poll_int_config = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
     poll_interval = int(poll_int_config.value) if poll_int_config else 15
+    
+    retention_config = session.get(AppConfig, "SNAPSHOT_RETENTION_DAYS")
+    retention_days = int(retention_config.value) if retention_config else 30
     
     return templates.TemplateResponse("admin.html", {
         "request": request, 
@@ -34,6 +37,7 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "page": "admin",
         "active_tab": tab,
         "poll_interval": poll_interval,
+        "retention_days": retention_days,
         "user": user
     })
 

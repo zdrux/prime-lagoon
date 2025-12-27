@@ -43,6 +43,38 @@ def poll_all_clusters(progress_callback=None):
             if progress_callback:
                 progress_callback({"type": "error", "cluster": cluster.name, "message": str(e)})
 
+    # 4. Cleanup old snapshots
+    try:
+        with Session(engine) as session:
+            cleanup_old_snapshots(session)
+    except Exception as e:
+        logger.error(f"Failed to cleanup old snapshots: {e}")
+
+def cleanup_old_snapshots(session: Session):
+    """Deletes snapshots older than the configured retention period."""
+    from app.models import AppConfig
+    from datetime import timedelta
+    
+    config = session.get(AppConfig, "SNAPSHOT_RETENTION_DAYS")
+    days = int(config.value) if config else 30
+    
+    logger.info(f"Running automated cleanup (Retention: {days} days)...")
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    
+    statement = select(ClusterSnapshot).where(ClusterSnapshot.timestamp < cutoff)
+    old_snapshots = session.exec(statement).all()
+    
+    count = 0
+    for snap in old_snapshots:
+        session.delete(snap)
+        count += 1
+    
+    if count > 0:
+        session.commit()
+        logger.info(f"Automated cleanup deleted {count} old snapshots.")
+    else:
+        logger.info("No old snapshots to cleanup.")
+
 def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_timestamp=None):
     """Fetches all resources for a cluster, saves snapshot, and updates license usage."""
     if run_timestamp is None:

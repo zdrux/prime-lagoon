@@ -11,6 +11,7 @@ from app.services.scheduler import reschedule_job
 
 class ConfigUpdate(BaseModel):
     poll_interval_minutes: int
+    snapshot_retention_days: int
 
 class CleanupRequest(BaseModel):
     days: int
@@ -98,21 +99,34 @@ def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(
 
 @router.post("/config/scheduler")
 def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get_session)):
-    # Update DB
-    db_config = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
-    if not db_config:
-        db_config = AppConfig(key="POLL_INTERVAL_MINUTES", value=str(config.poll_interval_minutes))
-        session.add(db_config)
+    # Update Interval
+    db_interval = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
+    if not db_interval:
+        db_interval = AppConfig(key="POLL_INTERVAL_MINUTES", value=str(config.poll_interval_minutes))
+        session.add(db_interval)
     else:
-        db_config.value = str(config.poll_interval_minutes)
-        session.add(db_config)
+        db_interval.value = str(config.poll_interval_minutes)
+        session.add(db_interval)
+    
+    # Update Retention
+    db_retention = session.get(AppConfig, "SNAPSHOT_RETENTION_DAYS")
+    if not db_retention:
+        db_retention = AppConfig(key="SNAPSHOT_RETENTION_DAYS", value=str(config.snapshot_retention_days))
+        session.add(db_retention)
+    else:
+        db_retention.value = str(config.snapshot_retention_days)
+        session.add(db_retention)
     
     session.commit()
     
     # Trigger Reschedule
     reschedule_job()
     
-    return {"status": "updated", "interval": config.poll_interval_minutes}
+    return {
+        "status": "updated", 
+        "interval": config.poll_interval_minutes,
+        "retention_days": config.snapshot_retention_days
+    }
 
 @router.get("/config/scheduler/run-stream")
 def trigger_manual_poll_stream(session: Session = Depends(get_session)):

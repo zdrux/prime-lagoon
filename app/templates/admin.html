@@ -147,6 +147,11 @@
                         <input type="number" id="poll-interval" class="form-input" min="5" max="1440"
                             value="{{ poll_interval }}" style="width:80px; text-align:center;">
                     </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <span style="font-size:0.9rem;">Retention Policy (Days)</span>
+                        <input type="number" id="snapshot-retention" class="form-input" min="1" max="365"
+                            value="{{ retention_days }}" style="width:80px; text-align:center;">
+                    </div>
                     <div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn btn-primary" onclick="saveSchedulerConfig()" style="flex:1;">
                             <i class="fas fa-save"></i> Save Settings
@@ -630,11 +635,15 @@
 
     async function saveSchedulerConfig() {
         const interval = document.getElementById('poll-interval').value;
+        const retention = document.getElementById('snapshot-retention').value;
         try {
             const res = await fetch('/api/admin/clusters/config/scheduler', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ poll_interval_minutes: parseInt(interval) })
+                body: JSON.stringify({
+                    poll_interval_minutes: parseInt(interval),
+                    snapshot_retention_days: parseInt(retention)
+                })
             });
             if (res.ok) {
                 alert("Scheduler configuration saved!");

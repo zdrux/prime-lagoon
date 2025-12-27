@@ -24,6 +24,7 @@ class AuditResult(BaseModel):
     bundle_id: Optional[int] = None
     resource_kind: Optional[str] = None
     namespace: Optional[str] = None
+    failed_resources: Optional[List[Dict]] = None # List of resource snapshots
 
 class BundleCreate(BaseModel):
     name: str
@@ -443,6 +444,7 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                     continue
                     
                 fail_reasons = []
+                failed_snapshots = []
                 pass_count = 0
                 
                 # Prepare conditions
@@ -480,6 +482,10 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                     item_pass = any(passed_list) if rule.condition_logic == "OR" else all(passed_list)
                     
                     if not item_pass:
+                        # Capture snapshot for first 3 failures
+                        if len(failed_snapshots) < 3:
+                            failed_snapshots.append(item_data)
+
                         # Build a descriptive failure string for this item
                         failed_details = []
                         for cm in cond_matches:
@@ -502,7 +508,8 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                         status="FAIL",
                         detail="; ".join(fail_reasons[:3]),
                         resource_kind=rule.resource_kind,
-                        namespace=rule.namespace
+                        namespace=rule.namespace,
+                        failed_resources=failed_snapshots
                     ))
                 else:
                     results.append(AuditResult(
@@ -551,7 +558,8 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                 "status": r.status,
                 "detail": r.detail,
                 "resource_kind": r.resource_kind,
-                "namespace": r.namespace
+                "namespace": r.namespace,
+                "failed_resources": r.failed_resources
             }
             for r in cluster_results
         ]

@@ -140,7 +140,7 @@
                         <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
                             <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
                         </a>
-                         <a href="/settings/license"
+                        <a href="/settings/license"
                             class="sub-link {% if page == 'settings_license' %}active{% endif %}">
                             <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Cluster License Config
                         </a>
@@ -149,9 +149,15 @@
                 {% endif %}
 
                 <li class="nav-item"
-                    style="margin-top: 0.5rem; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 0.25rem 0; margin-bottom: 0.25rem;">
-                    <a href="/dashboard" class="nav-link">
+                    style="margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding: 0.25rem 0;">
+                    <a href="/dashboard" class="nav-link {% if page == 'dashboard' %}active{% endif %}">
                         <i class="fas fa-th-large"></i> All Clusters
+                    </a>
+                </li>
+                <li class="nav-item"
+                    style="border-bottom: 1px solid var(--border-color); padding: 0.25rem 0; margin-bottom: 0.25rem;">
+                    <a href="/analytics" class="nav-link {% if page == 'analytics' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> Analytics (Trend)
                     </a>
                 </li>
 

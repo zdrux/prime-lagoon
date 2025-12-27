@@ -108,3 +108,19 @@ def dashboard_view(request: Request, session: Session = Depends(get_session), us
         "page": "dashboard",
         "user": user
     })
+
+@router.get("/analytics", response_class=HTMLResponse)
+def analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
+    clusters_by_dc = _group_clusters(clusters)
+        
+    return templates.TemplateResponse("analytics.html", {
+        "request": request, 
+        "clusters": clusters,
+        "clusters_by_dc": clusters_by_dc,
+        "page": "analytics",
+        "user": user
+    })

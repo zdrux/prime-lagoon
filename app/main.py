@@ -19,11 +19,12 @@ app = FastAPI(lifespan=lifespan)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-from app.routers import admin, dashboard, views, audit, auth, settings
+from app.routers import admin, dashboard, views, audit, auth, settings, analytics
 
 app.include_router(views.router)
 app.include_router(admin.router)
 app.include_router(dashboard.router)
+app.include_router(analytics.router)
 app.include_router(audit.router)
 app.include_router(auth.router)
 app.include_router(settings.router)

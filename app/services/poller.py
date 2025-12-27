@@ -147,6 +147,9 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
             captured_unique_id=cluster.unique_id, # Freeze unique ID
             node_count=total_node_count,
             vcpu_count=total_vcpu_count,
+            project_count=len(snapshot_data.get("projects", [])),
+            machineset_count=len(snapshot_data.get("machinesets", [])),
+            machine_count=len(snapshot_data.get("machines", [])),
             data_json=json.dumps(snapshot_data, default=str) # default=str handles datetime objects in k8s responses
         )
         session.add(snapshot)

@@ -123,6 +123,9 @@ class ClusterSnapshot(SQLModel, table=True):
     # Store key metrics for quick lookup/graphs
     node_count: int = Field(default=0)
     vcpu_count: float = Field(default=0.0)
+    project_count: int = Field(default=0)
+    machineset_count: int = Field(default=0)
+    machine_count: int = Field(default=0)
     
     # Store full data dump
     data_json: str = Field(sa_column=Column(Text)) # Stores compressed/large JSON blob

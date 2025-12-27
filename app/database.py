@@ -22,6 +22,20 @@ def create_db_and_tables():
                 conn.execute(text('ALTER TABLE licenserule ADD COLUMN "order" INTEGER DEFAULT 0'))
                 conn.commit()
                 print("MIGRATION: Success.")
+            # Migration 2: Add analytics columns to clustersnapshot if missing
+            res = conn.execute(text("PRAGMA table_info(clustersnapshot)"))
+            columns = [row[1] for row in res.fetchall()]
+            if columns:
+                to_add = {
+                    "project_count": 'INTEGER DEFAULT 0',
+                    "machineset_count": 'INTEGER DEFAULT 0',
+                    "machine_count": 'INTEGER DEFAULT 0'
+                }
+                for col, sql_type in to_add.items():
+                    if col not in columns:
+                        print(f"MIGRATION: Adding '{col}' column to clustersnapshot table...")
+                        conn.execute(text(f'ALTER TABLE clustersnapshot ADD COLUMN "{col}" {sql_type}'))
+                conn.commit()
     except Exception as e:
         print(f"MIGRATION ERROR: {e}")
 

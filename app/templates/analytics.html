@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display:flex; align-items:center; gap:1rem;">
+        <h1 class="page-title">Global Analytics</h1>
+        <span class="badge badge-blue">Historical Trends</span>
+    </div>
+    <div style="display:flex; gap:0.75rem;">
+        <select id="filter-env" class="form-input" style="width:120px;" onchange="loadAnalytics()">
+            <option value="">All Envs</option>
+            <option value="DEV">DEV</option>
+            <option value="UAT">UAT</option>
+            <option value="PROD">PROD</option>
+        </select>
+        <select id="filter-dc" class="form-input" style="width:140px;" onchange="loadAnalytics()">
+            <option value="">All Datacenters</option>
+            <option value="Azure">Azure</option>
+            <option value="HCI">HCI</option>
+        </select>
+        <select id="filter-days" class="form-input" style="width:100px;" onchange="loadAnalytics()">
+            <option value="7">Last 7d</option>
+            <option value="30" selected>Last 30d</option>
+            <option value="90">Last 90d</option>
+        </select>
+        <button class="btn btn-secondary" onclick="loadAnalytics()">
+            <i class="fas fa-sync"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Key Stat Cards -->
+<div id="metric-cards"
+    style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:2rem;">
+    <div class="card" style="margin:0; padding:1.25rem; text-align:center; border-top: 4px solid var(--accent-color);">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; margin-bottom:0.5rem;">
+            Nodes / Licensed</div>
+        <div id="stat-nodes" style="font-size:1.8rem; font-weight:800;">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1.25rem; text-align:center; border-top: 4px solid var(--success-color);">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; margin-bottom:0.5rem;">
+            Total vCPUs</div>
+        <div id="stat-vcpus" style="font-size:1.8rem; font-weight:800; color:var(--success-color);">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1.25rem; text-align:center; border-top: 4px solid #a855f7;">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; margin-bottom:0.5rem;">
+            Total Licenses</div>
+        <div id="stat-licenses" style="font-size:1.8rem; font-weight:800; color:#a855f7;">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1.25rem; text-align:center; border-top: 4px solid #f97316;">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; margin-bottom:0.5rem;">
+            Total Projects</div>
+        <div id="stat-projects" style="font-size:1.8rem; font-weight:800; color:#f97316;">-</div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+    <div class="card" style="margin:0; padding:1.5rem;">
+        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-server"></i> Node & Project Growth</h4>
+        <div style="height:300px;"><canvas id="chart-nodes"></canvas></div>
+    </div>
+    <div class="card" style="margin:0; padding:1.5rem;">
+        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-microchip"></i> vCPU & License Trends</h4>
+        <div style="height:300px;"><canvas id="chart-licensing"></canvas></div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div style="display:grid; grid-template-columns: 1fr; gap:1.5rem;">
+    <div class="card" style="margin:0; padding:1.5rem;">
+        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-cubes"></i> MachineSet & Machine Infrastructure
+        </h4>
+        <div style="height:300px;"><canvas id="chart-machines"></canvas></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let charts = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAnalytics();
+    });
+
+    async function loadAnalytics() {
+        const env = document.getElementById('filter-env').value;
+        const dc = document.getElementById('filter-dc').value;
+        const days = document.getElementById('filter-days').value;
+
+        const url = `/api/analytics/trends?days=${days}${env ? `&environment=${env}` : ''}${dc ? `&datacenter=${dc}` : ''}`;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+
+            if (data && data.length > 0) {
+                renderCharts(data);
+                updateStats(data[data.length - 1]); // Last point is most recent
+            } else {
+                // Handle empty data
+                alert("No snapshot data found for the selected filters.");
+            }
+        } catch (e) {
+            console.error("Analytics fetch error:", e);
+        }
+    }
+
+    function updateStats(last) {
+        document.getElementById('stat-nodes').innerText = `${last.nodes} / ${last.licensed_nodes}`;
+        document.getElementById('stat-vcpus').innerText = last.vcpus;
+        document.getElementById('stat-licenses').innerText = last.licenses;
+        document.getElementById('stat-projects').innerText = last.projects;
+    }
+
+    function renderCharts(data) {
+        const labels = data.map(d => {
+            const date = new Date(d.timestamp);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        });
+
+        // 1. Nodes & Projects
+        initChart('chart-nodes', {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Total Nodes',
+                    data: data.map(d => d.nodes),
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Projects',
+                    data: data.map(d => d.projects),
+                    borderColor: '#f97316',
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.3
+                }
+            ]
+        });
+
+        // 2. Licensing
+        initChart('chart-licensing', {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'vCPUs',
+                    data: data.map(d => d.vcpus),
+                    borderColor: '#10b981',
+                    fill: false,
+                    tension: 0.3
+                },
+                {
+                    label: 'Licenses',
+                    data: data.map(d => d.licenses),
+                    borderColor: '#a855f7',
+                    fill: false,
+                    tension: 0.3
+                }
+            ]
+        });
+
+        // 3. Machines
+        initChart('chart-machines', {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'MachineSets',
+                    data: data.map(d => d.machinesets),
+                    borderColor: '#f43f5e',
+                    fill: false,
+                    tension: 0.3
+                },
+                {
+                    label: 'Machines',
+                    data: data.map(d => d.machines),
+                    borderColor: '#6366f1',
+                    fill: false,
+                    tension: 0.3
+                }
+            ]
+        });
+    }
+
+    function initChart(id, config) {
+        if (charts[id]) charts[id].destroy();
+
+        const ctx = document.getElementById(id).getContext('2d');
+        charts[id] = new Chart(ctx, {
+            type: 'line',
+            data: config,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#94a3b8', font: { size: 11 } }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#64748b', font: { size: 9 } },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#64748b' },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    }
+                }
+            }
+        });
+    }
+</script>
+
+<style>
+    .filter-btn.active {
+        background: var(--accent-color);
+        color: white;
+    }
+</style>
+{% endblock %}

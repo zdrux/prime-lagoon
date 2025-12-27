@@ -98,7 +98,11 @@
                         </a>
                         <a href="/admin?tab=snapshots"
                             class="sub-link {% if page == 'admin' and active_tab == 'snapshots' %}active{% endif %}">
-                            <i class="fas fa-history" style="width:16px;"></i> History
+                            <i class="fas fa-history" style="width:16px;"></i> Snapshots
+                        </a>
+                        <a href="/settings/db-stats"
+                            class="sub-link {% if page == 'settings_db_stats' %}active{% endif %}">
+                            <i class="fas fa-database" style="width:16px;"></i> DB Stats
                         </a>
                     </div>
                 </li>
@@ -136,13 +140,9 @@
                         <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
                             <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
                         </a>
-                        <a href="/settings/license"
+                         <a href="/settings/license"
                             class="sub-link {% if page == 'settings_license' %}active{% endif %}">
                             <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Cluster License Config
-                        </a>
-                        <a href="/settings/db-stats"
-                            class="sub-link {% if page == 'settings_db_stats' %}active{% endif %}">
-                            <i class="fas fa-database" style="width:16px;"></i> DB Stats
                         </a>
                     </div>
                 </li>

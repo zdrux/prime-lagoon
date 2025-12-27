@@ -619,7 +619,6 @@ function renderTable(resourceType, data) {
             { header: 'Phase', path: 'status.phase' },
             { header: 'Intake #', path: 'metadata.labels.intake_number' },
             { header: 'MAPID', path: 'metadata.labels.mapid' },
-            { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'VM Type', path: '__enriched.vm_type' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
@@ -631,7 +630,12 @@ function renderTable(resourceType, data) {
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Replicas', path: 'spec.replicas' },
-            { header: 'Subnet', path: 'spec.template.spec.providerSpec.value.network.devices[0].networkName' },
+            {
+                header: 'Subnet', path: item =>
+                    getNested(item, 'spec.metadata.providerSpec.value.subnet') ||
+                    getNested(item, 'spec.template.spec.providerSpec.value.network.devices[0].networkName') ||
+                    '-'
+            },
             { header: 'Available', path: 'status.availableReplicas' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];

@@ -611,35 +611,48 @@ def get_machine_details(cluster, machine_name, snapshot_data=None):
 
         dyn_client = get_dynamic_client(cluster)
         
-        # 1. Fetch Machine object
+        # 1. Fetch Machine object (search all namespaces)
         machine_api = dyn_client.resources.get(api_version='machine.openshift.io/v1beta1', kind='Machine')
-        machine = machine_api.get(name=machine_name)
+        m_list = machine_api.get().items
+        machine = next((m for m in m_list if m.metadata.name == machine_name), None)
         
-        # 2. Fetch Events for this machine
-        event_api = dyn_client.resources.get(api_version='v1', kind='Event')
-        events = event_api.get(field_selector=f"involvedObject.kind=Machine,involvedObject.name={machine_name}").items
-        events = sorted(events, key=lambda e: e.lastTimestamp or e.firstTimestamp or "", reverse=True)[:20]
+        if not machine:
+            return {"error": f"Machine '{machine_name}' not found"}
         
-        # 3. Extract Platform specifics
-        provider_spec = machine.spec.get('providerSpec', {}).get('value', {})
-        platform = provider_spec.get('kind', '')
-        
-        details = {
-            "name": machine_name,
-            "namespace": machine.metadata.namespace,
-            "labels": machine.metadata.labels or {},
-            "annotations": machine.metadata.annotations or {},
-            "platform": platform,
-            "provider_id": machine.spec.get('providerID', ''),
-            "phase": machine.status.get('phase', 'Unknown'),
-            "vm_size": provider_spec.get('vmSize', ''),
-            "events": [{
+        m_dict = machine.to_dict()
+        namespace = get_val(m_dict, 'metadata.namespace')
+
+        # 2. Fetch Events for this machine in its namespace
+        events_list = []
+        try:
+            event_api = dyn_client.resources.get(api_version='v1', kind='Event')
+            events = event_api.get(namespace=namespace, field_selector=f"involvedObject.kind=Machine,involvedObject.name={machine_name}").items
+            # Sort events safely
+            events = sorted(events, key=lambda e: str(e.lastTimestamp or e.firstTimestamp or ""), reverse=True)[:20]
+            events_list = [{
                 "type": e.type,
                 "reason": e.reason,
                 "message": e.message,
                 "lastTimestamp": e.lastTimestamp or e.firstTimestamp,
                 "count": e.count
             } for e in events]
+        except Exception as ee:
+            print(f"Non-critical: could not fetch events for machine {machine_name}: {ee}")
+        
+        # 3. Extract Platform specifics
+        provider_spec = get_val(m_dict, 'spec.providerSpec.value') or {}
+        platform = provider_spec.get('kind', '')
+        
+        details = {
+            "name": machine_name,
+            "namespace": namespace,
+            "labels": get_val(m_dict, 'metadata.labels') or {},
+            "annotations": get_val(m_dict, 'metadata.annotations') or {},
+            "platform": platform,
+            "provider_id": get_val(m_dict, 'spec.providerID') or '',
+            "phase": get_val(m_dict, 'status.phase') or 'Unknown',
+            "vm_size": provider_spec.get('vmSize') or provider_spec.get('instanceType') or '',
+            "events": events_list
         }
         
         if platform == "AzureMachineProviderSpec":

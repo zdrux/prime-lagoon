@@ -1230,6 +1230,7 @@ async function showMachineDetails(clusterId, name) {
         const response = await fetch(url);
         if (!response.ok) throw new Error("Failed to fetch machine details");
         const data = await response.json();
+        if (data.error) throw new Error(data.error);
 
         let platformHtml = '';
         if (data.platform === 'AzureMachineProviderSpec') {

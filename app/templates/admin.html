@@ -43,17 +43,8 @@
     <h1 class="page-title">Administration</h1>
 </div>
 
-<div class="tab-nav">
-    <div class="tab-link {% if active_tab == 'clusters' %}active{% endif %}" onclick="switchTab('clusters')">Clusters
-    </div>
-    <div class="tab-link {% if active_tab == 'schedulers' %}active{% endif %}" onclick="switchTab('schedulers')">
-        Schedulers</div>
-    <div class="tab-link {% if active_tab == 'snapshots' %}active{% endif %}" onclick="switchTab('snapshots')">Snapshots
-    </div>
-</div>
-
 <!-- Clusters Tab -->
-<div id="tab-clusters" class="tab-content {% if active_tab == 'clusters' %}active{% endif %}">
+<div id="tab-clusters" class="tab-content active">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <h3 style="margin:0;">Cluster Management</h3>
         <button class="btn btn-primary" onclick="openModal()">
@@ -107,7 +98,7 @@
 </div>
 
 <!-- Schedulers Tab -->
-<div id="tab-schedulers" class="tab-content {% if active_tab == 'schedulers' %}active{% endif %}">
+<div id="tab-schedulers" class="tab-content">
     <div class="card fade-in">
         <div style="padding:1rem; border-bottom:1px solid var(--border-color);">
             <h4 style="color:var(--accent-color); margin:0;"><i class="fas fa-clock"></i> Snapshot Scheduler</h4>
@@ -173,7 +164,7 @@
     </div>
 </div>
 
-<div id="tab-snapshots" class="tab-content {% if active_tab == 'snapshots' %}active{% endif %}">
+<div id="tab-snapshots" class="tab-content">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <h3 style="margin:0;">Snapshot History</h3>
         <div style="display:flex; gap:1rem; align-items:center;">
@@ -452,26 +443,20 @@
     function switchTab(tabName) {
         // Update Links
         document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
-        const activeLink = Array.from(document.querySelectorAll('.tab-link')).find(el => el.getAttribute('onclick').includes(tabName));
+        const links = Array.from(document.querySelectorAll('.tab-link'));
+        const activeLink = links.find(el => el.innerText.toLowerCase().includes(tabName) || el.getAttribute('onclick')?.includes(tabName));
         if (activeLink) activeLink.classList.add('active');
 
         // Update Content
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        document.getElementById(`tab-${tabName}`).classList.add('active');
+        const target = document.getElementById(`tab-${tabName}`);
+        if (target) target.classList.add('active');
 
         // Lazy Load
         if (tabName === 'snapshots') {
             loadSnapshotsTable();
         }
     }
-
-    // Initial Load based on active_tab
-    window.addEventListener('DOMContentLoaded', (event) => {
-        const initialTab = "{{ active_tab }}";
-        if (initialTab && initialTab !== "clusters") {
-            switchTab(initialTab);
-        }
-    });
 
     // Snapshots Logic
     let _allSnapshots = [];
@@ -888,5 +873,7 @@
             window.location.reload();
         }
     }
+    // Initialize from URL
+    switchTab('{{ active_tab }}');
 </script>
 {% endblock %}

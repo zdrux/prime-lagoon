@@ -233,6 +233,35 @@
     .target-item:last-child {
         border-bottom: none;
     }
+
+    /* Compliance Progress Ring */
+    .compliance-ring-container {
+        position: relative;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .compliance-ring-svg {
+        transform: rotate(-90deg);
+        width: 100%;
+        height: 100%;
+    }
+
+    .compliance-ring-bg {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.05);
+        stroke-width: 4;
+    }
+
+    .compliance-ring-fill {
+        fill: none;
+        stroke-width: 4;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.5s ease;
+    }
 </style>
 
 <script>
@@ -357,15 +386,34 @@
                     </div>
                 </td>
                 <td>
-                    ${score ? `
-                        <div style="font-weight:700; color:${score.score >= 100 ? 'var(--success-color)' : 'var(--warning-color)'}; font-size:1.1rem;">
-                            ${score.score}%
+                    ${score ? (() => {
+                    const radius = 18;
+                    const circumference = 2 * Math.PI * radius;
+                    const offset = circumference - (score.score / 100) * circumference;
+                    const color = score.score >= 100 ? 'var(--success-color)' : (score.score >= 80 ? 'var(--warning-color)' : 'var(--danger-color)');
+
+                    return `
+                        <div style="display:flex; align-items:center; gap:0.8rem;">
+                            <div class="compliance-ring-container">
+                                <svg class="compliance-ring-svg" viewBox="0 0 44 44">
+                                    <circle class="compliance-ring-bg" cx="22" cy="22" r="${radius}"></circle>
+                                    <circle class="compliance-ring-fill" cx="22" cy="22" r="${radius}"
+                                            style="stroke:${color}; stroke-dasharray:${circumference}; stroke-dashoffset:${offset};">
+                                    </circle>
+                                </svg>
+                            </div>
+                            <div>
+                                <div style="font-weight:100; color:${color}; font-size:1.1rem; line-height:1;">
+                                    ${score.score}%
+                                </div>
+                                <div style="font-size:0.7rem; opacity:0.6; margin-top:0.2rem;">
+                                    ${score.passed_count}/${score.total_count} Passed<br>
+                                    ${score.timestamp}
+                                </div>
+                            </div>
                         </div>
-                        <div style="font-size:0.7rem; opacity:0.6;">
-                            ${score.passed_count}/${score.total_count} Passed<br>
-                            ${score.timestamp}
-                        </div>
-                    ` : '<span style="opacity:0.4; font-style:italic;">No data</span>'}
+                        `;
+                })() : '<span style="opacity:0.4; font-style:italic;">No data</span>'}
                 </td>
                 <td>
                     <div style="font-size:0.9rem;">

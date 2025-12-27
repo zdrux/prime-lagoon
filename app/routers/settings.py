@@ -350,4 +350,6 @@ def preview_license_config(req: LicensePreviewRequest, session: Session = Depend
         result = calculate_licenses(nodes, rules, default_include=default_include)
         return {"ok": True, "result": result}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}

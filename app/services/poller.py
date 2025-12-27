@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlmodel import Session, select
 from app.database import engine
 from app.models import Cluster, ClusterSnapshot, LicenseUsage, LicenseRule
-from app.services.ocp import fetch_resources, parse_cpu
+from app.services.ocp import fetch_resources, parse_cpu, get_val
 from app.services.license import calculate_licenses
 
 logger = logging.getLogger(__name__)

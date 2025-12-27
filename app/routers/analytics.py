@@ -4,7 +4,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 
 from app.database import get_session
-from app.models import Cluster, ClusterSnapshot, LicenseUsage
+from app.models import Cluster, ClusterSnapshot, LicenseUsage, User
+from app.dependencies import admin_required
 
 router = APIRouter(
     prefix="/api/analytics",
@@ -16,7 +17,8 @@ def get_resource_trends(
     environment: Optional[str] = Query(None),
     datacenter: Optional[str] = Query(None),
     days: int = Query(30),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(admin_required)
 ):
     """
     Returns aggregated time-series data for global analytics.

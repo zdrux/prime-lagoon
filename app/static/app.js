@@ -242,9 +242,17 @@ async function loadSummary() {
                     <span style="font-weight:700; font-size:1rem;">Cluster Inventory</span>
                     <div style="position:relative;">
                         <i class="fas fa-search" style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); font-size:0.8rem; color:var(--text-secondary);"></i>
-                        <input type="text" id="cluster-search" placeholder="Search clusters..." 
+                        <input type="text" id="cluster-table-search" placeholder="Search clusters..." 
                                style="padding:0.35rem 0.75rem 0.35rem 2rem; border-radius:15px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.8rem; width:220px;"
-                               oninput="filterClusterTable(this.value)">
+                               oninput="applyDashboardFilters()">
+                    </div>
+                    <div style="display:flex; gap:0.25rem;" id="dashboard-filter-group">
+                        <button class="filter-btn" onclick="toggleDashboardFilter(this, 'DEV')" data-filter="DEV">DEV</button>
+                        <button class="filter-btn" onclick="toggleDashboardFilter(this, 'UAT')" data-filter="UAT">UAT</button>
+                        <button class="filter-btn" onclick="toggleDashboardFilter(this, 'PROD')" data-filter="PROD">PROD</button>
+                        <div style="width:1px; background:var(--border-color); margin:0 0.25rem;"></div>
+                        <button class="filter-btn" onclick="toggleDashboardFilter(this, 'AZURE')" data-filter="AZURE">AZURE</button>
+                        <button class="filter-btn" onclick="toggleDashboardFilter(this, 'HCI')" data-filter="HCI">HCI</button>
                     </div>
                 </div>
                 <div style="display:flex; gap:0.4rem;">
@@ -411,6 +419,54 @@ function renderClusterRows(clusters) {
             </td>
         </tr>
     `}).join('');
+}
+
+/* Dashboard Specific Filtering */
+window._activeDashboardFilters = new Set();
+
+function toggleDashboardFilter(btn, filter) {
+    btn.classList.toggle('active');
+    if (window._activeDashboardFilters.has(filter)) {
+        window._activeDashboardFilters.delete(filter);
+    } else {
+        window._activeDashboardFilters.add(filter);
+    }
+    applyDashboardFilters();
+}
+
+function applyDashboardFilters() {
+    const searchInput = document.getElementById('cluster-table-search');
+    const searchTerm = searchInput ? searchInput.value.toLowerCase() : "";
+    const activeFilters = window._activeDashboardFilters;
+
+    const filtered = window._allClusters.filter(c => {
+        // Search check
+        const matchesSearch = !searchTerm ||
+            c.name.toLowerCase().includes(searchTerm) ||
+            (c.datacenter && c.datacenter.toLowerCase().includes(searchTerm)) ||
+            (c.environment && c.environment.toLowerCase().includes(searchTerm));
+
+        if (!matchesSearch) return false;
+
+        // Tag checks (Environment and Datacenter)
+        if (activeFilters.size === 0) return true;
+
+        const envFilters = ['DEV', 'UAT', 'PROD'].filter(f => activeFilters.has(f));
+        const dcFilters = ['AZURE', 'HCI'].filter(f => activeFilters.has(f));
+
+        const matchesEnv = envFilters.length === 0 || envFilters.includes(c.environment);
+        const matchesDc = dcFilters.length === 0 || dcFilters.includes(c.datacenter);
+
+        return matchesEnv && matchesDc;
+    });
+
+    const body = document.getElementById('cluster-inventory-body');
+    if (body) {
+        body.innerHTML = renderClusterRows(filtered);
+    }
+
+    // Update summary counters to match filtered view? 
+    // Usually dashboard summary cards show global, but let's keep it global for now.
 }
 
 async function refreshClusterLive(clusterId) {

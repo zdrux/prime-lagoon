@@ -45,7 +45,7 @@
                 <div
                     style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
                     Avg Size / Snapshot</div>
-                <div id="db-avg-size" style="font-size:2rem; font-weight:800;">- KB</div>
+                <div id="db-avg-size" style="font-size:2rem; font-weight:800;">- MB</div>
             </div>
         </div>
 
@@ -145,7 +145,7 @@
                 const data = await res.json();
                 sizeEl.innerText = data.file_size_mb + ' MB';
                 snapEl.innerText = data.snapshot_count;
-                avgEl.innerText = data.avg_snapshot_size_kb + ' KB';
+                avgEl.innerText = data.avg_snapshot_size_mb + ' MB';
                 pathEl.innerText = data.db_filename;
 
                 // Breakdown

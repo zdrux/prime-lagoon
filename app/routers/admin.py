@@ -304,8 +304,8 @@ def get_db_stats(session: Session = Depends(get_session)):
     total_json_bytes = snapshot_size_bytes + usage_size_bytes + compliance_size_bytes
     other_size_bytes = max(0, size_bytes - total_json_bytes)
     
-    avg_snap_size_kb = round((snapshot_size_bytes / 1024) / snapshot_count, 2) if snapshot_count > 0 else 0
-
+    avg_snap_size_mb = round((snapshot_size_bytes / (1024 * 1024)) / snapshot_count, 2) if snapshot_count > 0 else 0
+    
     return {
         "file_size_mb": round(size_bytes / (1024 * 1024), 2),
         "cluster_count": cluster_count,
@@ -314,7 +314,7 @@ def get_db_stats(session: Session = Depends(get_session)):
         "usage_data_mb": round(usage_size_bytes / (1024 * 1024), 2),
         "compliance_data_mb": round(compliance_size_bytes / (1024 * 1024), 2),
         "other_data_mb": round(other_size_bytes / (1024 * 1024), 2),
-        "avg_snapshot_size_kb": avg_snap_size_kb,
+        "avg_snapshot_size_mb": avg_snap_size_mb,
         "db_filename": db_file
     }
 

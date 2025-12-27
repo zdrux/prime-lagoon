@@ -425,9 +425,51 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
             try:
                 resources = fetch_resources(cluster, rule.api_version, rule.resource_kind, rule.namespace)
                 
-                # Filter by name if specified
+                # Filter resources by name if specified (even for VALIDATION)
                 if rule.match_resource_name:
-                    resources = [r for r in resources if get_val(r, 'metadata.name') == rule.match_resource_name]
+                    if rule.operator == "contains":
+                        resources = [r for r in resources if rule.match_resource_name in (get_val(r, 'metadata.name') or "")]
+                    else: # Default/Equals
+                        resources = [r for r in resources if get_val(r, 'metadata.name') == rule.match_resource_name]
+
+                # --- Handle Check Types ---
+                
+                if rule.check_type == "EXISTENCE":
+                    if resources:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="PASS", detail=f"Found {len(resources)} matching resource(s)",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+                    else:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="FAIL", detail=f"No matching {rule.resource_kind} found",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+                    continue
+
+                if rule.check_type == "FORBIDDANCE":
+                    if not resources:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="PASS", detail=f"No matching {rule.resource_kind} found (as expected)",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+                    else:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="FAIL", detail=f"Found {len(resources)} matching resource(s) that should not exist",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace,
+                            failed_resources=[(r.to_dict() if hasattr(r, 'to_dict') else r) for r in resources[:3]]
+                        ))
+                    continue
+
+                # --- Standard VALIDATION Logic ---
 
                 if not resources:
                     results.append(AuditResult(

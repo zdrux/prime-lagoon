@@ -86,13 +86,33 @@
                         <td>
                             <div style="display:flex; flex-direction:column; gap:0.3rem;">
                                 <div>
+                                    {% if rule.check_type == 'VALIDATION' %}
                                     <span class="badge badge-blue">{{ rule.operator }}</span>
                                     <code style="font-size:0.8em;">{{ rule.field_path }}</code>
                                     {% if rule.expected_value %}
                                     <span style="font-weight:bold;">= {{ rule.expected_value | truncate(64) }}</span>
                                     {% endif %}
+                                    {% elif rule.check_type == 'EXISTENCE' %}
+                                    <span class="badge badge-purple">EXISTENCE</span>
+                                    {% if rule.operator == 'contains' %}
+                                    <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
+                                            }}</b></span>
+                                    {% else %}
+                                    <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name
+                                            }}</b></span>
+                                    {% endif %}
+                                    {% elif rule.check_type == 'FORBIDDANCE' %}
+                                    <span class="badge badge-red">FORBIDDANCE</span>
+                                    {% if rule.operator == 'contains' %}
+                                    <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
+                                            }}</b></span>
+                                    {% else %}
+                                    <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name
+                                            }}</b></span>
+                                    {% endif %}
+                                    {% endif %}
                                 </div>
-                                {% if rule.extra_conditions %}
+                                {% if rule.check_type == 'VALIDATION' and rule.extra_conditions %}
                                 {% set extras = rule.extra_conditions | fromjson %}
                                 {% for cond in extras %}
                                 <div
@@ -116,7 +136,7 @@
                                 data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
                                 data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
                                 data-res-name="{{ rule.match_resource_name or "" }}"
-                                data-logic="{{ rule.condition_logic }}"
+                                data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
                                 data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
                                 title="Edit Rule">
                                 <i class="fas fa-edit"></i>
@@ -176,13 +196,31 @@
                     <td>
                         <div style="display:flex; flex-direction:column; gap:0.3rem;">
                             <div>
+                                {% if rule.check_type == 'VALIDATION' or not rule.check_type %}
                                 <span class="badge badge-blue">{{ rule.operator }}</span>
                                 <code>{{ rule.field_path }}</code>
                                 {% if rule.expected_value and rule.operator == 'equals' %}
                                 <span style="font-weight:bold;">= {{ rule.expected_value | truncate(64) }}</span>
                                 {% endif %}
+                                {% elif rule.check_type == 'EXISTENCE' %}
+                                <span class="badge badge-purple">EXISTENCE</span>
+                                {% if rule.operator == 'contains' %}
+                                <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
+                                        }}</b></span>
+                                {% else %}
+                                <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name }}</b></span>
+                                {% endif %}
+                                {% elif rule.check_type == 'FORBIDDANCE' %}
+                                <span class="badge badge-red">FORBIDDANCE</span>
+                                {% if rule.operator == 'contains' %}
+                                <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
+                                        }}</b></span>
+                                {% else %}
+                                <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name }}</b></span>
+                                {% endif %}
+                                {% endif %}
                             </div>
-                            {% if rule.extra_conditions %}
+                            {% if rule.check_type == 'VALIDATION' and rule.extra_conditions %}
                             {% set extras = rule.extra_conditions | fromjson %}
                             {% for cond in extras %}
                             <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; opacity:0.8;">
@@ -222,8 +260,8 @@
                             data-val="{{ rule.expected_value or "" }}" data-dc="{{ rule.match_datacenter or "" }}"
                             data-env="{{ rule.match_environment or "" }}" data-tags='{{ rule.tags or "{}" }}'
                             data-res-name="{{ rule.match_resource_name or "" }}" data-logic="{{ rule.condition_logic }}"
-                            data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
-                            title="Edit Rule">
+                            data-check-type="{{ rule.check_type }}" data-extras='{{ rule.extra_conditions or "[]" }}'
+                            style="padding:0.2rem 0.5rem;" title="Edit Rule">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
@@ -333,31 +371,54 @@
                 </div>
             </div>
 
-            <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+            <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div>
-                    <label class="form-label">Field Path (JSON Path)</label>
-                    <input type="text" id="r-path" class="form-input">
-                    <small style="opacity:0.6;">Use quotes for keys with dots, e.g.
-                        <code>metadata.annotations."key.with.dot"</code></small>
+                    <label class="form-label">Check Type</label>
+                    <select id="r-check-type" class="form-input" onchange="toggleCheckTypeFields()">
+                        <option value="VALIDATION">Field Validation</option>
+                        <option value="EXISTENCE">Existence Check</option>
+                        <option value="FORBIDDANCE">Forbiddance Check</option>
+                    </select>
                 </div>
-                <div>
-                    <label class="form-label">Resource Name (Optional)</label>
+                <div id="r-res-name-container">
+                    <label class="form-label">Resource Name (Optional for Validation)</label>
                     <input type="text" id="r-name-match" class="form-input" placeholder="e.g. managed-csi">
                 </div>
             </div>
 
-            <div class="form-group" style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
-                <div>
-                    <label class="form-label">Operator</label>
-                    <select id="r-op" class="form-input">
-                        <option value="equals">Equals</option>
-                        <option value="exists">Exists</option>
-                        <option value="contains">Contains</option>
-                    </select>
+            <div id="r-validation-logic-group">
+                <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label">Field Path (JSON Path)</label>
+                        <input type="text" id="r-path" class="form-input">
+                        <small style="opacity:0.6;">Use quotes for keys with dots, e.g.
+                            <code>metadata.annotations."key.with.dot"</code></small>
+                    </div>
                 </div>
-                <div>
-                    <label class="form-label">Expected Value</label>
-                    <input type="text" id="r-val" class="form-input">
+
+                <div class="form-group" style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label">Operator</label>
+                        <select id="r-op" class="form-input">
+                            <option value="equals">Equals</option>
+                            <option value="exists">Exists</option>
+                            <option value="contains">Contains</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Expected Value</label>
+                        <input type="text" id="r-val" class="form-input">
+                    </div>
+                </div>
+            </div>
+
+            <div id="r-existence-logic-group" style="display:none;">
+                <div class="form-group">
+                    <label class="form-label">Name Matching Logic</label>
+                    <select id="r-op-existence" class="form-input" onchange="syncExistenceOp(this)">
+                        <option value="equals">Equals (Exact Name Match)</option>
+                        <option value="contains">Contains (Substring Match)</option>
+                    </select>
                 </div>
             </div>
 
@@ -599,6 +660,34 @@
         document.getElementById('bundle-modal').classList.remove('open');
     }
 
+    function toggleCheckTypeFields() {
+        const type = document.getElementById('r-check-type').value;
+        const validationGroup = document.getElementById('r-validation-logic-group');
+        const existenceGroup = document.getElementById('r-existence-logic-group');
+        const resNameContainer = document.getElementById('r-res-name-container');
+        const resNameInput = document.getElementById('r-name-match');
+        const resNameLabel = resNameContainer.querySelector('.form-label');
+
+        if (type === 'VALIDATION') {
+            validationGroup.style.display = 'block';
+            existenceGroup.style.display = 'none';
+            resNameLabel.innerText = "Resource Name (Optional for Validation)";
+            resNameInput.placeholder = "e.g. managed-csi";
+        } else {
+            validationGroup.style.display = 'none';
+            existenceGroup.style.display = 'block';
+            resNameLabel.innerText = "Target Resource Name Pattern";
+            resNameInput.placeholder = "e.g. worker (case sensitive)";
+
+            // Sync the existence operator to the main r-op
+            syncExistenceOp(document.getElementById('r-op-existence'));
+        }
+    }
+
+    function syncExistenceOp(el) {
+        document.getElementById('r-op').value = el.value;
+    }
+
     function openRuleModal(bundleId = null) {
         document.getElementById('r-id').value = '';
         document.getElementById('r-bundle-id').value = bundleId || '';
@@ -606,13 +695,17 @@
         document.getElementById('r-kind').value = '';
         document.getElementById('r-api').value = '';
         document.getElementById('r-ns').value = '';
+        document.getElementById('r-check-type').value = 'VALIDATION';
         document.getElementById('r-path').value = '';
         document.getElementById('r-op').value = 'equals';
+        document.getElementById('r-op-existence').value = 'equals';
         document.getElementById('r-val').value = '';
         document.getElementById('r-name-match').value = '';
         document.getElementById('r-matches').innerText = '';
         document.getElementById('r-logic').value = 'AND';
         document.getElementById('extra-conditions-container').innerHTML = '';
+
+        toggleCheckTypeFields();
 
         const scopeSec = document.getElementById('r-scope-section');
         if (bundleId) {
@@ -639,11 +732,11 @@
             d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
             d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
             d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
-            d.bundleId || null
+            d.checkType || 'VALIDATION', d.bundleId || null
         );
     });
 
-    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, bundleId) {
+    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, checkType, bundleId) {
         // Find if this rule has a bundle_id (passed via data attributes in table)
         const isBundled = !!bundleId;
 
@@ -653,12 +746,16 @@
         document.getElementById('r-kind').value = kind || '';
         document.getElementById('r-api').value = api || '';
         document.getElementById('r-ns').value = ns || '';
+        document.getElementById('r-check-type').value = checkType || 'VALIDATION';
         document.getElementById('r-path').value = path || '';
         document.getElementById('r-op').value = op || 'equals';
+        document.getElementById('r-op-existence').value = op || 'equals';
         document.getElementById('r-val').value = val || '';
         document.getElementById('r-name-match').value = resName || '';
         document.getElementById('r-logic').value = logic || 'AND';
         document.getElementById('r-matches').innerText = '';
+
+        toggleCheckTypeFields();
 
         const container = document.getElementById('extra-conditions-container');
         container.innerHTML = '';
@@ -1039,6 +1136,7 @@
             resource_kind: document.getElementById('r-kind').value,
             api_version: document.getElementById('r-api').value,
             namespace: document.getElementById('r-ns').value || null,
+            check_type: document.getElementById('r-check-type').value,
             field_path: document.getElementById('r-path').value,
             operator: document.getElementById('r-op').value,
             expected_value: document.getElementById('r-val').value || null,

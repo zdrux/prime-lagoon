@@ -59,6 +59,7 @@ class AuditRule(SQLModel, table=True):
     namespace: Optional[str] = None # If null, cluster scoped or all namespaces? Let's assume cluster scoped or we just fetch 'All'
     
     # Logic
+    check_type: str = Field(default="VALIDATION") # "VALIDATION", "EXISTENCE", "FORBIDDANCE"
     field_path: str # spec.foo.bar
     operator: str # "equals", "exists", "contains"
     expected_value: Optional[str] = None

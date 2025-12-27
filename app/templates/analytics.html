@@ -57,8 +57,8 @@
 <!-- Charts Row 1 -->
 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
     <div class="card" style="margin:0; padding:1.5rem;">
-        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-server"></i> Node & Project Growth</h4>
-        <div style="height:300px;"><canvas id="chart-nodes"></canvas></div>
+        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-folder-open"></i> Project Growth</h4>
+        <div style="height:300px;"><canvas id="chart-projects"></canvas></div>
     </div>
     <div class="card" style="margin:0; padding:1.5rem;">
         <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-microchip"></i> vCPU & License Trends</h4>
@@ -69,9 +69,8 @@
 <!-- Charts Row 2 -->
 <div style="display:grid; grid-template-columns: 1fr; gap:1.5rem;">
     <div class="card" style="margin:0; padding:1.5rem;">
-        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-cubes"></i> MachineSet & Machine Infrastructure
-        </h4>
-        <div style="height:300px;"><canvas id="chart-machines"></canvas></div>
+        <h4 style="margin-bottom:1rem; opacity:0.8;"><i class="fas fa-server"></i> Total Node Trend</h4>
+        <div style="height:300px;"><canvas id="chart-nodes"></canvas></div>
     </div>
 </div>
 
@@ -119,24 +118,16 @@
             return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         });
 
-        // 1. Nodes & Projects
-        initChart('chart-nodes', {
+        // 1. Projects
+        initChart('chart-projects', {
             labels: labels,
             datasets: [
-                {
-                    label: 'Total Nodes',
-                    data: data.map(d => d.nodes),
-                    borderColor: '#38bdf8',
-                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                    fill: true,
-                    tension: 0.3
-                },
                 {
                     label: 'Projects',
                     data: data.map(d => d.projects),
                     borderColor: '#f97316',
-                    borderDash: [5, 5],
-                    fill: false,
+                    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                    fill: true,
                     tension: 0.3
                 }
             ]
@@ -163,22 +154,16 @@
             ]
         });
 
-        // 3. Machines
-        initChart('chart-machines', {
+        // 3. Nodes
+        initChart('chart-nodes', {
             labels: labels,
             datasets: [
                 {
-                    label: 'MachineSets',
-                    data: data.map(d => d.machinesets),
-                    borderColor: '#f43f5e',
-                    fill: false,
-                    tension: 0.3
-                },
-                {
-                    label: 'Machines',
-                    data: data.map(d => d.machines),
-                    borderColor: '#6366f1',
-                    fill: false,
+                    label: 'Total Nodes',
+                    data: data.map(d => d.nodes),
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
                     tension: 0.3
                 }
             ]

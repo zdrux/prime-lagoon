@@ -27,15 +27,17 @@ def poll_all_clusters(progress_callback=None):
     run_timestamp = datetime.utcnow() # Unified timestamp for the entire run
     
     with Session(engine) as session:
+        from app.models import AppConfig
         clusters = session.exec(select(Cluster)).all()
-        rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+        rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
+        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
     
     total = len(clusters)
     for i, cluster in enumerate(clusters):
         try:
             if progress_callback:
                 progress_callback({"type": "cluster_start", "cluster": cluster.name, "index": i + 1, "total": total})
-            poll_cluster(cluster.id, rules, progress_callback, run_timestamp)
+            poll_cluster(cluster.id, rules, progress_callback, run_timestamp, default_include=default_include)
             if progress_callback:
                 progress_callback({"type": "cluster_end", "cluster": cluster.name})
         except Exception as e:
@@ -75,7 +77,7 @@ def cleanup_old_snapshots(session: Session):
     else:
         logger.info("No old snapshots to cleanup.")
 
-def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_timestamp=None):
+def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_timestamp=None, default_include=False):
     """Fetches all resources for a cluster, saves snapshot, and updates license usage."""
     if run_timestamp is None:
         run_timestamp = datetime.utcnow()
@@ -125,7 +127,7 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
 
         # 3. Calculate License Usage (Logic consolidated here)
         # We use the fetched nodes from the snapshot data
-        lic_data = calculate_licenses(nodes, rules)
+        lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         
         # Save License Usage Record
         usage = LicenseUsage(

@@ -622,7 +622,7 @@
             html += `
             <div style="margin-bottom:1.5rem; text-align:center; background:var(--bg-primary); padding:1rem; border-radius:8px;">
                 <div style="font-size:0.9rem; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary);">Overall Compliance Score</div>
-                <div style="font-size:2.5rem; font-weight:bold; color:${score === 100 ? 'var(--success-color)' : (score > 50 ? 'var(--warning-color)' : 'var(--danger-color)')};">
+                <div style="font-size:2.5rem; font-weight:bold; color:${score === 100 ? 'var(--success-color)' : (score >= 80 ? 'var(--warning-color)' : 'var(--danger-color)')};">
                     ${score}%
                 </div>
                 <div style="font-size:0.9rem; opacity:0.8;">${totalPass} / ${totalRules} Checks Passed</div>
@@ -633,7 +633,7 @@
                 const passed = items.filter(i => i.status === 'PASS').length;
                 const total = items.length;
                 const percent = Math.round((passed / total) * 100);
-                const color = percent === 100 ? 'var(--success-color)' : (percent > 50 ? 'var(--warning-color)' : 'var(--danger-color)');
+                const color = percent === 100 ? 'var(--success-color)' : (percent >= 80 ? 'var(--warning-color)' : 'var(--danger-color)');
 
                 html += `
                 <div style="margin-bottom:1rem; border:1px solid var(--border-color); border-radius:6px; overflow:hidden;">

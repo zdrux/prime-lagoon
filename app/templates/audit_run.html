@@ -441,9 +441,12 @@
             const rules = adhocRules.filter(r => r.bundle_id === b.id);
             html += `
                 <div style="background:rgba(58,134,255,0.05); border:1px solid rgba(58,134,255,0.2); padding:0.8rem; border-radius:6px;">
-                    <div style="font-weight:600; color:var(--accent-color); display:flex; justify-content:space-between;">
+                    <div style="font-weight:600; color:var(--accent-color); display:flex; justify-content:space-between; margin-bottom:0.5rem;">
                         <span><i class="fas fa-box"></i> ${b.name}</span>
                         <span style="font-size:0.8rem; opacity:0.6;">${rules.length} Rules</span>
+                    </div>
+                    <div style="padding-left:1.5rem; display:flex; flex-direction:column; gap:0.2rem; border-left:1px solid rgba(58,134,255,0.2);">
+                        ${rules.map(r => `<div style="font-size:0.85rem; opacity:0.8;"><i class="fas fa-caret-right" style="font-size:0.7rem; margin-right:0.4rem; opacity:0.5;"></i>${r.name}</div>`).join('')}
                     </div>
                 </div>
             `;
@@ -452,9 +455,12 @@
         if (matchedAdhoc.length > 0) {
             html += `
                 <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); padding:0.8rem; border-radius:6px;">
-                    <div style="font-weight:600; display:flex; justify-content:space-between;">
+                    <div style="font-weight:600; display:flex; justify-content:space-between; margin-bottom:0.5rem;">
                         <span><i class="fas fa-list"></i> Ad-hoc Rules</span>
                         <span style="font-size:0.8rem; opacity:0.6;">${matchedAdhoc.length} Rules</span>
+                    </div>
+                    <div style="padding-left:1.5rem; display:flex; flex-direction:column; gap:0.2rem; border-left:1px solid var(--border-color);">
+                        ${matchedAdhoc.map(r => `<div style="font-size:0.85rem; opacity:0.8;"><i class="fas fa-caret-right" style="font-size:0.7rem; margin-right:0.4rem; opacity:0.5;"></i>${r.name}</div>`).join('')}
                     </div>
                 </div>
             `;

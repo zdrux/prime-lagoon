@@ -186,7 +186,7 @@
     // Global rules storage to avoid escaping issues in attributes
     const rules = [
         {% for rule in rules %}
-    { { rule.dict() | tojson | safe } } {% if not loop.last %}, {% endif %}
+    { { rule.model_dump() | tojson | safe } } {% if not loop.last %}, {% endif %}
     {% endfor %}
     ];
 

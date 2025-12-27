@@ -19,14 +19,21 @@ def root():
 
 @router.get("/admin", response_class=HTMLResponse)
 def admin_view(request: Request, tab: str = 'clusters', session: Session = Depends(get_session), user: User = Depends(admin_required)):
-    clusters = session.exec(select(Cluster)).all()
+    from app.models import AppConfig
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters(clusters)
+    
+    # Get current poll interval
+    poll_int_config = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
+    poll_interval = int(poll_int_config.value) if poll_int_config else 15
+    
     return templates.TemplateResponse("admin.html", {
         "request": request, 
         "clusters": clusters, 
         "clusters_by_dc": clusters_by_dc,
         "page": "admin",
         "active_tab": tab,
+        "poll_interval": poll_interval,
         "user": user
     })
 
@@ -38,7 +45,7 @@ def audit_view(request: Request, session: Session = Depends(get_session), user: 
     rules = session.exec(select(AuditRule)).all()
     bundles = session.exec(select(AuditBundle)).all()
     
-    clusters = session.exec(select(Cluster)).all()
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters(clusters)
     
     return templates.TemplateResponse("audit.html", {
@@ -56,7 +63,7 @@ def compliance_view(request: Request, session: Session = Depends(get_session), u
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
         
-    clusters = session.exec(select(Cluster)).all()
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters(clusters)
     
     return templates.TemplateResponse("audit_run.html", {
@@ -74,14 +81,20 @@ def _group_clusters(clusters):
         if dc not in by_dc:
             by_dc[dc] = []
         by_dc[dc].append(c)
-    return by_dc
+    
+    # Sort within each DC
+    for dc in by_dc:
+        by_dc[dc].sort(key=lambda x: x.name.lower())
+    
+    # Sort DCs but keep Azure/HCI order if possible, or just alpha
+    return dict(sorted(by_dc.items()))
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
 
-    clusters = session.exec(select(Cluster)).all()
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters(clusters)
         
     return templates.TemplateResponse("dashboard.html", {

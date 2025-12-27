@@ -144,8 +144,8 @@
                     style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
                         <span style="font-size:0.9rem;">Interval (Minutes)</span>
-                        <input type="number" id="poll-interval" class="form-input" min="5" max="1440" value="15"
-                            style="width:80px; text-align:center;">
+                        <input type="number" id="poll-interval" class="form-input" min="5" max="1440"
+                            value="{{ poll_interval }}" style="width:80px; text-align:center;">
                     </div>
                     <div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn btn-primary" onclick="saveSchedulerConfig()" style="flex:1;">

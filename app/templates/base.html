@@ -80,14 +80,22 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="/audit" class="nav-link {% if page == 'audit_rules' %}active{% endif %}">
-                        <i class="fas fa-clipboard-list"></i> Audit Rules
+                    <a href="#"
+                        class="nav-link submenu-toggle {% if page in ['audit_rules', 'compliance'] %}active{% endif %}"
+                        data-target="submenu-compliance"
+                        onclick="event.preventDefault(); toggleSubmenu('submenu-compliance', this)">
+                        <i class="fas fa-shield-alt"></i> Compliance
+                        <i class="fas fa-chevron-down arrow"></i>
                     </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/compliance" class="nav-link {% if page == 'compliance' %}active{% endif %}">
-                        <i class="fas fa-check-circle"></i> Compliance
-                    </a>
+                    <div class="resource-submenu {% if page in ['audit_rules', 'compliance'] %}open{% endif %}"
+                        id="submenu-compliance">
+                        <a href="/compliance" class="sub-link {% if page == 'compliance' %}active{% endif %}">
+                            <i class="fas fa-check-circle" style="width:16px;"></i> Compliance Check
+                        </a>
+                        <a href="/audit" class="sub-link {% if page == 'audit_rules' %}active{% endif %}">
+                            <i class="fas fa-clipboard-list" style="width:16px;"></i> Compliance Rules
+                        </a>
+                    </div>
                 </li>
                 <li class="nav-item">
                     <a href="#"

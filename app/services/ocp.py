@@ -177,14 +177,19 @@ def enrich_nodes_with_metrics(cluster: Cluster, dyn_client: DynamicClient, nodes
         
         # Base dict for JSON serialization
         n_dict = node.to_dict()
+        
+        # Always include capacity info
+        capacity_cpu = parse_cpu(node.status.capacity.cpu)
+        capacity_mem = parse_memory_to_gb(node.status.capacity.memory)
+        n_dict['__capacity'] = {
+            "cpu": capacity_cpu,
+            "memory_gb": round(capacity_mem, 1)
+        }
+
         n_dict['__metrics'] = None
         
         if m:
             cpu_usage = parse_cpu(m.usage.cpu)
-            mem_usage_bytes = parse_memory_to_gb(m.usage.memory) * (1024**3) # Convert back to bytes for consistency if needed, or just use GB
-            
-            capacity_cpu = parse_cpu(node.status.capacity.cpu)
-            capacity_mem = parse_memory_to_gb(node.status.capacity.memory)
             
             n_dict['__metrics'] = {
                 "cpu_usage": cpu_usage,

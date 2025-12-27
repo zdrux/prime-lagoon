@@ -579,6 +579,8 @@ function renderTable(resourceType, data) {
         columns = [
             { header: 'Name', path: 'metadata.name' },
             { header: 'Status', path: item => getNested(item, 'status.conditions')?.find(c => c.type === 'Ready')?.status === 'True' ? 'Ready' : 'Not Ready' },
+            { header: 'Capacity (vCPU)', path: '__capacity.cpu' },
+            { header: 'Capacity (GB)', path: '__capacity.memory_gb' },
             { header: 'Intake #', path: 'metadata.labels.intake_number' },
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'LOB', path: 'metadata.labels.lob' },
@@ -619,13 +621,6 @@ function renderTable(resourceType, data) {
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'VM Type', path: '__enriched.vm_type' },
-            { header: 'CPU (Cores)', path: '__enriched.cpu' },
-            {
-                header: 'Memory (GB)', path: item => {
-                    const gb = getNested(item, '__enriched.memory_gb');
-                    return (gb !== undefined && gb !== 0) ? gb.toFixed(1) + ' GB' : '-';
-                }
-            },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
     } else if (resourceType === 'machinesets') {
@@ -637,7 +632,6 @@ function renderTable(resourceType, data) {
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Replicas', path: 'spec.replicas' },
             { header: 'Subnet', path: 'spec.template.spec.providerSpec.value.network.devices[0].networkName' },
-            { header: 'VM Size', path: 'spec.template.spec.providerSpec.value.vmSize' },
             { header: 'Available', path: 'status.availableReplicas' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];

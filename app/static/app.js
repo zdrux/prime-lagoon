@@ -229,10 +229,10 @@ async function loadSummary() {
                 <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total vCPUs</div>
                 <div style="font-size:1.1rem; font-weight:700;">${global.total_vcpu.toFixed(0)} <span style="font-size:0.75rem; opacity:0.6;">(${global.total_licensed_vcpu.toFixed(0)})</span></div>
             </div>
-            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
+            <div class="card fade-in" id="global-card-licenses" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
                 <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Licenses</div>
-                <div style="font-size:1.25rem; font-weight:800; color:var(--accent-color);">${global.total_licenses}</div>
-                <div style="font-size:0.55rem; opacity:0.5; margin-top:0.2rem;">(2 vCPUs per unit)</div>
+                <div id="summary-total-licenses" style="font-size:1.25rem; font-weight:800; color:var(--accent-color);">${global.total_licenses || 0}</div>
+                <div style="font-size:0.55rem; opacity:0.5; margin-top:0.2rem;">(4 vCPUs per unit)</div>
             </div>
         </div>
 
@@ -306,9 +306,54 @@ async function loadSummary() {
             });
         }
 
+        // Initial re-calc
+        updateGlobalSummary();
+
     } catch (e) {
         summaryDiv.innerHTML = `<div class="card" style="color:var(--danger-color);">Error loading summary: ${e.message}</div>`;
     }
+}
+
+function updateGlobalSummary() {
+    const clusters = window._allClusters || [];
+    const stats = {
+        total_nodes: 0,
+        total_licensed_nodes: 0,
+        total_vcpu: 0,
+        total_licensed_vcpu: 0,
+        total_licenses: 0
+    };
+
+    clusters.forEach(c => {
+        if (c.stats) {
+            const nc = parseInt(c.stats.node_count);
+            if (!isNaN(nc)) stats.total_nodes += nc;
+
+            const vc = parseFloat(c.stats.vcpu_count);
+            if (!isNaN(vc)) stats.total_vcpu += vc;
+        }
+
+        const lnc = parseInt(c.licensed_node_count);
+        if (!isNaN(lnc)) stats.total_licensed_nodes += lnc;
+
+        const lvc = parseFloat(c.licensed_vcpu_count);
+        if (!isNaN(lvc)) stats.total_licensed_vcpu += lvc;
+
+        if (c.license_info && c.license_info.count !== undefined) {
+            const lc = parseInt(c.license_info.count);
+            if (!isNaN(lc)) stats.total_licenses += lc;
+        }
+    });
+
+    // Update the DOM if elements exist
+    const elNodes = document.querySelector('[style*="var(--success-color)"] div:nth-child(2)');
+    if (elNodes) elNodes.innerHTML = `${stats.total_nodes} <span style="font-size:0.75rem; opacity:0.6;">(${stats.total_licensed_nodes})</span>`;
+
+    const elVcpu = document.querySelector('[style*="#a855f7"] div:nth-child(2)');
+    if (elVcpu) elVcpu.innerHTML = `${stats.total_vcpu.toFixed(0)} <span style="font-size:0.75rem; opacity:0.6;">(${stats.total_licensed_vcpu.toFixed(0)})</span>`;
+
+    const elLic = document.getElementById('summary-total-licenses');
+    if (elLic) elLic.innerText = stats.total_licenses;
 }
 
 function renderClusterRows(clusters) {
@@ -395,6 +440,9 @@ async function refreshClusterLive(clusterId) {
                 temp.innerHTML = renderClusterRows([window._allClusters[idx]]);
                 const newRow = temp.firstElementChild;
                 row.replaceWith(newRow);
+
+                // Update Total Summary Cards
+                updateGlobalSummary();
             }
         } else {
             throw new Error("Failed to refresh");

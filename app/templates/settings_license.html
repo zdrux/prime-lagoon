@@ -186,7 +186,7 @@
     // Global rules storage to avoid escaping issues in attributes
     const rules = [
         {% for rule in rules %}
-    {{ rule.dict() | tojson | safe }} {% if not loop.last %}, {% endif %}
+    { { rule.dict() | tojson | safe } } {% if not loop.last %}, {% endif %}
     {% endfor %}
     ];
 
@@ -206,14 +206,10 @@
     async function saveGlobalDefault(val) {
         // Use standard AppConfig pattern
         try {
-            await fetch('/settings/api/ldap/toggle?enabled=' + val, { method: 'POST' }); // Wait, need a specific endpoint or generic one
-            // Let's create a generic AppConfig endpoint or just reuse a pattern.
-            // Actually, I'll add a specific endpoint in settings.py for this.
-
             const res = await fetch('/settings/api/license/config/default', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ value: val.toString() })
+                body: JSON.stringify({ value: val ? "True" : "False" })
             });
         } catch (e) {
             console.error("Failed to save global default", e);

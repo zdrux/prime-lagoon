@@ -146,7 +146,7 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
                 nodes = data.get("nodes", [])
                 from app.models import LicenseRule, AppConfig
                 rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-                default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+                default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
                 lic_data = calculate_licenses(nodes, rules, default_include=default_include)
                 return {
                     "node_count": lic_data["node_count"],
@@ -181,7 +181,7 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
         nodes = fetch_resources(cluster, "v1", "Node")
         from app.models import LicenseRule, AppConfig
         rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
         lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         return {
             "node_count": lic_data["node_count"],
@@ -198,7 +198,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     
     # Fetch Config
     rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-    default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+    default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
     
     global_stats = {
         "total_nodes": 0,
@@ -538,7 +538,7 @@ def get_cluster_live_stats(cluster_id: int, session: Session = Depends(get_sessi
         # 3. Calculate Licenses
         from app.models import LicenseRule, AppConfig
         rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
-        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+        default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
         lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         
         # 4. Save History

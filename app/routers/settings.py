@@ -239,7 +239,7 @@ def license_settings_page(
         "rules": rules,
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
-        "default_include": (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+        "default_include": (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
     })
 
 class LicenseRuleCreate(BaseModel):
@@ -330,7 +330,7 @@ def preview_license_config(req: LicensePreviewRequest, session: Session = Depend
         if req.default_include is not None:
             default_include = req.default_include
         else:
-            default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value == "True"
+            default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
 
         result = calculate_licenses(nodes, rules, default_include=default_include)
         return {"ok": True, "result": result}

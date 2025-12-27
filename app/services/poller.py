@@ -150,6 +150,8 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
             project_count=len(snapshot_data.get("projects", [])),
             machineset_count=len(snapshot_data.get("machinesets", [])),
             machine_count=len(snapshot_data.get("machines", [])),
+            license_count=lic_data["total_licenses"],
+            licensed_node_count=lic_data["node_count"],
             data_json=json.dumps(snapshot_data, default=str) # default=str handles datetime objects in k8s responses
         )
         session.add(snapshot)

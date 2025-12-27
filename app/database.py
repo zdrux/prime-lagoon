@@ -29,7 +29,9 @@ def create_db_and_tables():
                 to_add = {
                     "project_count": 'INTEGER DEFAULT 0',
                     "machineset_count": 'INTEGER DEFAULT 0',
-                    "machine_count": 'INTEGER DEFAULT 0'
+                    "machine_count": 'INTEGER DEFAULT 0',
+                    "license_count": 'INTEGER DEFAULT 0',
+                    "licensed_node_count": 'INTEGER DEFAULT 0'
                 }
                 for col, sql_type in to_add.items():
                     if col not in columns:

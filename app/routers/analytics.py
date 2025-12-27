@@ -47,6 +47,8 @@ def get_resource_trends(
         func.sum(ClusterSnapshot.project_count).label("projects"),
         func.sum(ClusterSnapshot.machineset_count).label("machinesets"),
         func.sum(ClusterSnapshot.machine_count).label("machines"),
+        func.sum(ClusterSnapshot.license_count).label("licenses"),
+        func.sum(ClusterSnapshot.licensed_node_count).label("licensed_nodes"),
         func.count(ClusterSnapshot.id).label("cluster_count")
     ).where(
         ClusterSnapshot.cluster_id.in_(filtered_cluster_ids),
@@ -60,39 +62,19 @@ def get_resource_trends(
     
     results = session.exec(statement).all()
     
-    # 3. Aggregate License Usage for the same timestamps
-    # LicenseUsage is saved at the same unified timestamp as ClusterSnapshot in poller.py
-    usage_statement = select(
-        LicenseUsage.timestamp,
-        func.sum(LicenseUsage.license_count).label("licenses"),
-        func.sum(LicenseUsage.node_count).label("licensed_nodes")
-    ).where(
-        LicenseUsage.cluster_id.in_(filtered_cluster_ids),
-        LicenseUsage.timestamp >= cutoff.strftime("%Y-%m-%d %H:%M:%S")
-    ).group_by(
-        LicenseUsage.timestamp
-    )
-    
-    usage_results = session.exec(usage_statement).all()
-    usage_map = {row.timestamp: row for row in usage_results}
-
-    # 4. Merge results
+    # 3. Format results
     trends = []
     for row in results:
-        # ClusterSnapshot usage datetime vs LicenseUsage usage string timestamp
-        ts_str = row.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-        usage = usage_map.get(ts_str)
-        
         trends.append({
-            "timestamp": ts_str,
+            "timestamp": row.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "nodes": row.nodes,
             "vcpus": int(row.vcpus),
             "projects": row.projects,
             "machinesets": row.machinesets,
             "machines": row.machines,
             "clusters": row.cluster_count,
-            "licenses": getattr(usage, 'licenses', 0) if usage else 0,
-            "licensed_nodes": getattr(usage, 'licensed_nodes', 0) if usage else 0
+            "licenses": row.licenses,
+            "licensed_nodes": row.licensed_nodes
         })
 
     return trends

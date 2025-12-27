@@ -126,6 +126,8 @@ class ClusterSnapshot(SQLModel, table=True):
     project_count: int = Field(default=0)
     machineset_count: int = Field(default=0)
     machine_count: int = Field(default=0)
+    license_count: int = Field(default=0)
+    licensed_node_count: int = Field(default=0)
     
     # Store full data dump
     data_json: str = Field(sa_column=Column(Text)) # Stores compressed/large JSON blob

@@ -11,7 +11,7 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
     1. Base status is determined by default_include (True = INCLUDE ALL, False = EXCLUDE ALL).
     2. If base is EXCLUDE: If node matches any INCLUDE rule, status becomes INCLUDED.
     3. If node is (preliminary) INCLUDED: If node matches any EXCLUDE rule, status becomes EXCLUDED (override).
-    Formula: ceil(vCPU / 2) per node.
+    Formula: ceil(vCPU / 4) per node.
     """
     
     total_nodes = 0
@@ -89,7 +89,7 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
         if is_included:
              raw_cpu = get_val(node, 'status.capacity.cpu')
              vcpu = parse_cpu(raw_cpu)
-             licenses = math.ceil(vcpu / 2)
+             licenses = math.ceil(vcpu / 4)
              
              total_nodes += 1
              total_vcpu += vcpu

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app.database import get_session
 from app.models import AuditRule, AuditBundle, Cluster, ComplianceScore
-from app.services.ocp import fetch_resources
+from app.services.ocp import fetch_resources, get_val
 
 router = APIRouter(
     prefix="/api/audit",
@@ -286,29 +286,7 @@ def tags_match(target_tags: Dict[str, str], cluster_tags: Dict[str, str]) -> boo
     return True
 
 def get_nested_value(data: dict, path: str):
-    parts = []
-    current_part = []
-    in_quotes = False
-    for char in path:
-        if char == '"':
-            in_quotes = not in_quotes
-        elif char == '.' and not in_quotes:
-            parts.append("".join(current_part))
-            current_part = []
-        else:
-            current_part.append(char)
-    parts.append("".join(current_part))
-    
-    current = data
-    for part in parts:
-        part = part.strip('"') # Remove quotes for lookup
-        if isinstance(current, dict):
-            current = current.get(part)
-        else:
-            return None
-        if current is None:
-            return None
-    return current
+    return get_val(data, path)
 
 class TargetRequest(BaseModel):
     datacenter: Optional[str] = None
@@ -448,7 +426,7 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                 
                 # Filter by name if specified
                 if rule.match_resource_name:
-                    resources = [r for r in resources if r.metadata.name == rule.match_resource_name]
+                    resources = [r for r in resources if get_val(r, 'metadata.name') == rule.match_resource_name]
 
                 if not resources:
                     results.append(AuditResult(

@@ -9,20 +9,49 @@ from app.models import Cluster
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def get_val(obj, path):
-    """Helper to safely get nested values from object or dict. Handles metadata.labels['foo.bar']"""
+    """
+    Helper to safely get nested values from object or dict.
+    Handles metadata.labels['foo.bar'], bracketed indices [0], and dot indices .0
+    """
     if not path:
         return obj
-    # Matches either plain fields (field) or bracketed strings ["bracketed"]
-    parts = re.findall(r'([^.\[\]]+)|\["([^"\]]+)"\]|\[\'([^\'\]]+)\'\]', path)
+    
+    # Matches:
+    # 1. field (simple field)
+    # 2. ["double quoted"]
+    # 3. ['single quoted']
+    # 4. [0] (numeric index)
+    parts = re.findall(r'([^.\[\]]+)|\["([^"\]]+)"\]|\[\'([^\'\]]+)\'\]|\[(\d+)\]', path)
     curr = obj
-    for field, bracketed_double, bracketed_single in parts:
-        p = field or bracketed_double or bracketed_single
+    
+    for field, b_double, b_single, b_num in parts:
+        p = field or b_double or b_single or b_num
         if curr is None:
             return None
-        if isinstance(curr, dict):
+            
+        if isinstance(curr, list):
+            try:
+                idx = int(p)
+                if 0 <= idx < len(curr):
+                    curr = curr[idx]
+                else:
+                    return None
+            except (ValueError, IndexError):
+                return None
+        elif isinstance(curr, dict):
             curr = curr.get(p)
         else:
-            curr = getattr(curr, p, None)
+            # Object or other type
+            # Try numeric index if it looks like one, for list-like objects
+            if p.isdigit():
+                try:
+                    idx = int(p)
+                    curr = curr[idx]
+                except (TypeError, IndexError, KeyError):
+                    curr = getattr(curr, p, None)
+            else:
+                curr = getattr(curr, p, None)
+                
     return curr
 
 def get_dynamic_client(cluster: Cluster) -> DynamicClient:

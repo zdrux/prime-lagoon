@@ -639,7 +639,7 @@ function renderTable(resourceType, data) {
             { header: 'Replicas', path: 'spec.replicas' },
             {
                 header: 'Subnet', path: item =>
-                    getNested(item, 'spec.metadata.providerSpec.value.subnet') ||
+                    getNested(item, 'spec.template.spec.providerSpec.value.subnet') ||
                     getNested(item, 'spec.template.spec.providerSpec.value.network.devices[0].networkName') ||
                     '-'
             },

@@ -16,11 +16,9 @@ POLL_RESOURCES = {
     "machinesets": {"api_version": "machine.openshift.io/v1beta1", "kind": "MachineSet"},
     "projects": {"api_version": "project.openshift.io/v1", "kind": "Project"},
     "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
-    "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
     "clusteroperators": {"api_version": "config.openshift.io/v1", "kind": "ClusterOperator"},
     "infrastructures": {"api_version": "config.openshift.io/v1", "kind": "Infrastructure"},
     "clusterversions": {"api_version": "config.openshift.io/v1", "kind": "ClusterVersion"},
-    "routes": {"api_version": "route.openshift.io/v1", "kind": "Route"},
 }
 
 def poll_all_clusters(progress_callback=None):
@@ -82,9 +80,19 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
                 snapshot_data[key] = []
                 status = "Partial"
 
-        # 2. Calculate License Usage (Logic consolidated here)
-        # We use the fetched nodes from the snapshot data
+        # 2. Calculate Stats from collected resources
         nodes = snapshot_data.get("nodes", [])
+        total_node_count = len(nodes)
+        total_vcpu_count = 0.0
+        for node in nodes:
+            try:
+                raw_cpu = get_val(node, 'status.capacity.cpu')
+                total_vcpu_count += parse_cpu(raw_cpu)
+            except:
+                pass
+
+        # 3. Calculate License Usage (Logic consolidated here)
+        # We use the fetched nodes from the snapshot data
         lic_data = calculate_licenses(nodes, rules)
         
         # Save License Usage Record
@@ -98,15 +106,15 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
         )
         session.add(usage)
 
-        # 3. Create ClusterSnapshot
+        # 4. Create ClusterSnapshot
         snapshot = ClusterSnapshot(
             cluster_id=cluster.id,
             timestamp=run_timestamp,
             status=status,
             captured_name=cluster.name,          # Freeze name
             captured_unique_id=cluster.unique_id, # Freeze unique ID
-            node_count=lic_data["node_count"],
-            vcpu_count=lic_data["total_vcpu"],
+            node_count=total_node_count,
+            vcpu_count=total_vcpu_count,
             data_json=json.dumps(snapshot_data, default=str) # default=str handles datetime objects in k8s responses
         )
         session.add(snapshot)

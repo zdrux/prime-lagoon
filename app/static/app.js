@@ -620,6 +620,12 @@ function renderTable(resourceType, data) {
             { header: 'Intake #', path: 'metadata.labels.intake_number' },
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'VM Type', path: '__enriched.vm_type' },
+            {
+                header: 'Subnet', path: item =>
+                    getNested(item, 'spec.providerSpec.value.subnet') ||
+                    getNested(item, 'spec.providerSpec.value.network.devices[0].networkName') ||
+                    '-'
+            },
             { header: 'Created', path: 'metadata.creationTimestamp' },
             {
                 header: 'Actions', path: item => `
@@ -637,12 +643,6 @@ function renderTable(resourceType, data) {
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Replicas', path: 'spec.replicas' },
-            {
-                header: 'Subnet', path: item =>
-                    getNested(item, 'spec.template.spec.providerSpec.value.subnet') ||
-                    getNested(item, 'spec.template.spec.providerSpec.value.network.devices[0].networkName') ||
-                    '-'
-            },
             { header: 'Available', path: 'status.availableReplicas' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];

@@ -60,7 +60,7 @@ class AuditRule(SQLModel, table=True):
     
     # Logic
     check_type: str = Field(default="VALIDATION") # "VALIDATION", "EXISTENCE", "FORBIDDANCE"
-    field_path: str # spec.foo.bar
+    field_path: Optional[str] = Field(default="") # spec.foo.bar
     operator: str # "equals", "exists", "contains"
     expected_value: Optional[str] = None
     match_resource_name: Optional[str] = None # New: Target specific resource by name

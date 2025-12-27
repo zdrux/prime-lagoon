@@ -1149,8 +1149,16 @@
             tags: JSON.stringify(ruleTags)
         };
 
-        if (!data.name || !data.resource_kind || !data.field_path) {
-            alert("Name, Resource Kind, and Path are required.");
+        if (!data.name || !data.resource_kind) {
+            alert("Name and Resource Kind are required.");
+            return;
+        }
+        if (data.check_type === 'VALIDATION' && !data.field_path) {
+            alert("Field Path is required for Field Validation rules.");
+            return;
+        }
+        if ((data.check_type === 'EXISTENCE' || data.check_type === 'FORBIDDANCE') && !data.match_resource_name) {
+            alert("Target Resource Name Pattern is required for existence checks.");
             return;
         }
 

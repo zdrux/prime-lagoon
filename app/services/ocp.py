@@ -17,15 +17,17 @@ def get_val(obj, path):
         return obj
     
     # Matches:
-    # 1. field (simple field)
-    # 2. ["double quoted"]
-    # 3. ['single quoted']
-    # 4. [0] (numeric index)
-    parts = re.findall(r'([^.\[\]]+)|\["([^"\]]+)"\]|\[\'([^\'\]]+)\'\]|\[(\d+)\]', path)
+    # 1. ["double quoted"]
+    # 2. ['single quoted']
+    # 3. [0] (numeric index)
+    # 4. ."double quoted field"
+    # 5. .'single quoted field'
+    # 6. field (simple field, potentially preceded by a dot)
+    parts = re.findall(r'\["([^"\]]+)"\]|\[\'([^\'\]]+)\'\]|\[(\d+)\]|(?:\."([^"]+)")|(?:\.\'([^\']+)\')|\.?([^.\[\]"\']+)', path)
     curr = obj
     
-    for field, b_double, b_single, b_num in parts:
-        p = field or b_double or b_single or b_num
+    for b_double, b_single, b_num, d_double, d_single, field in parts:
+        p = b_double or b_single or b_num or d_double or d_single or field
         if curr is None:
             return None
             

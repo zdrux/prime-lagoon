@@ -652,9 +652,6 @@ function renderTable(resourceType, data) {
             { header: 'Target', path: 'spec.scaleTargetRef.name' },
             { header: 'Min', path: 'spec.minReplicas' },
             { header: 'Max', path: 'spec.maxReplicas' },
-            { header: 'Intake #', path: 'metadata.labels.intake_number' },
-            { header: 'MAPID', path: 'metadata.labels.mapid' },
-            { header: 'LOB', path: 'metadata.labels.lob' },
             { header: 'Created', path: 'metadata.creationTimestamp' }
         ];
     } else if (resourceType === 'projects') {

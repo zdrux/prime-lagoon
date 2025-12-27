@@ -590,3 +590,82 @@ def get_node_details(cluster: Cluster, node_name: str, snapshot_data: Optional[d
     except Exception as e:
         print(f"Error fetching node details for {node_name} on {cluster.name}: {e}")
         raise e
+
+def get_machine_details(cluster, machine_name, snapshot_data=None):
+    try:
+        if snapshot_data:
+            machines = snapshot_data.get("machines", [])
+            machine = next((m for m in machines if m['metadata']['name'] == machine_name), None)
+            if not machine:
+                return {"error": "Machine not found in snapshot"}
+            
+            # Simple metadata from snapshot
+            return {
+                "name": machine_name,
+                "labels": machine['metadata'].get('labels', {}),
+                "annotations": machine['metadata'].get('annotations', {}),
+                "spec": machine.get('spec', {}),
+                "status": machine.get('status', {}),
+                "events": []
+            }
+
+        dyn_client = get_dynamic_client(cluster)
+        
+        # 1. Fetch Machine object
+        machine_api = dyn_client.resources.get(api_version='machine.openshift.io/v1beta1', kind='Machine')
+        machine = machine_api.get(name=machine_name)
+        
+        # 2. Fetch Events for this machine
+        event_api = dyn_client.resources.get(api_version='v1', kind='Event')
+        events = event_api.get(field_selector=f"involvedObject.kind=Machine,involvedObject.name={machine_name}").items
+        events = sorted(events, key=lambda e: e.lastTimestamp or e.firstTimestamp or "", reverse=True)[:20]
+        
+        # 3. Extract Platform specifics
+        provider_spec = machine.spec.get('providerSpec', {}).get('value', {})
+        platform = provider_spec.get('kind', '')
+        
+        details = {
+            "name": machine_name,
+            "namespace": machine.metadata.namespace,
+            "labels": machine.metadata.labels or {},
+            "annotations": machine.metadata.annotations or {},
+            "platform": platform,
+            "provider_id": machine.spec.get('providerID', ''),
+            "phase": machine.status.get('phase', 'Unknown'),
+            "vm_size": provider_spec.get('vmSize', ''),
+            "events": [{
+                "type": e.type,
+                "reason": e.reason,
+                "message": e.message,
+                "lastTimestamp": e.lastTimestamp or e.firstTimestamp,
+                "count": e.count
+            } for e in events]
+        }
+        
+        if platform == "AzureMachineProviderSpec":
+            details.update({
+                "resource_group": provider_spec.get('resourceGroup', ''),
+                "vnet": provider_spec.get('vnet', ''),
+                "vnet_resource_group": provider_spec.get('networkResourceGroup', ''),
+                "subnet": provider_spec.get('subnet', ''),
+                "zone": provider_spec.get('zone', ''),
+                "location": provider_spec.get('location', '')
+            })
+        elif platform == "VSphereMachineProviderSpec":
+            workspace = provider_spec.get('workspace', {})
+            details.update({
+                "vsphere_server": workspace.get('server', ''),
+                "datacenter": workspace.get('datacenter', ''),
+                "datastore": workspace.get('datastore', ''),
+                "folder": workspace.get('folder', ''),
+                "resource_pool": workspace.get('resourcePool', ''),
+                "cpus": provider_spec.get('numCPUs', ''),
+                "memory_mb": provider_spec.get('memoryMiB', ''),
+                "disk_gb": provider_spec.get('diskGiB', '')
+            })
+            
+        return details
+
+    except Exception as e:
+        print(f"Error fetching machine details for {machine_name} on {cluster.name}: {e}")
+        raise e

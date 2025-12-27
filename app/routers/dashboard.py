@@ -131,6 +131,28 @@ def get_node_details_endpoint(cluster_id: int, node_name: str, snapshot_time: Op
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/{cluster_id}/machines/{machine_name}/details")
+def get_machine_details_endpoint(cluster_id: int, machine_name: str, snapshot_time: Optional[str] = Query(None), session: Session = Depends(get_session)):
+    from app.services.ocp import get_machine_details
+    cluster = session.get(Cluster, cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    snapshot_data = None
+    if snapshot_time:
+        try:
+            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
+            if snap and snap.data_json:
+                snapshot_data = json.loads(snap.data_json)
+        except:
+            pass
+
+    try:
+        return get_machine_details(cluster, machine_name, snapshot_data=snapshot_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{cluster_id}/license-details/{usage_id}")
 def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[str] = Query(None), session: Session = Depends(get_session)):
     """Returns detailed license breakdown for a cluster, either from history or a snapshot."""

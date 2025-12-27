@@ -620,7 +620,14 @@ function renderTable(resourceType, data) {
             { header: 'Intake #', path: 'metadata.labels.intake_number' },
             { header: 'MAPID', path: 'metadata.labels.mapid' },
             { header: 'VM Type', path: '__enriched.vm_type' },
-            { header: 'Created', path: 'metadata.creationTimestamp' }
+            { header: 'Created', path: 'metadata.creationTimestamp' },
+            {
+                header: 'Actions', path: item => `
+                <button class="btn btn-secondary btn-sm" onclick="showMachineDetails(${window.currentClusterId}, '${item.metadata.name}')">
+                    <i class="fas fa-info-circle"></i> Details
+                </button>
+            `
+            }
         ];
     } else if (resourceType === 'machinesets') {
         columns = [
@@ -1209,4 +1216,119 @@ async function showNodeDetails(clusterId, name) {
 
 function closeNodeModal() {
     document.getElementById('node-modal').classList.remove('open');
+}
+
+async function showMachineDetails(clusterId, name) {
+    const modal = document.getElementById('machine-modal');
+    const body = document.getElementById('machine-modal-body');
+
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center; padding:3rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i><br><br>Fetching machine details...</div>';
+
+    try {
+        let url = `/api/dashboard/${clusterId}/machines/${name}/details`;
+        if (window.currentSnapshotTime) {
+            url += `?snapshot_time=${window.currentSnapshotTime}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch machine details");
+        const data = await response.json();
+
+        let platformHtml = '';
+        if (data.platform === 'AzureMachineProviderSpec') {
+            platformHtml = `
+                <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid #008AD7;">
+                    <h4 style="margin-bottom:1rem; color:#008AD7;"><i class="fab fa-microsoft"></i> Azure Metadata</h4>
+                    <div style="display:grid; grid-template-columns:140px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">Resource Group:</span> <strong>${data.resource_group}</strong>
+                        <span style="opacity:0.6;">VNET:</span> <strong>${data.vnet}</strong>
+                        <span style="opacity:0.6;">VNET RG:</span> <strong>${data.vnet_resource_group}</strong>
+                        <span style="opacity:0.6;">Subnet:</span> <strong>${data.subnet}</strong>
+                        <span style="opacity:0.6;">Zone:</span> <strong>${data.zone}</strong>
+                        <span style="opacity:0.6;">Location:</span> <strong>${data.location}</strong>
+                        <span style="opacity:0.6;">VM Size:</span> <strong>${data.vm_size}</strong>
+                    </div>
+                </div>
+            `;
+        } else if (data.platform === 'VSphereMachineProviderSpec') {
+            platformHtml = `
+                <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid #607080;">
+                    <h4 style="margin-bottom:1rem; color:#607080;"><i class="fas fa-layer-group"></i> vSphere Metadata</h4>
+                    <div style="display:grid; grid-template-columns:140px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">Datacenter:</span> <strong>${data.datacenter}</strong>
+                        <span style="opacity:0.6;">Datastore:</span> <strong>${data.datastore}</strong>
+                        <span style="opacity:0.6;">Resource Pool:</span> <strong>${data.resource_pool}</strong>
+                        <span style="opacity:0.6;">Folder:</span> <strong>${data.folder}</strong>
+                        <span style="opacity:0.6;">vCenter Server:</span> <strong>${data.vsphere_server}</strong>
+                        <span style="opacity:0.6;">CPUs:</span> <strong>${data.cpus}</strong>
+                        <span style="opacity:0.6;">Memory:</span> <strong>${data.memory_mb} MiB</strong>
+                        <span style="opacity:0.6;">Disk:</span> <strong>${data.disk_gb} GiB</strong>
+                    </div>
+                </div>
+            `;
+        }
+
+        body.innerHTML = `
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
+                <div class="card" style="margin:0; padding:1.2rem;">
+                    <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-info-circle"></i> Machine Info</h4>
+                    <div style="display:grid; grid-template-columns:100px 1fr; gap:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.6;">Name:</span> <strong>${data.name}</strong>
+                        <span style="opacity:0.6;">Namespace:</span> <strong>${data.namespace}</strong>
+                        <span style="opacity:0.6;">Phase:</span> <span class="badge badge-blue">${data.phase}</span>
+                        <span style="opacity:0.6;">Provider ID:</span> <small style="word-break:break-all;"><code>${data.provider_id}</code></small>
+                    </div>
+                </div>
+                ${platformHtml}
+            </div>
+
+            <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid var(--accent-color); margin-bottom:1.5rem;">
+                <h4 style="margin-bottom:1rem; color:var(--accent-color);"><i class="fas fa-history"></i> Recent Machine Events</h4>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 0.8rem;">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Reason</th>
+                                <th>Message</th>
+                                <th>Count</th>
+                                <th>Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.events && data.events.length > 0
+                ? data.events.map(e => `
+                                    <tr>
+                                        <td><span class="badge ${e.type === 'Normal' ? 'badge-green' : 'badge-red'}">${e.type}</span></td>
+                                        <td style="font-weight:600;">${e.reason}</td>
+                                        <td style="font-size: 0.75rem;">${e.message}</td>
+                                        <td style="text-align:center;">${e.count}</td>
+                                        <td style="white-space:nowrap;">${e.lastTimestamp ? new Date(e.lastTimestamp).toLocaleString() : '-'}</td>
+                                    </tr>
+                                `).join('')
+                : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No recent events found.</td></tr>'
+            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="margin-top:1rem;">
+                <h5 style="margin-bottom:0.5rem; opacity:0.7;">Labels</h5>
+                <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
+                    ${Object.entries(data.labels || {}).map(([k, v]) => `
+                        <span style="font-size:0.7rem; background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; border:1px solid var(--border-color);">
+                            ${k}: ${v}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;"><i class="fas fa-exclamation-triangle fa-2x"></i><br><br>${error.message}</div>`;
+    }
+}
+
+function closeMachineModal() {
+    document.getElementById('machine-modal').classList.remove('open');
 }

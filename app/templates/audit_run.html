@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
 <div class="page-header">
     <div>
         <h1 class="page-title">Compliance Execution</h1>
@@ -193,7 +194,7 @@
         <div class="modal-body"
             style="background:#0D1117; padding:1.5rem; overflow-x:auto; min-height: 200px; max-height: 70vh;">
             <pre id="snapshot-content"
-                style="margin:0; font-family:var(--font-mono); font-size:0.85rem; color:#E6EDF3;"></pre>
+                style="margin:0; font-family:'Fira Code', 'Courier New', monospace; font-size:0.85rem; color:#E6EDF3; line-height:1.5; tab-size:2;"></pre>
         </div>
         <div id="snapshot-modal-footer"
             style="padding:1rem; border-top:1px solid var(--border-color); text-align:right;">
@@ -794,22 +795,27 @@
             resources = data;
         }
 
-        document.getElementById('snapshot-title').innerText = `Failure Snapshots: ${ruleName}`;
+        document.getElementById('snapshot-title').innerText = `Failure Snapshots (YAML): ${ruleName}`;
         const content = document.getElementById('snapshot-content');
 
         if (!resources || resources.length === 0) {
             content.innerText = "No snapshot data available.";
         } else {
-            let html = "";
+            let yamlText = "";
             resources.forEach((res, idx) => {
-                html += `--- Snapshot ${idx + 1} (${res.metadata?.name || 'Unnamed'}) ---\n`;
-                html += JSON.stringify(res, null, 2) + "\n\n";
+                yamlText += `# --- Snapshot ${idx + 1}: ${res.metadata?.name || 'Unnamed'} ---\n`;
+                try {
+                    // Use js-yaml for clean YAML output
+                    yamlText += jsyaml.dump(res, { indent: 2, lineWidth: -1 }) + "\n\n";
+                } catch (e) {
+                    yamlText += "Error rendering YAML: " + e.message + "\n";
+                    yamlText += JSON.stringify(res, null, 2) + "\n\n";
+                }
             });
-            content.innerText = html;
+            content.innerText = yamlText;
         }
 
         document.getElementById('snapshot-modal').classList.add('open');
     }
 </script>
 {% endblock %}
-```

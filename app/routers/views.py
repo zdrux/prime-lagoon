@@ -18,7 +18,7 @@ def root():
     return RedirectResponse(url="/dashboard")
 
 @router.get("/admin", response_class=HTMLResponse)
-def admin_view(request: Request, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def admin_view(request: Request, tab: str = "clusters", session: Session = Depends(get_session), user: User = Depends(admin_required)):
     clusters = session.exec(select(Cluster)).all()
     clusters_by_dc = _group_clusters(clusters)
     return templates.TemplateResponse("admin.html", {
@@ -26,6 +26,7 @@ def admin_view(request: Request, session: Session = Depends(get_session), user: 
         "clusters": clusters, 
         "clusters_by_dc": clusters_by_dc,
         "page": "admin",
+        "active_tab": tab,
         "user": user
     })
 

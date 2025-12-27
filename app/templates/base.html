@@ -75,9 +75,30 @@
                     Administration
                 </li>
                 <li class="nav-item">
-                    <a href="/admin" class="nav-link {% if page == 'admin' %}active{% endif %}">
+                    <a href="/admin?tab=clusters"
+                        class="nav-link {% if page == 'admin' and active_tab == 'clusters' %}active{% endif %}">
                         <i class="fas fa-server"></i> Clusters
                     </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#"
+                        class="nav-link submenu-toggle {% if page == 'admin' and active_tab in ['schedulers', 'snapshots'] %}active{% endif %}"
+                        data-target="submenu-snapshots"
+                        onclick="event.preventDefault(); toggleSubmenu('submenu-snapshots', this)">
+                        <i class="fas fa-camera"></i> Snapshots
+                        <i class="fas fa-chevron-down arrow"></i>
+                    </a>
+                    <div class="resource-submenu {% if page == 'admin' and active_tab in ['schedulers', 'snapshots'] %}open{% endif %}"
+                        id="submenu-snapshots">
+                        <a href="/admin?tab=schedulers"
+                            class="sub-link {% if page == 'admin' and active_tab == 'schedulers' %}active{% endif %}">
+                            <i class="fas fa-clock" style="width:16px;"></i> Snapshot Scheduler
+                        </a>
+                        <a href="/admin?tab=snapshots"
+                            class="sub-link {% if page == 'admin' and active_tab == 'snapshots' %}active{% endif %}">
+                            <i class="fas fa-history" style="width:16px;"></i> Snapshot History
+                        </a>
+                    </div>
                 </li>
                 <li class="nav-item">
                     <a href="#"
@@ -89,11 +110,11 @@
                     </a>
                     <div class="resource-submenu {% if page in ['audit_rules', 'compliance'] %}open{% endif %}"
                         id="submenu-compliance">
-                        <a href="/compliance" class="sub-link {% if page == 'compliance' %}active{% endif %}">
-                            <i class="fas fa-check-circle" style="width:16px;"></i> Run Compliance
-                        </a>
                         <a href="/audit" class="sub-link {% if page == 'audit_rules' %}active{% endif %}">
                             <i class="fas fa-clipboard-list" style="width:16px;"></i> Compliance Rules
+                        </a>
+                        <a href="/compliance" class="sub-link {% if page == 'compliance' %}active{% endif %}">
+                            <i class="fas fa-check-circle" style="width:16px;"></i> Run Compliance
                         </a>
                     </div>
                 </li>

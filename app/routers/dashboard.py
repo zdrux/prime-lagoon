@@ -222,56 +222,67 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     # Fast Mode: Return latest snapshot data immediately
     if mode == "fast" and not target_dt:
         for cluster in clusters:
-            # Get latest snapshot
-            snap = session.exec(select(ClusterSnapshot).where(
-                ClusterSnapshot.cluster_id == cluster.id,
-                ClusterSnapshot.status == "Success"
-            ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
-            
-            if snap and snap.data_json:
-                snapshot_data = json.loads(snap.data_json)
-                stats = get_cluster_stats(cluster, snapshot_data=snapshot_data)
-                s_nodes = snapshot_data.get("nodes", [])
-                lic_data = calculate_licenses(s_nodes, rules, default_include=default_include)
+            try:
+                # Get latest snapshot
+                snap = session.exec(select(ClusterSnapshot).where(
+                    ClusterSnapshot.cluster_id == cluster.id,
+                    ClusterSnapshot.status == "Success"
+                ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
                 
-                # Use frozen identity if available (for snapshots)
-                c_name = snap.captured_name or cluster.name
-                c_uid = snap.captured_unique_id or cluster.unique_id
-                
-                results.append({
-                    "id": cluster.id,
-                    "name": c_name,
-                    "unique_id": c_uid,
-                    "datacenter": cluster.datacenter,
-                    "environment": cluster.environment,
-                    "stats": stats,
-                    "license_info": {
-                        "count": lic_data["total_licenses"],
-                        "usage_id": "null"
-                    },
-                    "licensed_node_count": lic_data["node_count"],
-                    "licensed_vcpu_count": lic_data["total_vcpu"],
-                    "status": "yellow" # Indicating stale/snapshot data
-                })
-                
-                # Globals
-                global_stats["total_nodes"] += (stats["node_count"] if isinstance(stats["node_count"], int) else 0)
-                global_stats["total_licensed_nodes"] += lic_data["node_count"]
-                global_stats["total_vcpu"] += (stats["vcpu_count"] if isinstance(stats["vcpu_count"], int) else 0)
-                global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
-                global_stats["total_licenses"] += lic_data["total_licenses"]
-            else:
-                # No snapshot available
+                if snap and snap.data_json:
+                    snapshot_data = json.loads(snap.data_json)
+                    stats = get_cluster_stats(cluster, snapshot_data=snapshot_data)
+                    s_nodes = snapshot_data.get("nodes", [])
+                    lic_data = calculate_licenses(s_nodes, rules, default_include=default_include)
+                    
+                    # Use frozen identity if available (for snapshots)
+                    c_name = snap.captured_name or cluster.name
+                    c_uid = snap.captured_unique_id or cluster.unique_id
+                    
+                    results.append({
+                        "id": cluster.id,
+                        "name": c_name,
+                        "unique_id": c_uid,
+                        "datacenter": cluster.datacenter,
+                        "environment": cluster.environment,
+                        "stats": stats,
+                        "license_info": {
+                            "count": lic_data["total_licenses"],
+                            "usage_id": "null"
+                        },
+                        "licensed_node_count": lic_data["node_count"],
+                        "licensed_vcpu_count": lic_data["total_vcpu"],
+                        "status": "yellow" # Indicating stale/snapshot data
+                    })
+                    
+                    # Globals
+                    global_stats["total_nodes"] += (stats["node_count"] if isinstance(stats["node_count"], int) else 0)
+                    global_stats["total_licensed_nodes"] += lic_data["node_count"]
+                    global_stats["total_vcpu"] += (stats["vcpu_count"] if isinstance(stats["vcpu_count"], int) else 0)
+                    global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
+                    global_stats["total_licenses"] += lic_data["total_licenses"]
+                else:
+                    # No snapshot available
+                    results.append({
+                        "id": cluster.id,
+                        "name": cluster.name,
+                        "datacenter": cluster.datacenter,
+                        "environment": cluster.environment,
+                        "stats": {"node_count": "-", "vcpu_count": "-", "version": "-", "console_url": "#"},
+                        "license_info": {"count": "-", "usage_id": None},
+                        "licensed_node_count": "-",
+                        "licensed_vcpu_count": "-",
+                        "status": "gray" # No data
+                    })
+            except Exception as e:
+                import traceback
+                print(f"ERROR processing cluster {cluster.name} in fast mode:")
+                traceback.print_exc()
                 results.append({
                     "id": cluster.id,
                     "name": cluster.name,
-                    "datacenter": cluster.datacenter,
-                    "environment": cluster.environment,
-                    "stats": {"node_count": "-", "vcpu_count": "-", "version": "-", "console_url": "#"},
-                    "license_info": {"count": "-", "usage_id": None},
-                    "licensed_node_count": "-",
-                    "licensed_vcpu_count": "-",
-                    "status": "gray" # No data
+                    "status": "red",
+                    "error": str(e)
                 })
         
         # Sort results

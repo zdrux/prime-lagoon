@@ -454,8 +454,8 @@ function applyDashboardFilters() {
         const envFilters = ['DEV', 'UAT', 'PROD'].filter(f => activeFilters.has(f));
         const dcFilters = ['AZURE', 'HCI'].filter(f => activeFilters.has(f));
 
-        const matchesEnv = envFilters.length === 0 || envFilters.includes(c.environment);
-        const matchesDc = dcFilters.length === 0 || dcFilters.includes(c.datacenter);
+        const matchesEnv = envFilters.length === 0 || (c.environment && envFilters.includes(c.environment.toUpperCase()));
+        const matchesDc = dcFilters.length === 0 || (c.datacenter && dcFilters.includes(c.datacenter.toUpperCase()));
 
         return matchesEnv && matchesDc;
     });

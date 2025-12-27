@@ -587,21 +587,11 @@ function renderTable(resourceType, data) {
             { header: 'Roles', path: item => Object.keys(getNested(item, 'metadata.labels') || {}).filter(k => k.startsWith('node-role.kubernetes.io/')).map(k => k.split('/')[1]).join(', ') },
             {
                 header: 'CPU Usage',
-                path: item => item.__metrics ? `
-                    <div class="progress-bar-container" title="${item.__metrics.cpu_usage} cores">
-                        <div class="progress-bar" style="width: ${item.__metrics.cpu_percent}%"></div>
-                        <span class="progress-text">${item.__metrics.cpu_percent}%</span>
-                    </div>
-                ` : '-'
+                path: item => item.__metrics ? renderUsageRing(item.__metrics.cpu_percent, `${item.__metrics.cpu_usage} cores`) : '-'
             },
             {
                 header: 'Mem Usage',
-                path: item => item.__metrics ? `
-                    <div class="progress-bar-container" title="${item.__metrics.mem_usage_gb} GB">
-                        <div class="progress-bar" style="width: ${item.__metrics.mem_percent}%"></div>
-                        <span class="progress-text">${item.__metrics.mem_percent}%</span>
-                    </div>
-                ` : '-'
+                path: item => item.__metrics ? renderUsageRing(item.__metrics.mem_percent, `${item.__metrics.mem_usage_gb} GB`) : '-'
             },
             { header: 'Created', path: 'metadata.creationTimestamp' },
             {
@@ -851,6 +841,31 @@ function getNested(obj, path) {
 
         return acc[key];
     }, obj);
+}
+
+/* Helper for circular gauges */
+function renderUsageRing(percent, tooltip, color = null) {
+    const radius = 18;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (percent / 100) * circumference;
+
+    if (!color) {
+        if (percent >= 80) color = 'var(--danger-color)';
+        else if (percent >= 50) color = 'var(--warning-color)';
+        else color = 'var(--success-color)';
+    }
+
+    return `
+        <div class="usage-ring-container" title="${tooltip}">
+            <svg class="usage-ring-svg" viewBox="0 0 44 44">
+                <circle class="usage-ring-bg" cx="22" cy="22" r="${radius}"></circle>
+                <circle class="usage-ring-fill" cx="22" cy="22" r="${radius}"
+                        style="stroke:${color}; stroke-dasharray:${circumference}; stroke-dashoffset:${offset};">
+                </circle>
+            </svg>
+            <div class="usage-ring-text" style="color:${color}">${percent}%</div>
+        </div>
+    `;
 }
 
 // License Modal

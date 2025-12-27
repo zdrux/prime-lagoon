@@ -7,6 +7,10 @@
         <span class="badge badge-blue">Admin Settings</span>
     </div>
     <div style="display:flex; gap:0.5rem;">
+        <button id="vacuum-btn" class="btn btn-secondary" onclick="vacuumDb()"
+            style="font-size:0.85rem; padding:0.5rem 1rem; color:var(--accent-color); border-color:var(--accent-color);">
+            <i class="fas fa-broom"></i> Optimize Database
+        </button>
         <button class="btn btn-secondary" onclick="loadDbStats()" style="font-size:0.85rem; padding:0.5rem 1rem;">
             <i class="fas fa-sync"></i> Refresh Stats
         </button>
@@ -45,8 +49,38 @@
             </div>
         </div>
 
+        <div style="margin-top:2rem; border-top:1px solid var(--border-color); padding-top:1.5rem;">
+            <h5 style="margin-bottom:1rem; opacity:0.8;">Data Breakdown</h5>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+                <div class="card"
+                    style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.7;">Snapshots (JSON)</span>
+                        <strong id="db-snap-data">- MB</strong>
+                    </div>
+                    <div class="progress-bar-container" style="height:8px;">
+                        <div id="db-snap-bar" class="progress-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="card"
+                    style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.7;">Application Data & Logic</span>
+                        <strong id="db-other-data">- MB</strong>
+                    </div>
+                    <div class="progress-bar-container" style="height:8px;">
+                        <div id="db-other-bar" class="progress-bar"
+                            style="width: 0%; background:var(--text-secondary);"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:1rem; font-size:0.75rem; opacity:0.5; text-align:right;">
+                * Other includes License History, Compliance Results, and DB Overhead (approx).
+            </div>
+        </div>
+
         <div
-            style="padding:1.25rem; background:rgba(56, 189, 248, 0.05); border-radius:4px; border-left:4px solid var(--accent-color);">
+            style="padding:1.25rem; background:rgba(56, 189, 248, 0.05); border-radius:4px; border-left:4px solid var(--accent-color); margin-top:2rem;">
             <div style="display:flex; justify-content:space-between; margin-bottom:0.75rem; align-items:center;">
                 <span style="font-weight:600; font-size:1rem;">Database Configuration</span>
                 <span id="db-path"
@@ -65,11 +99,43 @@
 <script>
     document.addEventListener('DOMContentLoaded', loadDbStats);
 
+    async function vacuumDb() {
+        const btn = document.getElementById('vacuum-btn');
+        const icon = btn.querySelector('i');
+
+        if (!confirm("This will optimize the database and reclaim unused space. This may take a few seconds. Continue?")) return;
+
+        btn.disabled = true;
+        icon.className = 'fas fa-spinner fa-spin';
+
+        try {
+            const res = await fetch('/api/admin/clusters/config/db-vacuum', { method: 'POST' });
+            if (res.ok) {
+                alert("Database optimized successfully.");
+                loadDbStats();
+            } else {
+                const err = await res.json();
+                alert("Error: " + (err.detail || "Failed to optimize"));
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network error.");
+        } finally {
+            btn.disabled = false;
+            icon.className = 'fas fa-broom';
+        }
+    }
+
     async function loadDbStats() {
         const sizeEl = document.getElementById('db-size');
         const snapEl = document.getElementById('db-snapshots');
         const avgEl = document.getElementById('db-avg-size');
         const pathEl = document.getElementById('db-path');
+
+        const snapDataEl = document.getElementById('db-snap-data');
+        const snapBarEl = document.getElementById('db-snap-bar');
+        const otherDataEl = document.getElementById('db-other-data');
+        const otherBarEl = document.getElementById('db-other-bar');
 
         sizeEl.innerText = 'Loading...';
 
@@ -81,6 +147,16 @@
                 snapEl.innerText = data.snapshot_count;
                 avgEl.innerText = data.avg_snapshot_size_kb + ' KB';
                 pathEl.innerText = data.db_filename;
+
+                // Breakdown
+                snapDataEl.innerText = data.snapshot_data_mb + ' MB';
+                otherDataEl.innerText = data.other_data_mb + ' MB';
+
+                const snapPct = (data.snapshot_data_mb / data.file_size_mb * 100) || 0;
+                const otherPct = (data.other_data_mb / data.file_size_mb * 100) || 0;
+
+                snapBarEl.style.width = snapPct + '%';
+                otherBarEl.style.width = otherPct + '%';
             } else {
                 sizeEl.innerText = 'Error';
             }

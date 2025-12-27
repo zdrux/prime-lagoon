@@ -283,8 +283,8 @@ def get_db_stats(session: Session = Depends(get_session)):
     """Returns database size and record counts."""
     import os
     from app.database import DATABASE_URL
-    from app.models import ClusterSnapshot
-    from sqlmodel import func
+    from app.models import ClusterSnapshot, LicenseUsage, ComplianceScore
+    from sqlmodel import func, select
     
     # Get file size
     db_file = DATABASE_URL.replace("sqlite:///", "")
@@ -296,20 +296,38 @@ def get_db_stats(session: Session = Depends(get_session)):
     cluster_count = session.exec(select(func.count(Cluster.id))).one()
     snapshot_count = session.exec(select(func.count(ClusterSnapshot.id))).one()
     
-    # Calculate avg snapshot size (heuristically)
-    avg_snapshot_size_kb = 0
-    if snapshot_count > 0:
-        # This is a bit of a guess since we don't know the exact base size,
-        # but it gives the user an idea of growth.
-        avg_snapshot_size_kb = (size_bytes / 1024) / snapshot_count
+    # Calculate Record Sizes
+    snapshot_size_bytes = session.exec(select(func.sum(func.length(ClusterSnapshot.data_json)))).one() or 0
+    usage_size_bytes = session.exec(select(func.sum(func.length(LicenseUsage.details_json)))).one() or 0
+    compliance_size_bytes = session.exec(select(func.sum(func.length(ComplianceScore.results_json)))).one() or 0
+    
+    total_json_bytes = snapshot_size_bytes + usage_size_bytes + compliance_size_bytes
+    other_size_bytes = max(0, size_bytes - total_json_bytes)
+    
+    avg_snap_size_kb = round((snapshot_size_bytes / 1024) / snapshot_count, 2) if snapshot_count > 0 else 0
 
     return {
         "file_size_mb": round(size_bytes / (1024 * 1024), 2),
         "cluster_count": cluster_count,
         "snapshot_count": snapshot_count,
-        "avg_snapshot_size_kb": round(avg_snapshot_size_kb, 2),
+        "snapshot_data_mb": round(snapshot_size_bytes / (1024 * 1024), 2),
+        "usage_data_mb": round(usage_size_bytes / (1024 * 1024), 2),
+        "compliance_data_mb": round(compliance_size_bytes / (1024 * 1024), 2),
+        "other_data_mb": round(other_size_bytes / (1024 * 1024), 2),
+        "avg_snapshot_size_kb": avg_snap_size_kb,
         "db_filename": db_file
     }
+
+@router.post("/config/db-vacuum")
+def vacuum_db(session: Session = Depends(get_session)):
+    """Runs SQLite VACUUM to reclaim space."""
+    try:
+        from sqlalchemy import text
+        session.execute(text("VACUUM"))
+        session.commit()
+        return {"status": "success", "message": "Database optimized successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/{cluster_id}", response_model=ClusterRead)
 def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = Depends(get_session)):

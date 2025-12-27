@@ -340,7 +340,7 @@ def preview_license_config(req: LicensePreviewRequest, session: Session = Depend
              ]
         else:
              # Use DB rules - IMPORTANT: Must be ordered
-             rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order)).all()
+             rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
              
         if req.default_include is not None:
             default_include = req.default_include

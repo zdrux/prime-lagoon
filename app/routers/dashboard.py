@@ -145,7 +145,7 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
                 data = json.loads(snap.data_json)
                 nodes = data.get("nodes", [])
                 from app.models import LicenseRule, AppConfig
-                rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+                rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
                 default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
                 lic_data = calculate_licenses(nodes, rules, default_include=default_include)
                 return {
@@ -180,7 +180,7 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
     try:
         nodes = fetch_resources(cluster, "v1", "Node")
         from app.models import LicenseRule, AppConfig
-        rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+        rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
         default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
         lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         return {
@@ -255,9 +255,9 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                 })
                 
                 # Globals
-                global_stats["total_nodes"] += stats["node_count"]
+                global_stats["total_nodes"] += (stats["node_count"] if isinstance(stats["node_count"], int) else 0)
                 global_stats["total_licensed_nodes"] += lic_data["node_count"]
-                global_stats["total_vcpu"] += stats["vcpu_count"]
+                global_stats["total_vcpu"] += (stats["vcpu_count"] if isinstance(stats["vcpu_count"], int) else 0)
                 global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
                 global_stats["total_licenses"] += lic_data["total_licenses"]
             else:
@@ -371,9 +371,9 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                  })
                  
                  # Globals
-                 global_stats["total_nodes"] += stats["node_count"]
+                 global_stats["total_nodes"] += (stats["node_count"] if isinstance(stats["node_count"], int) else 0)
                  global_stats["total_licensed_nodes"] += lic_data["node_count"]
-                 global_stats["total_vcpu"] += stats["vcpu_count"]
+                 global_stats["total_vcpu"] += (stats["vcpu_count"] if isinstance(stats["vcpu_count"], int) else 0)
                  global_stats["total_licensed_vcpu"] += lic_data["total_vcpu"]
                  global_stats["total_licenses"] += lic_data["total_licenses"]
              else:
@@ -537,7 +537,7 @@ def get_cluster_live_stats(cluster_id: int, session: Session = Depends(get_sessi
 
         # 3. Calculate Licenses
         from app.models import LicenseRule, AppConfig
-        rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+        rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
         default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
         lic_data = calculate_licenses(nodes, rules, default_include=default_include)
         

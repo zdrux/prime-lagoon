@@ -478,74 +478,23 @@ def run_audit(
             try:
                 resources = fetch_resources(cluster, rule.api_version, rule.resource_kind, rule.namespace)
                 
-                # Filter resources by name if specified (even for VALIDATION)
+                # Filter resources by name if specified
                 if rule.match_resource_name:
                     if rule.operator == "contains":
                         resources = [r for r in resources if rule.match_resource_name in (get_val(r, 'metadata.name') or "")]
                     else: # Default/Equals
                         resources = [r for r in resources if get_val(r, 'metadata.name') == rule.match_resource_name]
 
-                # --- Handle Check Types ---
-                
-                if rule.check_type == "EXISTENCE":
-                    if resources:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="PASS", detail=f"Found {len(resources)} matching resource(s)",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-                    else:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="FAIL", detail=f"No matching {rule.resource_kind} found",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-                    continue
-
-                if rule.check_type == "FORBIDDANCE":
-                    if not resources:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="PASS", detail=f"No matching {rule.resource_kind} found (as expected)",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-                    else:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="FAIL", detail=f"Found {len(resources)} matching resource(s) that should not exist",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace,
-                            failed_resources=[(r.to_dict() if hasattr(r, 'to_dict') else r) for r in resources[:3]]
-                        ))
-                    continue
-
-                # --- Standard VALIDATION Logic ---
-
-                if not resources:
-                    results.append(AuditResult(
-                        cluster_name=cluster.name,
-                        cluster_id=cluster.id,
-                        rule_name=rule.name,
-                        bundle_name=bundle_name,
-                        bundle_id=bundle_id,
-                        status="SKIP",
-                        detail=f"No {rule.resource_kind} found",
-                        resource_kind=rule.resource_kind,
-                        namespace=rule.namespace
-                    ))
-                    continue
-                    
-                fail_reasons = []
+                # --- Shared Condition Processing ---
+                passed_items = []
+                failed_items_details = []
                 failed_snapshots = []
-                pass_count = 0
                 
                 # Prepare conditions
-                conditions = [
-                    {"path": rule.field_path, "op": rule.operator, "val": rule.expected_value}
-                ]
+                conditions = []
+                if rule.field_path:
+                    conditions.append({"path": rule.field_path, "op": rule.operator, "val": rule.expected_value})
+                
                 if rule.extra_conditions:
                     try:
                         extras = json.loads(rule.extra_conditions)
@@ -556,7 +505,12 @@ def run_audit(
                     item_data = item.to_dict() if hasattr(item, 'to_dict') else item
                     item_name = item_data.get('metadata', {}).get('name', '?')
                     
-                    cond_matches = []
+                    if not conditions:
+                        # If no conditions defined, every resource matches (e.g. basic EXISTENCE check)
+                        passed_items.append(item_data)
+                        continue
+
+                    cond_results = []
                     for cond in conditions:
                         actual = get_nested_value(item_data, cond["path"])
                         op = cond["op"]
@@ -570,54 +524,84 @@ def run_audit(
                         elif op == "contains":
                             m = str(exp) in str(actual) if actual else False
                         
-                        cond_matches.append({"match": m, "cond": cond, "actual": actual})
+                        cond_results.append({"match": m, "cond": cond, "actual": actual})
                     
-                    # Evaluate item based on logic
-                    passed_list = [c["match"] for c in cond_matches]
+                    # Evaluate item based on logic (AND/OR)
+                    passed_list = [c["match"] for c in cond_results]
                     item_pass = any(passed_list) if rule.condition_logic == "OR" else all(passed_list)
                     
-                    if not item_pass:
-                        # Capture snapshot for first 3 failures
-                        if len(failed_snapshots) < 3:
-                            failed_snapshots.append(item_data)
-
-                        # Build a descriptive failure string for this item
-                        failed_details = []
-                        for cm in cond_matches:
+                    if item_pass:
+                        passed_items.append(item_data)
+                    else:
+                        # Build failure details for this item
+                        item_failed_details = []
+                        for cm in cond_results:
                             if not cm["match"]:
                                 c = cm["cond"]
                                 actual_str = f"'{cm['actual']}'" if cm['actual'] is not None else "None"
-                                failed_details.append(f"'{c['path']}' {c['op']} '{c['val']}' (Actual: {actual_str})")
+                                item_failed_details.append(f"'{c['path']}' {c['op']} '{c['val']}' (Actual: {actual_str})")
                         
-                        fail_reasons.append(f"Item '{item_name}' failed: " + "; ".join(failed_details))
+                        failed_items_details.append(f"Item '{item_name}' failed: " + "; ".join(item_failed_details))
+                        if len(failed_snapshots) < 3:
+                            failed_snapshots.append(item_data)
+
+                # --- Decision Stage based on Check Type ---
+                if rule.check_type == "EXISTENCE":
+                    if passed_items:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="PASS", detail=f"Found {len(passed_items)} matching resource(s)",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
                     else:
-                        pass_count += 1
-                        
-                if fail_reasons:
-                    results.append(AuditResult(
-                        cluster_name=cluster.name,
-                        cluster_id=cluster.id,
-                        rule_name=rule.name,
-                        bundle_name=bundle_name,
-                        bundle_id=bundle_id,
-                        status="FAIL",
-                        detail="; ".join(fail_reasons[:3]),
-                        resource_kind=rule.resource_kind,
-                        namespace=rule.namespace,
-                        failed_resources=failed_snapshots
-                    ))
-                else:
-                    results.append(AuditResult(
-                        cluster_name=cluster.name,
-                        cluster_id=cluster.id,
-                        rule_name=rule.name,
-                        bundle_name=bundle_name,
-                        bundle_id=bundle_id,
-                        status="PASS",
-                        detail=f"Verified on {pass_count} items",
-                        resource_kind=rule.resource_kind,
-                        namespace=rule.namespace
-                    ))
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="FAIL", detail=f"No {rule.resource_kind} found matching conditions",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+
+                elif rule.check_type == "FORBIDDANCE":
+                    if not passed_items:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="PASS", detail=f"No matching {rule.resource_kind} found (as expected)",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+                    else:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="FAIL", detail=f"Found {len(passed_items)} matching resource(s) that should not exist",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace,
+                            failed_resources=passed_items[:3]
+                        ))
+
+                else: # Default: VALIDATION
+                    if not resources:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="SKIP", detail=f"No {rule.resource_kind} found to validate",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+                    elif not failed_items_details:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="PASS", detail=f"Verified on {len(passed_items)} items",
+                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                        ))
+                    else:
+                        results.append(AuditResult(
+                            cluster_name=cluster.name, cluster_id=cluster.id,
+                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
+                            status="FAIL", detail="; ".join(failed_items_details[:3]),
+                            resource_kind=rule.resource_kind, namespace=rule.namespace,
+                            failed_resources=failed_snapshots
+                        ))
                     
             except Exception as e:
                 error_msg = str(e)

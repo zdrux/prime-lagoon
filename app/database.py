@@ -38,6 +38,15 @@ def create_db_and_tables():
                         print(f"MIGRATION: Adding '{col}' column to clustersnapshot table...")
                         conn.execute(text(f'ALTER TABLE clustersnapshot ADD COLUMN "{col}" {sql_type}'))
                 conn.commit()
+            
+            # Migration 3: Add 'is_enabled' column to auditrule if missing
+            res = conn.execute(text("PRAGMA table_info(auditrule)"))
+            columns = [row[1] for row in res.fetchall()]
+            if columns and "is_enabled" not in columns:
+                print("MIGRATION: Adding 'is_enabled' column to auditrule table...")
+                conn.execute(text('ALTER TABLE auditrule ADD COLUMN "is_enabled" BOOLEAN DEFAULT 1'))
+                conn.commit()
+                print("MIGRATION: Success.")
     except Exception as e:
         print(f"MIGRATION ERROR: {e}")
 

@@ -148,8 +148,8 @@
             <div style="display:flex; gap:0.4rem;" onclick="event.stopPropagation()">
                 <button class="btn btn-secondary btn-bundle-edit" data-id="{{ bundle.id }}"
                     data-name="{{ bundle.name | replace('"', ' &quot;') }}"
-                    data-dc="{{ bundle.match_datacenter or '' }}" data-env='{{ bundle.match_environment or "" }}'
-                    data-tags='{{ bundle.tags or "{}" }}' style="padding:0.25rem 0.5rem; font-size:0.75rem;"
+                    data-dc="{{ bundle.match_datacenter or '' }}" data-env="{{ bundle.match_environment or '' }}"
+                    data-tags="{{ bundle.tags or '{}' }}" style="padding:0.25rem 0.5rem; font-size:0.75rem;"
                     title="Edit Bundle Details">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
@@ -244,7 +244,7 @@
                                     data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
                                     data-res-name="{{ rule.match_resource_name or "" }}"
                                     data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                    data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
+                                    data-extras="{{ rule.extra_conditions or '[]' }}" style="padding:0.2rem 0.5rem;"
                                     title="Edit Rule">
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -366,10 +366,10 @@
                             data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
                             data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
                             data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
-                            data-val="{{ rule.expected_value or "" }}" data-dc="{{ rule.match_datacenter or "" }}"
-                            data-env="{{ rule.match_environment or "" }}" data-tags='{{ rule.tags or "{}" }}'
-                            data-res-name="{{ rule.match_resource_name or "" }}" data-logic="{{ rule.condition_logic }}"
-                            data-check-type="{{ rule.check_type }}" data-extras='{{ rule.extra_conditions or "[]" }}'
+                            data-val="{{ rule.expected_value or '' }}" data-dc="{{ rule.match_datacenter or '' }}"
+                            data-env="{{ rule.match_environment or '' }}" data-tags="{{ rule.tags or '{}' }}"
+                            data-res-name="{{ rule.match_resource_name or '' }}" data-logic="{{ rule.condition_logic }}"
+                            data-check-type="{{ rule.check_type }}" data-extras="{{ rule.extra_conditions or '[]' }}"
                             style="padding:0.2rem 0.5rem;" title="Edit Rule">
                             <i class="fas fa-edit"></i>
                         </button>
@@ -706,24 +706,46 @@
         div.style.marginBottom = '0.5rem';
         div.style.alignItems = 'end';
 
-        div.innerHTML = `
-            <div>
-                <input type="text" class="form-input ec-path" placeholder="Path" value="${path}">
-            </div>
-            <div>
-                <select class="form-input ec-op">
-                    <option value="equals" ${op === 'equals' ? 'selected' : ''}>Equals</option>
-                    <option value="exists" ${op === 'exists' ? 'selected' : ''}>Exists</option>
-                    <option value="contains" ${op === 'contains' ? 'selected' : ''}>Contains</option>
-                </select>
-            </div>
-            <div>
-                <input type="text" class="form-input ec-val" placeholder="Value" value="${val}">
-            </div>
-            <button class="btn btn-danger" style="padding: 0.5rem;" onclick="this.parentElement.remove()">
-                <i class="fas fa-trash"></i>
-            </button>
-        `;
+        // Use direct element creation or escape values to prevent HTML injection and breaking attributes
+        const pathWrap = document.createElement('div');
+        const pathInput = document.createElement('input');
+        pathInput.type = 'text';
+        pathInput.className = 'form-input ec-path';
+        pathInput.placeholder = 'Path';
+        pathInput.value = path;
+        pathWrap.appendChild(pathInput);
+
+        const opWrap = document.createElement('div');
+        const opSelect = document.createElement('select');
+        opSelect.className = 'form-input ec-op';
+        ['equals', 'exists', 'contains'].forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o;
+            opt.innerText = o.charAt(0).toUpperCase() + o.slice(1);
+            if (o === op) opt.selected = true;
+            opSelect.appendChild(opt);
+        });
+        opWrap.appendChild(opSelect);
+
+        const valWrap = document.createElement('div');
+        const valInput = document.createElement('input');
+        valInput.type = 'text';
+        valInput.className = 'form-input ec-val';
+        valInput.placeholder = 'Value';
+        valInput.value = val;
+        valWrap.appendChild(valInput);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-danger';
+        delBtn.style.padding = '0.5rem';
+        delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        delBtn.onclick = () => div.remove();
+
+        div.appendChild(pathWrap);
+        div.appendChild(opWrap);
+        div.appendChild(valWrap);
+        div.appendChild(delBtn);
+
         container.appendChild(div);
     }
 

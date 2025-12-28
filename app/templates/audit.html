@@ -93,15 +93,7 @@
 <div class="page-header">
     <h1 class="page-title">Audit Rules</h1>
     <div style="display:flex; gap:1rem; align-items:center;">
-        <div
-            style="background: rgba(255,255,255,0.05); padding: 0.25rem; border-radius: 8px; border: 1px solid var(--border-color); display:flex; gap:0.25rem; margin-right:0.5rem;">
-            <button class="btn btn-secondary btn-sm" onclick="toggleAllBundles(true)" title="Expand All">
-                <i class="fas fa-expand-arrows-alt"></i>
-            </button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleAllBundles(false)" title="Collapse All">
-                <i class="fas fa-compress-arrows-alt"></i>
-            </button>
-        </div>
+
         <button class="btn btn-secondary" onclick="openExportModal()">
             <i class="fas fa-file-export"></i> Export Rules
         </button>
@@ -185,7 +177,7 @@
                     </thead>
                     <tbody>
                         {% set ns = namespace(count=0) %}
-                        {% for rule in rules if rule.bundle_id == bundle.id %}
+                        {% for rule in rules | sort(attribute='name') if rule.bundle_id == bundle.id %}
                         {% set ns.count = ns.count + 1 %}
                         <tr>
                             <td>{{ rule.name }}</td>
@@ -300,7 +292,7 @@
             </thead>
             <tbody>
                 {% set ns = namespace(count=0) %}
-                {% for rule in rules if not rule.bundle_id %}
+                {% for rule in rules | sort(attribute='name') if not rule.bundle_id %}
                 {% set ns.count = ns.count + 1 %}
                 <tr>
                     <td>{{ rule.name }}</td>
@@ -1040,9 +1032,8 @@
         bundleCards.forEach(card => {
             const bundleName = card.querySelector('.resource-header span').innerText;
             // Get bundle ID from edit button
-            const editBtn = card.querySelector('button[onclick^="editBundle"]');
-            const bundleIdMatch = editBtn.getAttribute('onclick').match(/editBundle\((\d+)/);
-            const bundleId = bundleIdMatch ? bundleIdMatch[1] : null;
+            const editBtn = card.querySelector('.btn-bundle-edit');
+            const bundleId = editBtn ? editBtn.dataset.id : null;
 
             const bundleDiv = document.createElement('div');
             bundleDiv.style.marginBottom = '1.5rem';
@@ -1447,15 +1438,7 @@
         }
     }
 
-    function toggleAllBundles(expand) {
-        document.querySelectorAll('.bundle-card').forEach(card => {
-            if (expand) card.classList.add('open');
-            else card.classList.remove('open');
-        });
 
-        const openBundles = expand ? Array.from(document.querySelectorAll('.bundle-card')).map(c => c.id) : [];
-        localStorage.setItem('openAuditBundles', JSON.stringify(openBundles));
-    }
 
     // Restore state on load
     document.addEventListener('DOMContentLoaded', () => {

@@ -974,9 +974,73 @@ async function showLicenseDetails(clusterId, usageId) {
             `;
         }).join('');
 
+        // Load Trends for this cluster
+        loadClusterTrends(clusterId);
+
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Error: ${e.message}</td></tr>`;
     }
+}
+
+async function loadClusterTrends(clusterId) {
+    const url = `/api/dashboard/trends?cluster_id=${clusterId}&days=30`;
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && data.length > 0) {
+            renderClusterLicenseChart(data);
+        }
+    } catch (e) {
+        console.error("Failed to load cluster trends:", e);
+    }
+}
+
+function renderClusterLicenseChart(data) {
+    const ctx = document.getElementById('cluster-license-chart').getContext('2d');
+    const labels = data.map(d => {
+        const date = new Date(d.timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+
+    if (clusterLicenseChart) clusterLicenseChart.destroy();
+
+    clusterLicenseChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Licenses',
+                data: data.map(d => d.licenses),
+                borderColor: '#a855f7',
+                backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)'
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { display: false },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: '#64748b', font: { size: 10 } },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                }
+            }
+        }
+    });
 }
 
 function closeLicenseModal() {
@@ -1412,6 +1476,7 @@ function closeMachineModal() {
 
 // Historical Trends Modal Logic
 let trendsChart = null;
+let clusterLicenseChart = null;
 
 function showHistoricalModal() {
     const modal = document.getElementById('trends-modal');

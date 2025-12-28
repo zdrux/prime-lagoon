@@ -609,15 +609,18 @@ def get_cluster_live_stats(cluster_id: int, session: Session = Depends(get_sessi
 def get_resource_trends(
     environment: Optional[str] = Query(None),
     datacenter: Optional[str] = Query(None),
+    cluster_id: Optional[int] = Query(None),
     days: int = Query(30),
     session: Session = Depends(get_session)
 ):
     """
-    Returns aggregated time-series data for global analytics.
+    Returns aggregated time-series data for global or cluster-specific analytics.
     Buckets data by unified poll timestamps from ClusterSnapshot.
     """
     # 1. Base Query for Clusters (apply filters if any)
     cluster_query = select(Cluster.id)
+    if cluster_id:
+        cluster_query = cluster_query.where(Cluster.id == cluster_id)
     if environment:
         cluster_query = cluster_query.where(Cluster.environment == environment)
     if datacenter:

@@ -1042,7 +1042,10 @@
             <div
                 style="position:relative; background:#0f172a; border-radius:8px; padding:1rem; border:1px solid var(--border-color); margin-bottom:1.5rem;">
                 <pre id="token-commands"
-                    style="font-size:0.85rem; color:#cbd5e1; margin:0; line-height:1.4; overflow-x:auto;"># Create long-lived token
+                    style="font-size:0.85rem; color:#cbd5e1; margin:0; line-height:1.4; overflow-x:auto;"># Create service account
+oc create serviceaccount -n default ocp-inventory
+
+# Create long-lived token
 oc create -f - &lt;&lt;EOF
 apiVersion: v1
 kind: Secret

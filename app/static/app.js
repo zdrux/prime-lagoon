@@ -217,22 +217,30 @@ async function loadSummary() {
         summaryDiv.innerHTML = `
         <!-- Global Summary Cards -->
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
-            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color);">
-                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Clusters</div>
+            <div class="card fade-in interactive-summary-card" onclick="showHistoricalModal()" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); cursor:pointer;">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Clusters <i class="fas fa-chart-line" style="margin-left:0.3rem; opacity:0.5;"></i></div>
                 <div style="font-size:1.1rem; font-weight:700;">${clusters.length}</div>
             </div>
-            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--success-color);">
-                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Nodes</div>
+            <div class="card fade-in interactive-summary-card" onclick="showHistoricalModal()" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--success-color); cursor:pointer;">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Nodes <i class="fas fa-chart-line" style="margin-left:0.3rem; opacity:0.5;"></i></div>
                 <div style="font-size:1.1rem; font-weight:700;">${global.total_nodes} <span style="font-size:0.75rem; opacity:0.6;">(${global.total_licensed_nodes})</span></div>
             </div>
-            <div class="card fade-in" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid #a855f7;">
-                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total vCPUs</div>
+            <div class="card fade-in interactive-summary-card" onclick="showHistoricalModal()" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid #a855f7; cursor:pointer;">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total vCPUs <i class="fas fa-chart-line" style="margin-left:0.3rem; opacity:0.5;"></i></div>
                 <div style="font-size:1.1rem; font-weight:700;">${global.total_vcpu.toFixed(0)} <span style="font-size:0.75rem; opacity:0.6;">(${global.total_licensed_vcpu.toFixed(0)})</span></div>
             </div>
-            <div class="card fade-in" id="global-card-licenses" style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%);">
-                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">Total Licenses</div>
+            <div class="card fade-in interactive-summary-card" id="global-card-licenses" 
+                 onclick="showHistoricalModal()" 
+                 style="margin:0; text-align:center; padding:0.6rem 0.75rem; border-bottom:3px solid var(--accent-color); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(56, 189, 248, 0.05) 100%); cursor:pointer; position:relative;">
+                <div style="font-size:0.65rem; color:var(--text-secondary); margin-bottom:0.2rem; text-transform:uppercase; letter-spacing:1px;">
+                    Total Licenses <i class="fas fa-chart-line" style="margin-left:0.3rem; opacity:0.5;"></i>
+                </div>
                 <div id="summary-total-licenses" style="font-size:1.25rem; font-weight:800; color:var(--accent-color);">${global.total_licenses || 0}</div>
-                <div style="font-size:0.55rem; opacity:0.5; margin-top:0.2rem;">(4 vCPUs per unit)</div>
+                <div style="font-size:0.55rem; opacity:0.5; margin-top:0.2rem;">(Click for Trends)</div>
+                <style>
+                    .interactive-summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+                    .interactive-summary-card:active { transform: translateY(0); }
+                </style>
             </div>
         </div>
 
@@ -1400,4 +1408,132 @@ async function showMachineDetails(clusterId, name) {
 
 function closeMachineModal() {
     document.getElementById('machine-modal').classList.remove('open');
+}
+
+// Historical Trends Modal Logic
+let trendsChart = null;
+
+function showHistoricalModal() {
+    const modal = document.getElementById('trends-modal');
+    if (modal) {
+        modal.classList.add('open');
+        loadTrendsData();
+    }
+}
+
+function closeTrendsModal() {
+    const modal = document.getElementById('trends-modal');
+    if (modal) modal.classList.remove('open');
+}
+
+async function loadTrendsData() {
+    const days = document.getElementById('trends-days').value;
+    const url = `/api/dashboard/trends?days=${days}`;
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+            renderTrendsChart(data);
+            const last = data[data.length - 1];
+            document.getElementById('trend-stat-clusters').innerText = last.clusters;
+            document.getElementById('trend-stat-nodes').innerText = `${last.nodes} (${last.licensed_nodes} Lic)`;
+            document.getElementById('trend-stat-vcpu').innerText = last.vcpus;
+            document.getElementById('trend-stat-licenses').innerText = last.licenses;
+        } else {
+            console.warn("No trend data found");
+        }
+    } catch (e) {
+        console.error("Failed to load trends:", e);
+    }
+}
+
+function renderTrendsChart(data) {
+    const labels = data.map(d => {
+        const date = new Date(d.timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    });
+
+    const ctx = document.getElementById('trends-chart').getContext('2d');
+
+    if (trendsChart) trendsChart.destroy();
+
+    trendsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Clusters',
+                    data: data.map(d => d.clusters),
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Nodes',
+                    data: data.map(d => d.nodes),
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'vCPUs',
+                    data: data.map(d => d.vcpus),
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Licenses',
+                    data: data.map(d => d.licenses),
+                    borderColor: '#a855f7',
+                    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    yAxisID: 'y'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: '#94a3b8', font: { size: 11 } }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#cbd5e1',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45, minRotation: 45 },
+                    grid: { color: 'rgba(255,255,255,0.05)' }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { color: '#64748b' },
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    title: { display: true, text: 'Count', color: '#64748b' }
+                }
+            }
+        }
+    });
 }

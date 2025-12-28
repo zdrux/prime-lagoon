@@ -386,7 +386,7 @@ function renderClusterRows(clusters) {
 
         return `
         <tr id="cluster-row-${c.id}">
-            <td style="font-weight:600; color:var(--accent-color);">
+            <td style="font-weight:600; color:var(--accent-color); cursor:pointer;" onclick="showClusterDetails(${c.id}, '${c.name}')">
                 <i class="fas fa-circle" style="color:${statusColor}; font-size:0.6rem; margin-right:0.5rem;" title="${statusTitle}"></i>
                 ${c.name}
             </td>

@@ -286,6 +286,31 @@ def tags_match(target_tags: Dict[str, str], cluster_tags: Dict[str, str]) -> boo
             return False
     return True
 
+def check_scope_match(scope_val: Optional[str], cluster_val: Optional[str]) -> bool:
+    """
+    Checks if a cluster value matches the scope definition.
+    Scope can be:
+    - None/Empty -> Match All
+    - Exact String -> Match Exact
+    - JSON List String -> Match if in list
+    """
+    if not scope_val:
+        return True
+    
+    # Handle simple Exact Match first (common case)
+    if scope_val == cluster_val:
+        return True
+
+    # Try parsing as JSON list
+    try:
+        scope_list = json.loads(scope_val)
+        if isinstance(scope_list, list):
+            return cluster_val in scope_list
+    except:
+        pass
+        
+    return False
+
 def get_nested_value(data: dict, path: str):
     return get_val(data, path)
 
@@ -322,9 +347,9 @@ def calculate_targets(req: TargetRequest, session: Session = Depends(get_session
         
     matches = []
     for c in clusters:
-        if dc and dc != c.datacenter:
+        if not check_scope_match(dc, c.datacenter):
             continue
-        if env and env != c.environment:
+        if not check_scope_match(env, c.environment):
             continue
         c_tags = parse_tags(c.tags)
         if tags_match(target_tags, c_tags):
@@ -340,9 +365,9 @@ def match_clusters(req: MatchRequest, session: Session = Depends(get_session)):
     
     for c in clusters:
         # Check explicit DC/Env scope if provided
-        if req.match_datacenter and req.match_datacenter != c.datacenter:
+        if not check_scope_match(req.match_datacenter, c.datacenter):
             continue
-        if req.match_environment and req.match_environment != c.environment:
+        if not check_scope_match(req.match_environment, c.environment):
             continue
 
         c_tags = parse_tags(c.tags)
@@ -434,17 +459,17 @@ def run_audit(
                     bundle_id = bundle.id
                     
                     # Check Bundle Scope
-                    if bundle.match_datacenter and bundle.match_datacenter != cluster.datacenter:
+                    if not check_scope_match(bundle.match_datacenter, cluster.datacenter):
                         continue
-                    if bundle.match_environment and bundle.match_environment != cluster.environment:
+                    if not check_scope_match(bundle.match_environment, cluster.environment):
                         continue
                     if not tags_match(parse_tags(bundle.tags), cluster_tags):
                         continue
                 else:
                     # Ad-hoc Rule Scope
-                    if rule_dc and rule_dc != cluster.datacenter:
+                    if not check_scope_match(rule_dc, cluster.datacenter):
                         continue
-                    if rule_env and rule_env != cluster.environment:
+                    if not check_scope_match(rule_env, cluster.environment):
                         continue
                     if not tags_match(target_tags, cluster_tags):
                         continue

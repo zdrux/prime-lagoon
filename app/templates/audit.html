@@ -1,6 +1,50 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    .multi-select-container {
+        position: relative;
+    }
+
+    .multi-select-trigger {
+        cursor: pointer;
+        background-color: var(--bg-primary);
+    }
+
+    .multi-select-options {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        z-index: 100;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 0.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .multi-select-options.open {
+        display: block;
+    }
+
+    .multi-select-options label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.3rem 0.5rem;
+        cursor: pointer;
+        font-size: 0.9rem;
+        border-radius: 4px;
+    }
+
+    .multi-select-options label:hover {
+        background: rgba(255, 255, 255, 0.05);
+    }
+</style>
 <div class="page-header">
     <h1 class="page-title">Audit Rules</h1>
     <div style="display:flex; gap:1rem;">
@@ -309,12 +353,20 @@
                 </div>
                 <div>
                     <label class="form-label">Environment Scope</label>
-                    <select id="b-env" class="form-input">
-                        <option value="">All</option>
-                        <option value="DEV">DEV</option>
-                        <option value="UAT">UAT</option>
-                        <option value="PROD">PROD</option>
-                    </select>
+                    <div class="multi-select-container" id="b-env-container">
+                        <input type="text" class="form-input multi-select-trigger" id="b-env-trigger" readonly
+                            placeholder="All" onclick="toggleMultiSelect('b-env')">
+                        <div class="multi-select-options" id="b-env-options">
+                            <label><input type="checkbox" value="All" onchange="handleAllSelection('b-env', this)">
+                                All</label>
+                            <label><input type="checkbox" value="DEV" onchange="updateMultiSelectValue('b-env')">
+                                DEV</label>
+                            <label><input type="checkbox" value="UAT" onchange="updateMultiSelectValue('b-env')">
+                                UAT</label>
+                            <label><input type="checkbox" value="PROD" onchange="updateMultiSelectValue('b-env')">
+                                PROD</label>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Tags Section -->
@@ -460,12 +512,20 @@
                     </div>
                     <div>
                         <label class="form-label">Environment (Optional)</label>
-                        <select id="r-env" class="form-input">
-                            <option value="">All</option>
-                            <option value="DEV">DEV</option>
-                            <option value="UAT">UAT</option>
-                            <option value="PROD">PROD</option>
-                        </select>
+                        <div class="multi-select-container" id="r-env-container">
+                            <input type="text" class="form-input multi-select-trigger" id="r-env-trigger" readonly
+                                placeholder="All" onclick="toggleMultiSelect('r-env')">
+                            <div class="multi-select-options" id="r-env-options">
+                                <label><input type="checkbox" value="All" onchange="handleAllSelection('r-env', this)">
+                                    All</label>
+                                <label><input type="checkbox" value="DEV" onchange="updateMultiSelectValue('r-env')">
+                                    DEV</label>
+                                <label><input type="checkbox" value="UAT" onchange="updateMultiSelectValue('r-env')">
+                                    UAT</label>
+                                <label><input type="checkbox" value="PROD" onchange="updateMultiSelectValue('r-env')">
+                                    PROD</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <!-- Tags Section -->
@@ -630,13 +690,105 @@
         if (prefix === 'b') delete bundleTags[k]; else delete ruleTags[k];
         renderTags(prefix);
     }
+    // --- Multi-Select Logic ---
+    function toggleMultiSelect(id) {
+        // close others
+        document.querySelectorAll('.multi-select-options').forEach(el => {
+            if (el.id !== `${id}-options`) el.classList.remove('open');
+        });
+        const opts = document.getElementById(`${id}-options`);
+        opts.classList.toggle('open');
+    }
+
+    // Close multi-selects when clicking outside
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.multi-select-container')) {
+            document.querySelectorAll('.multi-select-options').forEach(el => el.classList.remove('open'));
+        }
+    });
+
+    function handleAllSelection(id, allCb) {
+        const container = document.getElementById(`${id}-options`);
+        const cbs = container.querySelectorAll('input[type="checkbox"]:not([value="All"])');
+        cbs.forEach(cb => cb.checked = allCb.checked);
+        updateMultiSelectValue(id);
+    }
+
+    function updateMultiSelectValue(id) {
+        const container = document.getElementById(`${id}-options`);
+        const trigger = document.getElementById(`${id}-trigger`);
+        const allCb = container.querySelector('input[value="All"]');
+        const cbs = Array.from(container.querySelectorAll('input[type="checkbox"]:not([value="All"])'));
+        const checked = cbs.filter(cb => cb.checked);
+
+        // Sync "All" checkbox logic
+        if (checked.length === cbs.length) {
+            allCb.checked = true;
+            // trigger.value = "All"; // Optional preference: show "All" or show list?
+        } else {
+            allCb.checked = false;
+        }
+
+        if (checked.length === 0 || checked.length === cbs.length) {
+            trigger.value = "All"; // Empty means All
+            // If empty, visually check 'All' if not already? Usually better to default to 'All'
+            if (checked.length === 0) allCb.checked = true;
+        } else {
+            trigger.value = checked.map(c => c.value).join(', ');
+        }
+    }
+
+    function getMultiSelectValue(id) {
+        const container = document.getElementById(`${id}-options`);
+        const cbs = Array.from(container.querySelectorAll('input[type="checkbox"]:not([value="All"])'));
+        const checked = cbs.filter(cb => cb.checked);
+
+        if (checked.length === 0 || checked.length === cbs.length) return null; // All
+        return JSON.stringify(checked.map(c => c.value));
+    }
+
+    function setMultiSelectValue(id, valStr) {
+        const container = document.getElementById(`${id}-options`);
+        const allCb = container.querySelector('input[value="All"]');
+        const cbs = Array.from(container.querySelectorAll('input[type="checkbox"]:not([value="All"])'));
+
+        // Reset
+        cbs.forEach(cb => cb.checked = false);
+        allCb.checked = false;
+
+        if (!valStr || valStr === "All") {
+            allCb.checked = true;
+            cbs.forEach(cb => cb.checked = true);
+        } else {
+            try {
+                // Try parsing as JSON list
+                const list = JSON.parse(valStr);
+                if (Array.isArray(list)) {
+                    list.forEach(v => {
+                        const match = cbs.find(cb => cb.value === v);
+                        if (match) match.checked = true;
+                    });
+                } else {
+                    // Fallback single string
+                    const match = cbs.find(cb => cb.value === valStr);
+                    if (match) match.checked = true;
+                }
+            } catch (e) {
+                // Simple string
+                const match = cbs.find(cb => cb.value === valStr);
+                if (match) match.checked = true;
+            }
+        }
+        updateMultiSelectValue(id);
+    }
 
     // --- Modals ---
     function openBundleModal() {
         document.getElementById('b-id').value = '';
         document.getElementById('b-name').value = '';
         document.getElementById('b-dc').value = '';
-        document.getElementById('b-env').value = '';
+        document.getElementById('b-dc').value = '';
+        setMultiSelectValue('b-env', null);
         bundleTags = {};
         renderTags('b');
         document.getElementById('b-matches').innerText = '';
@@ -648,7 +800,8 @@
         document.getElementById('b-id').value = id;
         document.getElementById('b-name').value = name;
         document.getElementById('b-dc').value = dc;
-        document.getElementById('b-env').value = env;
+        document.getElementById('b-dc').value = dc;
+        setMultiSelectValue('b-env', env);
         bundleTags = tags || {};
         renderTags('b');
         document.getElementById('b-matches').innerText = '';
@@ -713,7 +866,8 @@
         } else {
             scopeSec.style.display = 'block';
             document.getElementById('r-dc').value = '';
-            document.getElementById('r-env').value = '';
+            document.getElementById('r-dc').value = '';
+            setMultiSelectValue('r-env', null);
             ruleTags = {};
             renderTags('r');
         }
@@ -770,7 +924,8 @@
         } else {
             scopeSec.style.display = 'block';
             document.getElementById('r-dc').value = dc || '';
-            document.getElementById('r-env').value = env || '';
+            document.getElementById('r-dc').value = dc || '';
+            setMultiSelectValue('r-env', env);
             ruleTags = tags || {};
             renderTags('r');
         }
@@ -1060,7 +1215,7 @@
     async function showMatches(prefix) {
         const tags = prefix === 'b' ? bundleTags : ruleTags;
         const dc = document.getElementById(`${prefix}-dc`).value;
-        const env = document.getElementById(`${prefix}-env`).value;
+        const env = getMultiSelectValue(`${prefix}-env`);
 
         const container = document.getElementById(`${prefix}-matches`);
         container.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Checking...';
@@ -1091,7 +1246,8 @@
         const data = {
             name: document.getElementById('b-name').value,
             match_datacenter: document.getElementById('b-dc').value || null,
-            match_environment: document.getElementById('b-env').value || null,
+            match_datacenter: document.getElementById('b-dc').value || null,
+            match_environment: getMultiSelectValue('b-env'),
             tags: JSON.stringify(bundleTags)
         };
         if (!data.name) return alert("Name required");
@@ -1142,7 +1298,8 @@
             expected_value: document.getElementById('r-val').value || null,
             bundle_id: bundleId ? parseInt(bundleId) : null,
             match_datacenter: document.getElementById('r-dc').value || null,
-            match_environment: document.getElementById('r-env').value || null,
+            match_datacenter: document.getElementById('r-dc').value || null,
+            match_environment: getMultiSelectValue('r-env'),
             match_resource_name: document.getElementById('r-name-match').value || null,
             condition_logic: document.getElementById('r-logic').value,
             extra_conditions: JSON.stringify(extras),

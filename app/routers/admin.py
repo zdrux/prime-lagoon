@@ -182,8 +182,26 @@ def trigger_manual_poll(session: Session = Depends(get_session), user: User = De
 @router.get("/snapshots", response_model=List[dict])
 def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Groups snapshots by global timestamp (run)."""
-    # Fetch flat list with LEFT OUTER JOIN to include snapshots even if cluster is deleted
-    statement = select(ClusterSnapshot, Cluster.name).join(Cluster, isouter=True).order_by(ClusterSnapshot.timestamp.desc()).offset(offset).limit(limit)
+    
+    # 1. Get distinct timestamps first (Paginated)
+    # limit now means "Number of Runs", not "Number of ClusterSnapshots"
+    ts_statement = select(ClusterSnapshot.timestamp)\
+        .distinct()\
+        .order_by(ClusterSnapshot.timestamp.desc())\
+        .offset(offset)\
+        .limit(limit)
+        
+    timestamps = session.exec(ts_statement).all()
+    
+    if not timestamps:
+        return []
+
+    # 2. Fetch all snapshots for these timestamps
+    statement = select(ClusterSnapshot, Cluster.name)\
+        .join(Cluster, isouter=True)\
+        .where(ClusterSnapshot.timestamp.in_(timestamps))\
+        .order_by(ClusterSnapshot.timestamp.desc())
+        
     results = session.exec(statement).all()
     
     # Check for groupings
@@ -193,6 +211,7 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
         # Timestamps are datetime objects. We compare by value equality.
         # Since we just unified them in poller, equality check should be fine.
         # But for robustness with legacy data (bucketing), let's just group by exact TS string for now.
+        # Ensure we use EST for grouping/display consistency if needed, but here just raw unique grouping
         ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
         for g in groups:
             if g['timestamp_str'] == ts_str:

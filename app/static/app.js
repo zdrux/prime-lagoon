@@ -20,8 +20,24 @@ function toggleSubmenu(targetId, element) {
 }
 
 // Global State
-// Global State
 window.currentSnapshotTime = localStorage.getItem('currentSnapshotTime') || "";
+
+function formatEST(timestamp, includeSeconds = true) {
+    if (!timestamp) return '-';
+    let ts = timestamp;
+    if (typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+')) {
+        ts += 'Z';
+    }
+    const date = new Date(ts);
+    const options = {
+        timeZone: 'America/New_York',
+        year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZoneName: 'short'
+    };
+    if (includeSeconds) options.second = '2-digit';
+    return date.toLocaleString('en-US', options);
+}
 
 // Global initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,10 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
             indicator.style.display = 'block';
             let ts = window.currentSnapshotTime;
             if (!ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
-            const formatted = new Date(ts).toLocaleString('en-US', {
-                timeZone: 'America/New_York',
-                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
-            });
+            const formatted = formatEST(ts);
             indicator.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Viewing Snapshot: ${formatted} (EST)`;
         }
     }
@@ -109,13 +122,7 @@ async function loadSnapshots() {
                 let utcTs = ts;
                 if (!utcTs.endsWith('Z') && !utcTs.includes('+')) utcTs += 'Z';
 
-                const date = new Date(utcTs);
-                opt.innerText = date.toLocaleString('en-US', {
-                    timeZone: 'America/New_York',
-                    year: 'numeric', month: 'numeric', day: 'numeric',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit',
-                    timeZoneName: 'short'
-                });
+                opt.innerText = formatEST(utcTs);
                 selector.appendChild(opt);
             });
 
@@ -141,10 +148,7 @@ function toggleTimeTravel(timestamp) {
             indicator.style.display = 'block';
             let ts = timestamp;
             if (!ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
-            const formatted = new Date(ts).toLocaleString('en-US', {
-                timeZone: 'America/New_York',
-                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
-            });
+            const formatted = formatEST(ts);
             indicator.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Viewing Snapshot: ${formatted} (EST)`;
         }
         document.body.classList.add('historical-mode'); // Optional: for global styling
@@ -1005,8 +1009,7 @@ async function loadClusterTrends(clusterId) {
 function renderClusterLicenseChart(data) {
     const ctx = document.getElementById('cluster-license-chart').getContext('2d');
     const labels = data.map(d => {
-        const date = new Date(d.timestamp);
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return formatEST(d.timestamp, false).split(', ')[0] + ' ' + formatEST(d.timestamp, false).split(', ')[1];
     });
 
     if (clusterLicenseChart) clusterLicenseChart.destroy();
@@ -1267,7 +1270,7 @@ async function showIngressDetails(clusterId, name) {
                                         <td style="text-align:center;"><i class="fas ${p.ready ? 'fa-check-circle' : 'fa-times-circle'}" style="color:${p.ready ? 'var(--success-color)' : 'var(--danger-color)'}"></i></td>
                                         <td style="text-align:center;">${p.restarts}</td>
                                         <td style="font-size: 0.75rem;">${p.node}</td>
-                                        <td style="font-size: 0.75rem; white-space: nowrap;">${p.startTime ? new Date(p.startTime).toLocaleString() : '-'}</td>
+                                        <td style="font-size: 0.75rem; white-space: nowrap;">${p.startTime ? formatEST(p.startTime) : '-'}</td>
                                     </tr>
                                 `).join('')
                 : '<tr><td colspan="6" style="text-align:center; opacity:0.5;">No pods found for this ingress controller.</td></tr>'
@@ -1354,7 +1357,7 @@ async function showNodeDetails(clusterId, name) {
                                         <td style="font-weight:600;">${e.reason}</td>
                                         <td style="font-size: 0.75rem;">${e.message}</td>
                                         <td style="text-align:center;">${e.count}</td>
-                                        <td style="white-space:nowrap;">${e.lastTimestamp ? new Date(e.lastTimestamp).toLocaleString() : '-'}</td>
+                                        <td style="white-space:nowrap;">${e.lastTimestamp ? formatEST(e.lastTimestamp) : '-'}</td>
                                     </tr>
                                 `).join('')
                 : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No recent events found.</td></tr>'
@@ -1470,7 +1473,7 @@ async function showMachineDetails(clusterId, name) {
                                         <td style="font-weight:600;">${e.reason}</td>
                                         <td style="font-size: 0.75rem;">${e.message}</td>
                                         <td style="text-align:center;">${e.count}</td>
-                                        <td style="white-space:nowrap;">${e.lastTimestamp ? new Date(e.lastTimestamp).toLocaleString() : '-'}</td>
+                                        <td style="white-space:nowrap;">${e.lastTimestamp ? formatEST(e.lastTimestamp) : '-'}</td>
                                     </tr>
                                 `).join('')
                 : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No recent events found.</td></tr>'
@@ -1544,8 +1547,8 @@ function renderTrendsChart(data) {
 
     const sortedTimestamps = Array.from(allTimestamps).sort();
     const labels = sortedTimestamps.map(ts => {
-        const date = new Date(ts);
-        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        // Simplified EST label for charts
+        return formatEST(ts, false);
     });
 
     const ctx = document.getElementById('trends-chart').getContext('2d');

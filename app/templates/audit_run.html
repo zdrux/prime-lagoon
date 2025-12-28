@@ -88,10 +88,10 @@
             <div style="padding:1.5rem;">
                 <h4 style="margin-bottom:1rem;">1. Select Targeting Criteria</h4>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1.5rem;">
-                    <div class="filter-card" onclick="setMassMode('traits')" id="mode-traits">
-                        <i class="fas fa-tags fa-2x"></i>
-                        <strong>Infrastructure Traits</strong>
-                        <span>Target by Datacenter, Env, or Tags</span>
+                    <div class="filter-card" onclick="setMassMode('custom')" id="mode-custom">
+                        <i class="fas fa-list-check fa-2x"></i>
+                        <strong>Custom Selection</strong>
+                        <span>Select individual bundles and rules</span>
                     </div>
                     <div class="filter-card" onclick="setMassMode('bundle')" id="mode-bundle">
                         <i class="fas fa-box-open fa-2x"></i>
@@ -100,29 +100,22 @@
                     </div>
                 </div>
 
-                <div id="traits-filter" style="display:none;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Datacenter</label>
-                            <select id="mass-dc" class="form-input">
-                                <option value="">Any</option>
-                                <option value="Azure">Azure</option>
-                                <option value="HCI">HCI</option>
-                            </select>
+                <div id="custom-filter" style="display:none;">
+                    <div
+                        style="margin-bottom:1rem; border:1px solid var(--border-color); border-radius:8px; background:rgba(0,0,0,0.1); overflow:hidden;">
+                        <div
+                            style="padding:0.8rem; background:rgba(255,255,255,0.03); border-bottom:1px solid var(--border-color); font-weight:600; display:flex; justify-content:space-between; align-items:center;">
+                            <span>Rules & Bundles</span>
+                            <div style="font-size:0.8rem; display:flex; gap:0.5rem;">
+                                <button class="btn btn-secondary" style="padding:0.2rem 0.5rem;"
+                                    onclick="selectAllCustom(true)">All</button>
+                                <button class="btn btn-secondary" style="padding:0.2rem 0.5rem;"
+                                    onclick="selectAllCustom(false)">None</button>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Environment</label>
-                            <select id="mass-env" class="form-input">
-                                <option value="">Any</option>
-                                <option value="PROD">PROD</option>
-                                <option value="UAT">UAT</option>
-                                <option value="DEV">DEV</option>
-                            </select>
+                        <div id="custom-selection-list" style="max-height:250px; overflow-y:auto; padding:0.5rem;">
+                            <!-- Populated by JS -->
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Target Tags (JSON)</label>
-                        <input type="text" id="mass-tags" class="form-input" placeholder='{"lob": "retail"}'>
                     </div>
                 </div>
 
@@ -694,10 +687,52 @@
 
     function setMassMode(mode) {
         selectedMassMode = mode;
-        document.getElementById('mode-traits').className = 'filter-card' + (mode === 'traits' ? ' active' : '');
+        document.getElementById('mode-custom').className = 'filter-card' + (mode === 'custom' ? ' active' : '');
         document.getElementById('mode-bundle').className = 'filter-card' + (mode === 'bundle' ? ' active' : '');
-        document.getElementById('traits-filter').style.display = mode === 'traits' ? 'block' : 'none';
+        document.getElementById('custom-filter').style.display = mode === 'custom' ? 'block' : 'none';
         document.getElementById('bundle-filter').style.display = mode === 'bundle' ? 'block' : 'none';
+
+        if (mode === 'custom') {
+            renderCustomSelectionList();
+        }
+    }
+
+    function renderCustomSelectionList() {
+        const container = document.getElementById('custom-selection-list');
+        let html = '';
+
+        // Bundles
+        ruleBundles.forEach(b => {
+            html += `
+                <div style="padding:0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; gap:0.8rem;">
+                    <input type="checkbox" class="mass-custom-bundle-cb" value="${b.id}" id="cb-bundle-${b.id}">
+                    <label for="cb-bundle-${b.id}" style="cursor:pointer; display:flex; flex-direction:column;">
+                        <span style="font-weight:600; color:var(--accent-color);"><i class="fas fa-box"></i> ${b.name}</span>
+                        <span style="font-size:0.75rem; opacity:0.6;">Bundle (Includes all child rules)</span>
+                    </label>
+                </div>
+            `;
+        });
+
+        // Ad-hoc Rules
+        const adhoc = adhocRules.filter(r => !r.bundle_id);
+        adhoc.forEach(r => {
+            html += `
+                <div style="padding:0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; align-items:center; gap:0.8rem;">
+                    <input type="checkbox" class="mass-custom-rule-cb" value="${r.id}" id="cb-rule-${r.id}">
+                    <label for="cb-rule-${r.id}" style="cursor:pointer; display:flex; flex-direction:column;">
+                        <span style="font-weight:600;">${r.name}</span>
+                        <span style="font-size:0.75rem; opacity:0.6;">Ad-hoc Rule</span>
+                    </label>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function selectAllCustom(val) {
+        document.querySelectorAll('.mass-custom-bundle-cb, .mass-custom-rule-cb').forEach(cb => cb.checked = val);
     }
 
     function showMassStep(step) {
@@ -706,20 +741,28 @@
     }
 
     async function calculateMassTargets() {
-        const payload = selectedMassMode === 'traits' ? {
-            datacenter: document.getElementById('mass-dc').value,
-            environment: document.getElementById('mass-env').value,
-            tags: document.getElementById('mass-tags').value || null
-        } : {
-            bundle_id: parseInt(document.getElementById('mass-bundle-id').value)
-        };
+        if (selectedMassMode === 'custom') {
+            const selectedBundles = Array.from(document.querySelectorAll('.mass-custom-bundle-cb:checked')).map(cb => parseInt(cb.value));
+            const selectedRules = Array.from(document.querySelectorAll('.mass-custom-rule-cb:checked')).map(cb => parseInt(cb.value));
 
-        const res = await fetch('/api/audit/calculate-targets', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        targetedClusters = await res.json();
+            if (selectedBundles.length === 0 && selectedRules.length === 0) {
+                alert('Please select at least one bundle or rule.');
+                return;
+            }
+            // In custom mode, targeted clusters are ALL clusters unless the user deselects them in preview
+            targetedClusters = allClusters;
+        } else {
+            const payload = {
+                bundle_id: parseInt(document.getElementById('mass-bundle-id').value)
+            };
+
+            const res = await fetch('/api/audit/calculate-targets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            targetedClusters = await res.json();
+        }
 
         renderMassPreview();
         showMassStep(2);
@@ -757,6 +800,9 @@
         const log = document.getElementById('mass-log');
         log.innerHTML = '';
 
+        const selectedBundleIds = Array.from(document.querySelectorAll('.mass-custom-bundle-cb:checked')).map(cb => parseInt(cb.value));
+        const selectedRuleIds = Array.from(document.querySelectorAll('.mass-custom-rule-cb:checked')).map(cb => parseInt(cb.value));
+
         for (let i = 0; i < selectedIds.length; i++) {
             const id = selectedIds[i];
             const cluster = targetedClusters.find(c => c.id === id);
@@ -769,7 +815,20 @@
             log.scrollTop = log.scrollHeight;
 
             try {
-                await fetch(`/api/audit/run?cluster_id=${id}`, { method: 'POST' });
+                const payload = {};
+                if (selectedMassMode === 'custom') {
+                    payload.bundle_ids = selectedBundleIds;
+                    payload.rule_ids = selectedRuleIds;
+                } else {
+                    // Bundle mode: backend can either handle bundle_id or we just pass it in bundle_ids list
+                    payload.bundle_ids = [parseInt(document.getElementById('mass-bundle-id').value)];
+                }
+
+                await fetch(`/api/audit/run?cluster_id=${id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
                 log.innerHTML += `<div style="color:var(--success-color);">[OK] Finished ${cluster.name}</div>`;
             } catch (e) {
                 log.innerHTML += `<div style="color:var(--danger-color);">[ERROR] ${cluster.name}: ${e.message}</div>`;

@@ -367,18 +367,35 @@ def get_latest_scores(session: Session = Depends(get_session)):
             scores.append(score)
     return scores
 
+class RunAuditRequest(BaseModel):
+    cluster_id: Optional[int] = None
+    rule_ids: Optional[List[int]] = None
+    bundle_ids: Optional[List[int]] = None
+
 @router.post("/run", response_model=List[AuditResult])
-def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_session)):
+def run_audit(
+    cluster_id: Optional[int] = None, 
+    req: Optional[RunAuditRequest] = None,
+    session: Session = Depends(get_session)
+):
+    # Determine cluster_id from query param OR body
+    target_cluster_id = cluster_id or (req.cluster_id if req else None)
+
+    # Load rules and bundles
     rules = session.exec(select(AuditRule)).all()
     bundles = session.exec(select(AuditBundle)).all()
     bundle_map = {b.id: b for b in bundles}
     
+    # Target Clusters
     query = select(Cluster)
-    if cluster_id:
-        query = query.where(Cluster.id == cluster_id)
+    if target_cluster_id:
+        query = query.where(Cluster.id == target_cluster_id)
     clusters = session.exec(query).all()
     
     results = []
+    
+    # Custom Selection override
+    is_custom_run = req and (req.rule_ids or req.bundle_ids)
     
     for cluster in clusters:
         cluster_tags = parse_tags(cluster.tags)
@@ -391,35 +408,46 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
             bundle_id = None
             
             target_tags = parse_tags(rule.tags)
-            
-            if rule.bundle_id and rule.bundle_id in bundle_map:
-                bundle = bundle_map[rule.bundle_id]
-                bundle_name = bundle.name
-                bundle_id = bundle.id
-                # Bundle scope overrides/defines rule scope? 
-                # Usually Bundle is the grouper.
-                # Let's say if Bundle has tags/dc/env, check those. 
+
+            # --- Rule Filtering ---
+            if is_custom_run:
+                # If custom selection is provided, ONLY run selected rules/bundles
+                # and bypass scope/trait matching.
+                is_selected = False
+                if req.rule_ids and rule.id in req.rule_ids:
+                    is_selected = True
+                if req.bundle_ids and rule.bundle_id in req.bundle_ids:
+                    is_selected = True
                 
-                # Check Bundle Scope
-                # 1. DC/Env (Legacy support)
-                if bundle.match_datacenter and bundle.match_datacenter != cluster.datacenter:
-                    continue
-                if bundle.match_environment and bundle.match_environment != cluster.environment:
+                if not is_selected:
                     continue
                 
-                # 2. Tags
-                bundle_tags = parse_tags(bundle.tags)
-                if not tags_match(bundle_tags, cluster_tags):
-                    continue
-                    
+                # Setup bundle info for results
+                if rule.bundle_id and rule.bundle_id in bundle_map:
+                    bundle_name = bundle_map[rule.bundle_id].name
+                    bundle_id = rule.bundle_id
             else:
-                # Ad-hoc Rule Scope
-                if rule_dc and rule_dc != cluster.datacenter:
-                    continue
-                if rule_env and rule_env != cluster.environment:
-                    continue
-                if not tags_match(target_tags, cluster_tags):
-                    continue
+                # Standard Mode: Match by Traits/Scope
+                if rule.bundle_id and rule.bundle_id in bundle_map:
+                    bundle = bundle_map[rule.bundle_id]
+                    bundle_name = bundle.name
+                    bundle_id = bundle.id
+                    
+                    # Check Bundle Scope
+                    if bundle.match_datacenter and bundle.match_datacenter != cluster.datacenter:
+                        continue
+                    if bundle.match_environment and bundle.match_environment != cluster.environment:
+                        continue
+                    if not tags_match(parse_tags(bundle.tags), cluster_tags):
+                        continue
+                else:
+                    # Ad-hoc Rule Scope
+                    if rule_dc and rule_dc != cluster.datacenter:
+                        continue
+                    if rule_env and rule_env != cluster.environment:
+                        continue
+                    if not tags_match(target_tags, cluster_tags):
+                        continue
             
             # If we reached here, rule applies.
             try:
@@ -587,7 +615,7 @@ def run_audit(cluster_id: Optional[int] = None, session: Session = Depends(get_s
                 ))
                 
     # Persist scores per cluster
-    if cluster_id:
+    if target_cluster_id:
         cluster_results = results
         total = len(cluster_results)
         passed = len([r for r in cluster_results if r.status == 'PASS'])

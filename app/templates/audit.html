@@ -1051,7 +1051,7 @@
             ruleRows.forEach(row => {
                 const ruleName = row.cells[0].innerText;
                 const editBtn = row.querySelector('.btn-rule-edit');
-                const ruleId = editBtn.dataset.id;
+                const ruleId = editBtn ? editBtn.dataset.id : null;
 
                 if (ruleId) {
                     const ruleDiv = document.createElement('div');

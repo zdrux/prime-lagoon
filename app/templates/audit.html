@@ -88,8 +88,9 @@
                 {% endif %}
             </div>
             <div style="display:flex; gap:0.5rem;">
-                <button class="btn btn-secondary"
-                    onclick='editBundle({{ bundle.id }}, "{{ bundle.name }}", "{{ bundle.match_datacenter or "" }}", "{{ bundle.match_environment or "" }}", {{ bundle.tags or "{}" }})'
+                <button class="btn btn-secondary btn-bundle-edit" data-id="{{ bundle.id }}"
+                    data-name="{{ bundle.name }}" data-dc="{{ bundle.match_datacenter or '' }}"
+                    data-env='{{ bundle.match_environment or "" }}' data-tags='{{ bundle.tags or "{}" }}'
                     style="padding:0.25rem 0.5rem; font-size:0.8rem;">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
@@ -878,16 +879,26 @@
 
     // Event delegation for Edit Rule buttons
     document.addEventListener('click', e => {
-        const btn = e.target.closest('.btn-rule-edit');
-        if (!btn) return;
+        // Rule Edit
+        const ruleBtn = e.target.closest('.btn-rule-edit');
+        if (ruleBtn) {
+            const d = ruleBtn.dataset;
+            openRuleModalForEdit(
+                d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
+                d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
+                d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
+                d.checkType || 'VALIDATION', d.bundleId || null
+            );
+            return;
+        }
 
-        const d = btn.dataset;
-        openRuleModalForEdit(
-            d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
-            d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
-            d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
-            d.checkType || 'VALIDATION', d.bundleId || null
-        );
+        // Bundle Edit
+        const bundleBtn = e.target.closest('.btn-bundle-edit');
+        if (bundleBtn) {
+            const d = bundleBtn.dataset;
+            editBundle(d.id, d.name, d.dc || null, d.env || null, JSON.parse(d.tags || '{}'));
+            return;
+        }
     });
 
     function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, checkType, bundleId) {
@@ -1211,6 +1222,16 @@
         }
     }
 
+    function checkScopeMatch(scopeVal, clusterVal) {
+        if (!scopeVal || scopeVal === "All") return true;
+        if (scopeVal === clusterVal) return true;
+        try {
+            const list = JSON.parse(scopeVal);
+            if (Array.isArray(list)) return list.includes(clusterVal);
+        } catch (e) { }
+        return false;
+    }
+
     // --- API ---
     async function showMatches(prefix) {
         const tags = prefix === 'b' ? bundleTags : ruleTags;
@@ -1245,7 +1266,6 @@
 
         const data = {
             name: document.getElementById('b-name').value,
-            match_datacenter: document.getElementById('b-dc').value || null,
             match_datacenter: document.getElementById('b-dc').value || null,
             match_environment: getMultiSelectValue('b-env'),
             tags: JSON.stringify(bundleTags)
@@ -1297,7 +1317,6 @@
             operator: document.getElementById('r-op').value,
             expected_value: document.getElementById('r-val').value || null,
             bundle_id: bundleId ? parseInt(bundleId) : null,
-            match_datacenter: document.getElementById('r-dc').value || null,
             match_datacenter: document.getElementById('r-dc').value || null,
             match_environment: getMultiSelectValue('r-env'),
             match_resource_name: document.getElementById('r-name-match').value || null,

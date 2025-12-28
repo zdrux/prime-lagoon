@@ -310,6 +310,16 @@
         renderClusters(clusters, scores);
     }
 
+    function checkScopeMatch(scopeVal, clusterVal) {
+        if (!scopeVal || scopeVal === "All") return true;
+        if (scopeVal === clusterVal) return true;
+        try {
+            const list = JSON.parse(scopeVal);
+            if (Array.isArray(list)) return list.includes(clusterVal);
+        } catch (e) { }
+        return false;
+    }
+
     function parseTags(jsonStr) {
         try { return JSON.parse(jsonStr || '{}'); } catch (e) { return {}; }
     }
@@ -336,7 +346,7 @@
             // Find matching bundles
             const matches = ruleBundles.filter(b => {
                 if (b.match_datacenter && b.match_datacenter !== c.datacenter) return false;
-                if (b.match_environment && b.match_environment !== c.environment) return false;
+                if (!checkScopeMatch(b.match_environment, c.environment)) return false;
                 const bTags = parseTags(b.tags);
                 return tagsMatch(bTags, cTags);
             });
@@ -345,7 +355,7 @@
             const adhocMatches = adhocRules.filter(r => {
                 if (r.bundle_id) return false;
                 if (r.match_datacenter && r.match_datacenter !== c.datacenter) return false;
-                if (r.match_environment && r.match_environment !== c.environment) return false;
+                if (!checkScopeMatch(r.match_environment, c.environment)) return false;
                 return tagsMatch(parseTags(r.tags), cTags);
             });
 
@@ -507,14 +517,14 @@
         const cTags = parseTags(cluster.tags);
         const matchedBundles = ruleBundles.filter(b => {
             if (b.match_datacenter && b.match_datacenter !== cluster.datacenter) return false;
-            if (b.match_environment && b.match_environment !== cluster.environment) return false;
+            if (!checkScopeMatch(b.match_environment, cluster.environment)) return false;
             return tagsMatch(parseTags(b.tags), cTags);
         });
 
         const matchedAdhoc = adhocRules.filter(r => {
             if (r.bundle_id) return false;
             if (r.match_datacenter && r.match_datacenter !== cluster.datacenter) return false;
-            if (r.match_environment && r.match_environment !== cluster.environment) return false;
+            if (!checkScopeMatch(r.match_environment, cluster.environment)) return false;
             return tagsMatch(parseTags(r.tags), cTags);
         });
 

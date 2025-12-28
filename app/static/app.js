@@ -943,6 +943,16 @@ async function showLicenseDetails(clusterId, usageId) {
     document.getElementById('lic-total-vcpu').innerText = '-';
     document.getElementById('lic-total-count').innerText = '-';
 
+    window.currentClusterLicenseId = clusterId;
+
+    // Reset Trends Toggle
+    const wrapper = document.getElementById('cluster-license-chart-wrapper');
+    if (wrapper) wrapper.style.height = '0';
+    const chevron = document.getElementById('cluster-license-chevron');
+    if (chevron) chevron.style.transform = 'rotate(0deg)';
+    const text = document.getElementById('trends-toggle-text');
+    if (text) text.innerText = 'Show Trends';
+
     modal.classList.add('open');
 
     try {
@@ -973,9 +983,6 @@ async function showLicenseDetails(clusterId, usageId) {
             </tr>
             `;
         }).join('');
-
-        // Load Trends for this cluster
-        loadClusterTrends(clusterId);
 
     } catch (e) {
         tbody.innerHTML = `<tr><td colspan="5" style="color:red; text-align:center;">Error: ${e.message}</td></tr>`;
@@ -1041,6 +1048,25 @@ function renderClusterLicenseChart(data) {
             }
         }
     });
+}
+
+function toggleClusterLicenseTrends() {
+    const wrapper = document.getElementById('cluster-license-chart-wrapper');
+    const chevron = document.getElementById('cluster-license-chevron');
+    const text = document.getElementById('trends-toggle-text');
+
+    if (wrapper.style.height === '0px' || wrapper.style.height === '0') {
+        wrapper.style.height = '210px';
+        chevron.style.transform = 'rotate(180deg)';
+        text.innerText = 'Hide Trends';
+        if (window.currentClusterLicenseId) {
+            loadClusterTrends(window.currentClusterLicenseId);
+        }
+    } else {
+        wrapper.style.height = '0';
+        chevron.style.transform = 'rotate(0deg)';
+        text.innerText = 'Show Trends';
+    }
 }
 
 function closeLicenseModal() {

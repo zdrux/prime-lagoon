@@ -6,8 +6,9 @@ import json
 import asyncio
 from pydantic import BaseModel
 from app.database import get_session
-from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot
+from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, User
 from app.services.scheduler import reschedule_job
+from app.dependencies import admin_required
 
 class ConfigUpdate(BaseModel):
     poll_interval_minutes: int
@@ -27,7 +28,7 @@ router = APIRouter(
 )
 
 @router.post("/test-connection")
-def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session)):
+def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Verifies connection to the cluster using provided credentials."""
     from app.services.ocp import get_dynamic_client
     
@@ -62,7 +63,7 @@ def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depend
         return {"success": False, "message": str(e)}
 
 @router.post("/", response_model=ClusterRead)
-def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_session)):
+def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     db_cluster = Cluster.model_validate(cluster)
     
     # Try to fetch unique ID immediately
@@ -93,12 +94,12 @@ def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_sessio
     return db_cluster
 
 @router.get("/", response_model=List[ClusterRead])
-def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(get_session)):
+def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     clusters = session.exec(select(Cluster).offset(offset).limit(limit)).all()
     return clusters
 
 @router.post("/config/scheduler")
-def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get_session)):
+def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     # Update Interval
     db_interval = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
     if not db_interval:
@@ -129,7 +130,7 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     }
 
 @router.get("/config/scheduler/run-stream")
-def trigger_manual_poll_stream(session: Session = Depends(get_session)):
+def trigger_manual_poll_stream(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Manually triggers the background poller and streams progress updates."""
     from app.services.poller import poll_all_clusters
 
@@ -169,7 +170,7 @@ def trigger_manual_poll_stream(session: Session = Depends(get_session)):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/config/scheduler/run")
-def trigger_manual_poll(session: Session = Depends(get_session)):
+def trigger_manual_poll(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Manually triggers the background poller."""
     from app.services.poller import poll_all_clusters
     try:
@@ -179,7 +180,7 @@ def trigger_manual_poll(session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/snapshots", response_model=List[dict])
-def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session)):
+def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Groups snapshots by global timestamp (run)."""
     # Fetch flat list with LEFT OUTER JOIN to include snapshots even if cluster is deleted
     statement = select(ClusterSnapshot, Cluster.name).join(Cluster, isouter=True).order_by(ClusterSnapshot.timestamp.desc()).offset(offset).limit(limit)
@@ -236,7 +237,7 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
     return groups
 
 @router.post("/snapshots/cleanup")
-def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_session)):
+def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Deletes snapshots older than X days."""
     from datetime import datetime, timedelta
     cutoff = datetime.utcnow() - timedelta(days=request.days)
@@ -253,7 +254,7 @@ def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_se
     return {"status": "success", "deleted_count": count}
 
 @router.delete("/snapshots/{snapshot_id}")
-def delete_snapshot(snapshot_id: int, session: Session = Depends(get_session)):
+def delete_snapshot(snapshot_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     snap = session.get(ClusterSnapshot, snapshot_id)
     if not snap:
         raise HTTPException(status_code=404, detail="Snapshot not found")
@@ -263,14 +264,14 @@ def delete_snapshot(snapshot_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 @router.get("/{cluster_id}", response_model=ClusterRead)
-def read_cluster(cluster_id: int, session: Session = Depends(get_session)):
+def read_cluster(cluster_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
     return cluster
 
 @router.delete("/{cluster_id}")
-def delete_cluster(cluster_id: int, session: Session = Depends(get_session)):
+def delete_cluster(cluster_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
@@ -279,7 +280,7 @@ def delete_cluster(cluster_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 @router.get("/config/db-stats")
-def get_db_stats(session: Session = Depends(get_session)):
+def get_db_stats(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Returns database size and record counts."""
     import os
     from app.database import DATABASE_URL
@@ -319,7 +320,7 @@ def get_db_stats(session: Session = Depends(get_session)):
     }
 
 @router.post("/config/db-vacuum")
-def vacuum_db(session: Session = Depends(get_session)):
+def vacuum_db(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Runs SQLite VACUUM to reclaim space."""
     try:
         from sqlalchemy import text
@@ -330,7 +331,7 @@ def vacuum_db(session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/{cluster_id}", response_model=ClusterRead)
-def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = Depends(get_session)):
+def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     db_cluster = session.get(Cluster, cluster_id)
     if not db_cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")

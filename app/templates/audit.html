@@ -829,8 +829,8 @@
         } else {
             validationGroup.style.display = 'none';
             existenceGroup.style.display = 'block';
-            resNameLabel.innerText = "Target Resource Name Pattern";
-            resNameInput.placeholder = "e.g. worker (case sensitive)";
+            resNameLabel.innerText = "Target Resource Name Pattern (Optional)";
+            resNameInput.placeholder = "e.g. cluster-admin (case sensitive)";
 
             // Sync the existence operator to the main r-op
             syncExistenceOp(document.getElementById('r-op-existence'));
@@ -1314,8 +1314,8 @@
             alert("Field Path is required for Field Validation rules.");
             return;
         }
-        if ((data.check_type === 'EXISTENCE' || data.check_type === 'FORBIDDANCE') && !data.match_resource_name) {
-            alert("Target Resource Name Pattern is required for existence checks.");
+        if ((data.check_type === 'EXISTENCE' || data.check_type === 'FORBIDDANCE') && !data.match_resource_name && !data.field_path && extras.length === 0) {
+            alert("Please provide either a Target Resource Name or at least one Advanced Condition.");
             return;
         }
 

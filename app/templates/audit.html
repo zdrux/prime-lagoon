@@ -44,10 +44,64 @@
     .multi-select-options label:hover {
         background: rgba(255, 255, 255, 0.05);
     }
+
+    /* Expandable Bundle Styles */
+    .bundle-card {
+        transition: all 0.3s ease;
+    }
+
+    .bundle-header {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .bundle-header:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .bundle-toggle-icon {
+        transition: transform 0.3s ease;
+        margin-right: 0.75rem;
+        opacity: 0.5;
+    }
+
+    .bundle-card.open .bundle-toggle-icon {
+        transform: rotate(180deg);
+        opacity: 1;
+        color: var(--accent-color);
+    }
+
+    .bundle-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s cubic-bezier(0, 1, 0, 1);
+    }
+
+    .bundle-card.open .bundle-content {
+        max-height: 2000px;
+        /* Large enough to fit content */
+        transition: max-height 0.4s cubic-bezier(1, 0, 1, 0);
+    }
+
+    .bundle-stats {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-left: auto;
+        margin-right: 1.5rem;
+    }
 </style>
 <div class="page-header">
     <h1 class="page-title">Audit Rules</h1>
-    <div style="display:flex; gap:1rem;">
+    <div style="display:flex; gap:1rem; align-items:center;">
+        <div
+            style="background: rgba(255,255,255,0.05); padding: 0.25rem; border-radius: 8px; border: 1px solid var(--border-color); display:flex; gap:0.25rem; margin-right:0.5rem;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleAllBundles(true)" title="Expand All">
+                <i class="fas fa-expand-arrows-alt"></i>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleAllBundles(false)" title="Collapse All">
+                <i class="fas fa-compress-arrows-alt"></i>
+            </button>
+        </div>
         <button class="btn btn-secondary" onclick="openExportModal()">
             <i class="fas fa-file-export"></i> Export Rules
         </button>
@@ -66,145 +120,163 @@
 <!-- Bundles Section -->
 <div id="bundles-container">
     {% for bundle in bundles %}
-    <div class="card fade-in bundle-card" style="margin-bottom: 1rem;">
-        <div class="resource-header"
-            style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-                <i class="fas fa-box" style="color:var(--accent-color);"></i>
-                <span style="font-weight:700; font-size:1.1rem;">{{ bundle.name }}</span>
-                {% if bundle.match_datacenter %}<span class="badge badge-blue">{{ bundle.match_datacenter }}</span>{%
-                endif %}
-                {% if bundle.match_environment %}<span class="badge badge-green">{{ bundle.match_environment }}</span>{%
-                endif %}
+    <div class="card fade-in bundle-card" style="margin-bottom: 1rem;" id="bundle-card-{{ bundle.id }}">
+        <!-- Header acting as Toggle -->
+        <div class="resource-header bundle-header" onclick="toggleBundle('bundle-card-{{ bundle.id }}')"
+            style="padding:0.75rem 1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; flex:1;">
+                <i class="fas fa-chevron-down bundle-toggle-icon"></i>
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <i class="fas fa-box" style="color:var(--accent-color); font-size:0.9rem;"></i>
+                    <span style="font-weight:700; font-size:1rem;">{{ bundle.name }}</span>
+                    {% if bundle.match_datacenter %}<span class="badge badge-blue">{{ bundle.match_datacenter
+                        }}</span>{% endif %}
+                    {% if bundle.match_environment %}<span class="badge badge-green">{{ bundle.match_environment
+                        }}</span>{% endif %}
 
-                <!-- Display Tags -->
-                {% if bundle.tags %}
-                {% set tags = bundle.tags | fromjson %}
-                {% for k,v in tags.items() %}
-                <span class="badge"
-                    style="background:var(--bg-secondary); border:1px solid var(--border-color); font-size:0.7em;">{{ k
-                    }}={{ v }}</span>
-                {% endfor %}
-                {% endif %}
+                    <!-- Display Tags -->
+                    {% if bundle.tags %}
+                    {% set tags = bundle.tags | fromjson %}
+                    {% for k,v in tags.items() %}
+                    <span class="badge"
+                        style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); font-size:0.7em;">{{
+                        k }}={{ v }}</span>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+
+                <!-- Fast Stats -->
+                <div class="bundle-stats">
+                    {% set rule_count = rules | selectattr('bundle_id', 'equalto', bundle.id) | list | length %}
+                    {{ rule_count }} {{ 'Rule' if rule_count == 1 else 'Rules' }}
+                </div>
             </div>
-            <div style="display:flex; gap:0.5rem;">
+
+            <!-- Actions (Stopped from bubbling) -->
+            <div style="display:flex; gap:0.4rem;" onclick="event.stopPropagation()">
                 <button class="btn btn-secondary btn-bundle-edit" data-id="{{ bundle.id }}"
-                    data-name="{{ bundle.name }}" data-dc="{{ bundle.match_datacenter or '' }}"
-                    data-env='{{ bundle.match_environment or "" }}' data-tags='{{ bundle.tags or "{}" }}'
-                    style="padding:0.25rem 0.5rem; font-size:0.8rem;">
+                    data-name="{{ bundle.name | replace('"', ' &quot;') }}"
+                    data-dc="{{ bundle.match_datacenter or '' }}" data-env='{{ bundle.match_environment or "" }}'
+                    data-tags='{{ bundle.tags or "{}" }}' style="padding:0.25rem 0.5rem; font-size:0.75rem;"
+                    title="Edit Bundle Details">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
                 <button class="btn btn-secondary" onclick="openRuleModal({{ bundle.id }})"
-                    style="padding:0.25rem 0.5rem; font-size:0.8rem;">
-                    <i class="fas fa-plus"></i> Add Rule
+                    style="padding:0.25rem 0.5rem; font-size:0.75rem;" title="Add Rule to this Bundle">
+                    <i class="fas fa-plus"></i> Rule
                 </button>
                 <button class="btn btn-danger" onclick="deleteBundle({{ bundle.id }})"
-                    style="padding:0.25rem 0.5rem; font-size:0.8rem;">
+                    style="padding:0.25rem 0.5rem; font-size:0.75rem;" title="Delete Bundle">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
         </div>
 
-        <div class="table-container">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width:20%;">Rule Name</th>
-                        <th style="width:20%;">Resource</th>
-                        <th style="width:25%;">Logic</th>
-                        <th style="width:25%;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% set ns = namespace(count=0) %}
-                    {% for rule in rules if rule.bundle_id == bundle.id %}
-                    {% set ns.count = ns.count + 1 %}
-                    <tr>
-                        <td>{{ rule.name }}</td>
-                        <td>
-                            {{ rule.resource_kind }}
-                            {% if rule.match_resource_name %}
-                            <br><small style="color:var(--accent-color);">Name: {{ rule.match_resource_name }}</small>
-                            {% endif %}
-                            <br><small style="opacity:0.6;">({{ rule.api_version }})</small>
-                        </td>
-                        <td>
-                            <div style="display:flex; flex-direction:column; gap:0.3rem;">
-                                <div>
-                                    {% if rule.check_type == 'VALIDATION' %}
-                                    <span class="badge badge-blue">{{ rule.operator }}</span>
-                                    <code style="font-size:0.8em;">{{ rule.field_path }}</code>
-                                    {% if rule.expected_value %}
-                                    <span style="font-weight:bold;">= {{ rule.expected_value | truncate(64) }}</span>
-                                    {% endif %}
-                                    {% elif rule.check_type == 'EXISTENCE' %}
-                                    <span class="badge badge-purple">EXISTENCE</span>
-                                    {% if rule.operator == 'contains' %}
-                                    <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
-                                            }}</b></span>
-                                    {% else %}
-                                    <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name
-                                            }}</b></span>
-                                    {% endif %}
-                                    {% elif rule.check_type == 'FORBIDDANCE' %}
-                                    <span class="badge badge-red">FORBIDDANCE</span>
-                                    {% if rule.operator == 'contains' %}
-                                    <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
-                                            }}</b></span>
-                                    {% else %}
-                                    <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name
-                                            }}</b></span>
-                                    {% endif %}
-                                    {% endif %}
-                                </div>
-                                {% if rule.check_type == 'VALIDATION' and rule.extra_conditions %}
-                                {% set extras = rule.extra_conditions | fromjson %}
-                                {% for cond in extras %}
-                                <div
-                                    style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; opacity:0.8;">
-                                    <span style="color:var(--accent-color); font-weight:700; width:30px;">{{
-                                        rule.condition_logic }}</span>
-                                    <span class="badge"
-                                        style="background:var(--bg-primary); border:1px solid var(--border-color); font-size:0.75rem; padding:0.1rem 0.3rem;">{{
-                                        cond.op }}</span>
-                                    <code>{{ cond.path }}</code>
-                                    {% if cond.val %}<b>= {{ cond.val | truncate(64) }}</b>{% endif %}
-                                </div>
-                                {% endfor %}
+        <div class="bundle-content">
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width:20%;">Rule Name</th>
+                            <th style="width:20%;">Resource</th>
+                            <th style="width:25%;">Logic</th>
+                            <th style="width:25%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(count=0) %}
+                        {% for rule in rules if rule.bundle_id == bundle.id %}
+                        {% set ns.count = ns.count + 1 %}
+                        <tr>
+                            <td>{{ rule.name }}</td>
+                            <td>
+                                {{ rule.resource_kind }}
+                                {% if rule.match_resource_name %}
+                                <br><small style="color:var(--accent-color);">Name: {{ rule.match_resource_name
+                                    }}</small>
                                 {% endif %}
-                            </div>
-                        </td>
-                        <td>
-                            <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
-                                data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
-                                data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
-                                data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
-                                data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
-                                data-res-name="{{ rule.match_resource_name or "" }}"
-                                data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
-                                title="Edit Rule">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
-                                style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                            <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
-                                style="padding:0.2rem 0.5rem;" title="Delete Rule">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% if ns.count == 0 %}
-                    <tr>
-                        <td colspan="4" style="text-align:center; opacity:0.6; padding:0.5rem;">No rules in this bundle.
-                        </td>
-                    </tr>
-                    {% endif %}
-                </tbody>
-            </table>
+                                <br><small style="opacity:0.6;">({{ rule.api_version }})</small>
+                            </td>
+                            <td>
+                                <div style="display:flex; flex-direction:column; gap:0.3rem;">
+                                    <div>
+                                        {% if rule.check_type == 'VALIDATION' %}
+                                        <span class="badge badge-blue">{{ rule.operator }}</span>
+                                        <code style="font-size:0.8em;">{{ rule.field_path }}</code>
+                                        {% if rule.expected_value %}
+                                        <span style="font-weight:bold;">= {{ rule.expected_value | truncate(64)
+                                            }}</span>
+                                        {% endif %}
+                                        {% elif rule.check_type == 'EXISTENCE' %}
+                                        <span class="badge badge-purple">EXISTENCE</span>
+                                        {% if rule.operator == 'contains' %}
+                                        <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
+                                                }}</b></span>
+                                        {% else %}
+                                        <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name
+                                                }}</b></span>
+                                        {% endif %}
+                                        {% elif rule.check_type == 'FORBIDDANCE' %}
+                                        <span class="badge badge-red">FORBIDDANCE</span>
+                                        {% if rule.operator == 'contains' %}
+                                        <span style="font-size:0.85em;">Name contains <b>{{ rule.match_resource_name
+                                                }}</b></span>
+                                        {% else %}
+                                        <span style="font-size:0.85em;">Name equals <b>{{ rule.match_resource_name
+                                                }}</b></span>
+                                        {% endif %}
+                                        {% endif %}
+                                    </div>
+                                    {% if rule.check_type == 'VALIDATION' and rule.extra_conditions %}
+                                    {% set extras = rule.extra_conditions | fromjson %}
+                                    {% for cond in extras %}
+                                    <div
+                                        style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; opacity:0.8;">
+                                        <span style="color:var(--accent-color); font-weight:700; width:30px;">{{
+                                            rule.condition_logic }}</span>
+                                        <span class="badge"
+                                            style="background:var(--bg-primary); border:1px solid var(--border-color); font-size:0.75rem; padding:0.1rem 0.3rem;">{{
+                                            cond.op }}</span>
+                                        <code>{{ cond.path }}</code>
+                                        {% if cond.val %}<b>= {{ cond.val | truncate(64) }}</b>{% endif %}
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
+                                    data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
+                                    data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
+                                    data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
+                                    data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
+                                    data-res-name="{{ rule.match_resource_name or "" }}"
+                                    data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
+                                    data-extras='{{ rule.extra_conditions or "[]" }}' style="padding:0.2rem 0.5rem;"
+                                    title="Edit Rule">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
+                                    style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
+                                    style="padding:0.2rem 0.5rem;" title="Delete Rule">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if ns.count == 0 %}
+                        <tr>
+                            <td colspan="4" style="text-align:center; opacity:0.6; padding:0.5rem;">No rules in this
+                                bundle.
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
     {% endfor %}
@@ -1353,11 +1425,50 @@
         });
 
         if (res.ok) {
+            // Save state of open bundles before reload
+            const openBundles = Array.from(document.querySelectorAll('.bundle-card.open')).map(c => c.id);
+            localStorage.setItem('openAuditBundles', JSON.stringify(openBundles));
             window.location.reload();
         } else {
             const err = await res.json();
             alert("Error: " + (err.detail || "Failed to save rule"));
         }
     }
+
+    // --- Bundle Toggle ---
+    function toggleBundle(cardId) {
+        const card = document.getElementById(cardId);
+        if (card) {
+            card.classList.toggle('open');
+
+            // Persist state
+            const openBundles = Array.from(document.querySelectorAll('.bundle-card.open')).map(c => c.id);
+            localStorage.setItem('openAuditBundles', JSON.stringify(openBundles));
+        }
+    }
+
+    function toggleAllBundles(expand) {
+        document.querySelectorAll('.bundle-card').forEach(card => {
+            if (expand) card.classList.add('open');
+            else card.classList.remove('open');
+        });
+
+        const openBundles = expand ? Array.from(document.querySelectorAll('.bundle-card')).map(c => c.id) : [];
+        localStorage.setItem('openAuditBundles', JSON.stringify(openBundles));
+    }
+
+    // Restore state on load
+    document.addEventListener('DOMContentLoaded', () => {
+        try {
+            const openBundles = JSON.parse(localStorage.getItem('openAuditBundles') || "[]");
+            openBundles.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('open');
+            });
+        } catch (e) {
+            console.error("Failed to restore bundle state", e);
+        }
+    });
+
 </script>
 {% endblock %}

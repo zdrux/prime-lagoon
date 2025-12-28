@@ -603,8 +603,26 @@ def get_cluster_live_stats(cluster_id: int, session: Session = Depends(get_sessi
         }
 
     except Exception as e:
-        print(f"Error fetching live stats for {cluster.name}: {e}")
+        print(f"Error fetching live stats for {cluster_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/simple-clusters")
+def get_simple_clusters(session: Session = Depends(get_session)):
+    """Returns a simple list of clusters for fast initial dashboard loading."""
+    clusters = session.exec(select(Cluster)).all()
+    results = []
+    for c in clusters:
+        results.append({
+            "id": c.id,
+            "name": c.name,
+            "unique_id": c.unique_id,
+            "datacenter": c.datacenter,
+            "environment": c.environment,
+            "status": "yellow" # Default to loading/stale state
+        })
+    results.sort(key=lambda x: x["name"])
+    return results
+
 @router.get("/trends")
 def get_resource_trends(
     environment: Optional[str] = Query(None),

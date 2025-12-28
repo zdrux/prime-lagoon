@@ -194,22 +194,36 @@ function toggleTimeTravel(timestamp) {
 async function loadSummary() {
     const summaryDiv = document.getElementById('dashboard-summary');
     try {
-        let url = '/api/dashboard/summary';
-        let fastMode = false;
-
         if (window.currentSnapshotTime) {
             url += `?snapshot_time=${window.currentSnapshotTime}`;
         } else {
-            // Live mode: use fast snapshot first
-            url += `?mode=fast`;
+            // Live mode: use simple clusters list first for extreme speed
+            url = '/api/dashboard/simple-clusters';
             fastMode = true;
         }
 
         const res = await fetch(url);
         if (!res.ok) throw new Error("Failed to load summary");
         const data = await res.json();
-        const clusters = data.clusters || [];
-        const global = data.global_stats || {};
+
+        let clusters = [];
+        let global = {
+            total_nodes: 0,
+            total_licensed_nodes: 0,
+            total_vcpu: 0,
+            total_licensed_vcpu: 0,
+            total_licenses: 0
+        };
+
+        if (Array.isArray(data)) {
+            // Case for /simple-clusters
+            clusters = data;
+        } else {
+            // Case for /summary (snapshots)
+            clusters = data.clusters || [];
+            global = data.global_stats || global;
+        }
+
         window._allClusters = clusters;
 
         if (clusters.length === 0) {
@@ -370,7 +384,11 @@ function updateGlobalSummary() {
     if (elNodes) elNodes.innerHTML = `${stats.total_nodes} <span style="font-size:0.75rem; opacity:0.6;">(${stats.total_licensed_nodes})</span>`;
 
     const elVcpu = document.querySelector('[style*="#a855f7"] div:nth-child(2)');
-    if (elVcpu) elVcpu.innerHTML = `${stats.total_vcpu.toFixed(0)} <span style="font-size:0.75rem; opacity:0.6;">(${stats.total_licensed_vcpu.toFixed(0)})</span>`;
+    if (elVcpu) {
+        const totalVcpu = typeof stats.total_vcpu === 'number' ? stats.total_vcpu.toFixed(0) : '0';
+        const licensedVcpu = typeof stats.total_licensed_vcpu === 'number' ? stats.total_licensed_vcpu.toFixed(0) : '0';
+        elVcpu.innerHTML = `${totalVcpu} <span style="font-size:0.75rem; opacity:0.6;">(${licensedVcpu})</span>`;
+    }
 
     const elLic = document.getElementById('summary-total-licenses');
     if (elLic) elLic.innerText = stats.total_licenses;
@@ -388,31 +406,34 @@ function renderClusterRows(clusters) {
         else if (c.status === 'red') { statusColor = 'var(--danger-color)'; statusTitle = 'Error / Degraded'; }
         else if (c.status === 'gray') { statusColor = 'var(--text-secondary)'; statusTitle = 'No Data'; }
 
+        const stats = c.stats || {};
+        const licenseInfo = c.license_info || {};
+
         return `
         <tr id="cluster-row-${c.id}">
-            <td style="font-weight:600; color:var(--accent-color); cursor:pointer;" onclick="showClusterDetails(${c.id}, '${c.name}')">
-                <i class="fas fa-circle" style="color:${statusColor}; font-size:0.6rem; margin-right:0.5rem;" title="${statusTitle}"></i>
+            <td style="font-weight:600; color:var(--accent-color); cursor:pointer;" onclick="showClusterDetails(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
+                <i class="fas fa-circle ${c.status === 'yellow' ? 'fa-pulse' : ''}" style="color:${statusColor}; font-size:0.6rem; margin-right:0.5rem;" title="${statusTitle}"></i>
                 ${c.name}
             </td>
-            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.node_count}</td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${stats.node_count !== undefined ? stats.node_count : '<i class="fas fa-spinner fa-spin" style="opacity:0.3;"></i>'}</td>
             <td>
                 <span class="badge" style="background:rgba(255,255,255,0.05); color:var(--text-secondary); opacity:0.8;">
-                    ${c.licensed_node_count}
+                    ${c.licensed_node_count !== undefined ? c.licensed_node_count : '-'}
                 </span>
             </td>
             <td>
                 <span class="badge badge-purple" 
                         style="cursor:pointer;" 
-                        onclick="showLicenseDetails(${c.id}, ${c.license_info.usage_id})"
+                        onclick="showLicenseDetails(${c.id}, ${licenseInfo.usage_id || 'null'})"
                         title="View License Breakdown">
-                    ${c.license_info.count}
+                    ${licenseInfo.count !== undefined ? licenseInfo.count : '-'}
                 </span>
             </td>
-            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.vcpu_count}</td>
-            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.licensed_vcpu_count}</td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${stats.vcpu_count !== undefined ? stats.vcpu_count : '-'}</td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.licensed_vcpu_count !== undefined ? c.licensed_vcpu_count : '-'}</td>
             <td>
-                ${c.stats.console_url && c.stats.console_url !== '#'
-                ? `<a href="${c.stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.7rem; border-radius:4px; display:inline-block;" title="Open Console">
+                ${stats.console_url && stats.console_url !== '#'
+                ? `<a href="${stats.console_url}" target="_blank" class="btn btn-primary" style="padding:0.2rem 0.4rem; font-size:0.7rem; border-radius:4px; display:inline-block;" title="Open Console">
                             <i class="fas fa-external-link-alt"></i>
                         </a>`
                 : '<span style="opacity:0.5;">-</span>'
@@ -420,12 +441,12 @@ function renderClusterRows(clusters) {
             </td>
             <td><span class="badge badge-blue" style="font-size:0.7rem;">${c.datacenter || '-'}</span></td>
             <td><span class="badge badge-green" style="font-size:0.7rem;">${c.environment || '-'}</span></td>
-            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${c.stats.version || '-'}</td>
+            <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${stats.version || '-'}</td>
             <td>
                 <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="refreshClusterLive(${c.id})" title="Refresh Now">
                     <i class="fas fa-sync-alt"></i>
                 </button>
-                <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name}')">
+                <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
                     <i class="fas fa-info-circle"></i>
                 </button>
             </td>

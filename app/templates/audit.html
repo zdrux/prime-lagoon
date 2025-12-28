@@ -93,7 +93,13 @@
 <div class="page-header">
     <h1 class="page-title">Audit Rules</h1>
     <div style="display:flex; gap:1rem; align-items:center;">
-
+        <div style="position:relative;">
+            <i class="fas fa-search"
+                style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); font-size:0.8rem; color:var(--text-secondary);"></i>
+            <input type="text" id="rule-search" placeholder="Search rules..."
+                style="padding:0.35rem 0.75rem 0.35rem 2rem; border-radius:15px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.8rem; width:220px;"
+                oninput="filterRules()">
+        </div>
         <button class="btn btn-secondary" onclick="openExportModal()">
             <i class="fas fa-file-export"></i> Export Rules
         </button>
@@ -272,6 +278,10 @@
         </div>
     </div>
     {% endfor %}
+</div>
+
+<div id="no-bundles-message" style="display:none; text-align:center; padding:2rem; opacity:0.6;">
+    No bundles matching your search.
 </div>
 
 <!-- Ad-hoc Rules -->
@@ -1449,6 +1459,71 @@
     }
 
     // --- Bundle Toggle ---
+    function filterRules() {
+        const query = document.getElementById('rule-search').value.toLowerCase().trim();
+        const bundles = document.querySelectorAll('.bundle-card');
+        const adHocCard = document.querySelector('div.card.fade-in[style*="margin-top: 2rem"]'); // Ad-hoc rules card
+        const adHocRows = adHocCard ? adHocCard.querySelectorAll('tbody tr') : [];
+        let visibleBundles = 0;
+        let visibleAdHocRows = 0;
+
+        // 1. Filter Bundles
+        bundles.forEach(bundle => {
+            const bundleName = bundle.querySelector('.bundle-header span').innerText.toLowerCase();
+            const bundleTags = Array.from(bundle.querySelectorAll('.badge')).map(b => b.innerText.toLowerCase()).join(' ');
+            const ruleRows = bundle.querySelectorAll('tbody tr:not(:last-child)'); // exclude "No rules" row
+            let bundleHasMatchingRule = false;
+
+            ruleRows.forEach(row => {
+                const ruleName = row.querySelector('td:first-child').innerText.toLowerCase();
+                const ruleContent = row.innerText.toLowerCase();
+                const matches = !query || ruleName.includes(query) || ruleContent.includes(query);
+                row.style.display = matches ? '' : 'none';
+                if (matches) bundleHasMatchingRule = true;
+            });
+
+            const bundleMatches = !query || bundleName.includes(query) || bundleTags.includes(query) || bundleHasMatchingRule;
+
+            if (bundleMatches) {
+                bundle.style.display = '';
+                visibleBundles++;
+                // If it's a search match and was closed, maybe auto-expand? 
+                // Let's not auto-expand for now to avoid mess, but ensure it's visible.
+            } else {
+                bundle.style.display = 'none';
+            }
+        });
+
+        // 2. Filter Ad-hoc Rules
+        if (adHocRows.length > 0) {
+            adHocRows.forEach(row => {
+                if (row.cells.length < 5) return; // Skip "No ad-hoc rules" message
+                const content = row.innerText.toLowerCase();
+                const matches = !query || content.includes(query);
+                row.style.display = matches ? '' : 'none';
+                if (matches) visibleAdHocRows++;
+            });
+
+            // Hide the ad-hoc card if no rules match and there's a query
+            if (query && visibleAdHocRows === 0) {
+                adHocCard.style.display = 'none';
+            } else {
+                adHocCard.style.display = '';
+                // Handle the "No ad-hoc rules" internal message if needed
+                const noAdHocMsg = Array.from(adHocRows).find(r => r.cells.length === 1 && r.innerText.includes('No ad-hoc rules'));
+                if (noAdHocMsg) {
+                    noAdHocMsg.style.display = visibleAdHocRows === 0 && !query ? '' : 'none';
+                }
+            }
+        }
+
+        // 3. Global "No results" for bundles
+        const noBundlesMsg = document.getElementById('no-bundles-message');
+        if (noBundlesMsg) {
+            noBundlesMsg.style.display = (query && visibleBundles === 0) ? 'block' : 'none';
+        }
+    }
+
     function toggleBundle(cardId) {
         const card = document.getElementById(cardId);
         if (card) {

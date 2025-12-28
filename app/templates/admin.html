@@ -171,7 +171,14 @@
 
 <div id="tab-snapshots" class="tab-content">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <h3 style="margin:0;">Snapshot History</h3>
+        <div style="display:flex; align-items:center; gap:1.5rem;">
+            <h3 style="margin:0;">Snapshot History</h3>
+            <div id="snapshot-totals"
+                style="font-size:0.85rem; color:var(--text-secondary); background:rgba(255,255,255,0.03); padding:0.4rem 0.8rem; border-radius:15px; border:1px solid var(--border-color);">
+                <i class="fas fa-database" style="margin-right:0.4rem; opacity:0.5;"></i>
+                <span id="total-runs-count">0</span> Runs (<span id="total-snapshots-count">0</span> Snapshots)
+            </div>
+        </div>
         <div style="display:flex; gap:1rem; align-items:center;">
             <div style="position:relative;">
                 <i class="fas fa-search"
@@ -180,6 +187,11 @@
                     style="padding:0.4rem 0.75rem 0.4rem 2rem; border-radius:4px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.9rem;"
                     oninput="filterSnapshotsTable(this.value)">
             </div>
+
+            <button class="btn btn-danger btn-sm" id="bulk-delete-btn" onclick="bulkDeleteSnapshots()"
+                style="display:none;">
+                <i class="fas fa-trash"></i> Delete Selected (<span id="selected-count">0</span>)
+            </button>
 
             <div
                 style="display:flex; align-items:center; gap:0.5rem; background:rgba(239, 68, 68, 0.05); padding:0.3rem 0.6rem; border-radius:4px; border:1px solid rgba(239, 68, 68, 0.2);">
@@ -203,8 +215,10 @@
             <table class="data-table" id="snapshots-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Cluster</th>
+                        <th style="width:40px;"><input type="checkbox" id="select-all-snapshots"
+                                onclick="toggleSelectAllSnapshots(this)"></th>
+                        <th style="width:40px;"></th>
+                        <th>Type</th>
                         <th>Timestamp (EST)</th>
                         <th>Status</th>
                         <th>Stats</th>
@@ -464,21 +478,41 @@
     }
 
     // Snapshots Logic
-    let _allSnapshots = [];
+    let _allSnapshotsGroups = [];
+    let _totalRuns = 0;
+    let _totalSnapshots = 0;
+    let _currentPage = 0;
+    const _snapshotLimit = 25;
 
     async function loadSnapshotsTable() {
         const tbody = document.getElementById('snapshots-table-body');
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;"><i class="fas fa-circle-notch fa-spin"></i> Loading...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;"><i class="fas fa-circle-notch fa-spin"></i> Loading Snapshots...</td></tr>';
+
+        // Reset selection
+        const selectAll = document.getElementById('select-all-snapshots');
+        if (selectAll) selectAll.checked = false;
+        updateBulkDeleteButton();
 
         try {
-            const res = await fetch('/api/admin/clusters/snapshots?limit=50');
+            const offset = _currentPage * _snapshotLimit;
+            const res = await fetch(`/api/admin/clusters/snapshots?limit=${_snapshotLimit}&offset=${offset}`);
             if (!res.ok) throw new Error("Failed to fetch snapshots");
 
-            _allSnapshots = await res.json();
-            renderSnapshotRows(_allSnapshots);
+            const data = await res.json();
+            _allSnapshotsGroups = data.groups || [];
+            _totalRuns = data.total_runs || 0;
+            _totalSnapshots = data.total_snapshots || 0;
+
+            // Update Totals UI
+            document.getElementById('total-runs-count').innerText = _totalRuns.toLocaleString();
+            document.getElementById('total-snapshots-count').innerText = _totalSnapshots.toLocaleString();
+
+            renderSnapshotRows(_allSnapshotsGroups);
+            updatePaginationControls();
 
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
         }
     }
 
@@ -490,48 +524,44 @@
         }
 
         tbody.innerHTML = groups.map((g, index) => {
-            // Ensure timestamp is treated as UTC
             let ts = g.timestamp;
             if (ts && !ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
 
-            const rowId = `group-${index}`;
             const detailsId = `details-${index}`;
 
-            // Build sub-rows
             const subRows = g.snapshots.map(s => `
-                <tr style="background-color: rgba(255,255,255,0.03);">
+                <tr style="background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
                     <td></td>
-                    <td><small>${s.id}</small></td>
-                    <td style="color:var(--accent-color);">${s.cluster_name}</td>
+                    <td></td>
+                    <td style="opacity:0.6; padding-left: 2rem;"><i class="fas fa-level-up-alt fa-rotate-90"></i> ${s.id}</td>
+                    <td style="color:var(--accent-color); font-weight:500;">${s.cluster_name}</td>
                     <td><span class="badge ${s.status === 'Success' ? 'badge-green' : 'badge-red'}">${s.status}</span></td>
-                    <td style="font-family:monospace; font-size:0.85rem;">${s.node_count} Nodes, ${s.vcpu_count} vCPU</td>
+                    <td style="font-family:monospace; opacity:0.8;">${s.node_count} Nodes, ${s.vcpu_count} vCPU</td>
                     <td>
-                        <button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})">
+                        <button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})" title="Delete Instance">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
-                    <td></td>
                 </tr>
             `).join('');
 
             return `
-            <!-- Group Row -->
-            <tr style="cursor:pointer; font-weight:600;" onclick="toggleSnapshotDetails('${detailsId}')">
-                <td><i class="fas fa-chevron-right" id="icon-${detailsId}"></i></td>
-                <td>Run</td>
+            <tr style="cursor:pointer; font-weight:600;" onclick="toggleSnapshotRow(event, '${detailsId}')">
+                <td><input type="checkbox" class="snapshot-row-check" value="${g.group_id}" onclick="event.stopPropagation(); updateBulkDeleteButton()"></td>
+                <td style="text-align:center;"><i class="fas fa-chevron-right" id="icon-${detailsId}"></i></td>
+                <td><span class="badge badge-blue">Group Run</span></td>
                 <td>${new Date(ts).toLocaleString('en-US', { timeZone: 'America/New_York', timeZoneName: 'short' })}</td>
                 <td><span class="badge ${g.status === 'Success' ? 'badge-green' : 'badge-red'}">${g.status}</span></td>
                 <td>${g.total_clusters} Clusters (${g.total_nodes} Nodes)</td>
                 <td>
-                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSnapshotGroup('${g.group_id}')">
+                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSnapshotGroup('${g.group_id}')" title="Delete Entire Run">
                          Mass Delete
                     </button>
                 </td>
             </tr>
-            <!-- Details Row (Hidden) -->
             <tr id="${detailsId}" style="display:none;">
-                <td colspan="7" style="padding:0;">
-                    <table style="width:100%; margin:0; background:rgba(0,0,0,0.2);">
+                <td colspan="7" style="padding:0; border:none;">
+                    <table style="width:100%; margin:0; border-collapse: collapse;">
                         ${subRows}
                     </table>
                 </td>
@@ -540,47 +570,128 @@
         }).join('');
     }
 
-    function toggleSnapshotDetails(id) {
-        const row = document.getElementById(id);
-        const icon = document.getElementById(`icon-${id}`);
+    function toggleSnapshotRow(event, detailsId) {
+        // Prevent toggle if clicking buttons
+        if (event.target.closest('button') || event.target.closest('input')) return;
+
+        const row = document.getElementById(detailsId);
+        const icon = document.getElementById(`icon-${detailsId}`);
         if (row.style.display === 'none') {
             row.style.display = 'table-row';
-            icon.classList.remove('fa-chevron-right');
-            icon.classList.add('fa-chevron-down');
+            icon.classList.replace('fa-chevron-right', 'fa-chevron-down');
         } else {
             row.style.display = 'none';
-            icon.classList.remove('fa-chevron-down');
-            icon.classList.add('fa-chevron-right');
+            icon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+        }
+    }
+
+    function updatePaginationControls() {
+        const container = document.getElementById('snapshot-pagination');
+        if (!container) return;
+
+        const totalPages = Math.ceil(_totalRuns / _snapshotLimit);
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = `
+            <button class="btn btn-secondary btn-sm" ${_currentPage === 0 ? 'disabled' : ''} onclick="changePage(${_currentPage - 1})">
+                <i class="fas fa-chevron-left"></i> Prev
+            </button>
+            <span style="font-size:0.9rem; margin:0 0.5rem; opacity:0.8;">Page <strong>${_currentPage + 1}</strong> of ${totalPages}</span>
+            <button class="btn btn-secondary btn-sm" ${(_currentPage + 1) >= totalPages ? 'disabled' : ''} onclick="changePage(${_currentPage + 1})">
+                Next <i class="fas fa-chevron-right"></i>
+            </button>
+        `;
+        container.innerHTML = html;
+    }
+
+    function changePage(page) {
+        _currentPage = page;
+        loadSnapshotsTable();
+    }
+
+    function toggleSelectAllSnapshots(el) {
+        document.querySelectorAll('.snapshot-row-check').forEach(cb => cb.checked = el.checked);
+        updateBulkDeleteButton();
+    }
+
+    function updateBulkDeleteButton() {
+        const selected = document.querySelectorAll('.snapshot-row-check:checked');
+        const btn = document.getElementById('bulk-delete-btn');
+        const countSpan = document.getElementById('selected-count');
+
+        if (selected.length > 0) {
+            btn.style.display = 'flex';
+            countSpan.innerText = selected.length;
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+
+    async function bulkDeleteSnapshots() {
+        const selected = Array.from(document.querySelectorAll('.snapshot-row-check:checked')).map(cb => cb.value);
+        if (selected.length === 0) return;
+
+        if (!confirm(`Delete ${selected.length} snapshot runs and all their associated data? This cannot be undone.`)) return;
+
+        try {
+            const btn = document.getElementById('bulk-delete-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Deleting...';
+
+            const res = await fetch('/api/admin/clusters/snapshots/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_ids: selected })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                loadSnapshotsTable();
+                loadDbStats();
+            } else {
+                alert("Failed to perform bulk deletion.");
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
         }
     }
 
     async function deleteSnapshotGroup(timestamp_str) {
         if (!confirm('Are you sure you want to delete ALL snapshots in this run?')) return;
-        // TODO: Implement backend group delete or loop? 
-        // For MVP let's just loop locally or add a query param endpoint
-        // Actually, let's use the new cleanup endpoint logic or extended mass delete.
-        // Simpler: Just refresh for now as the user didn't ask for full implementation yet? 
-        // Wait, the user asked for "Mass Delete" button on group row.
-        // Let's implement a loop for now or tell user it's coming.
-        // Actually, let's just loop through the snapshots in that group from memory _allSnapshots?
 
-        // Find group
-        const group = _allSnapshots.find(g => g.group_id === timestamp_str);
-        if (!group) return;
+        try {
+            const res = await fetch('/api/admin/clusters/snapshots/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_ids: [timestamp_str] })
+            });
 
-        for (let s of group.snapshots) {
-            await fetch(`/api/admin/clusters/snapshots/${s.id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadSnapshotsTable();
+                loadDbStats();
+            } else {
+                alert("Failed to delete group.");
+            }
+        } catch (e) {
+            alert(e.message);
         }
-        loadSnapshotsTable();
-        loadDbStats();
     }
 
     function filterSnapshotsTable(query) {
         const q = query.toLowerCase().trim();
-        const filtered = _allSnapshots.filter(s =>
-            s.cluster_name.toLowerCase().includes(q) ||
-            s.id.toString().includes(q) ||
-            s.status.toLowerCase().includes(q)
+        if (!q) {
+            renderSnapshotRows(_allSnapshotsGroups);
+            return;
+        }
+
+        // Client-side filter within the current group page
+        const filtered = _allSnapshotsGroups.filter(g =>
+            g.group_id.toLowerCase().includes(q) ||
+            g.snapshots.some(s => s.cluster_name.toLowerCase().includes(q))
         );
         renderSnapshotRows(filtered);
     }
@@ -605,6 +716,7 @@
                 const data = await res.json();
                 alert(`Successfully deleted ${data.deleted_count} snapshots.`);
                 loadSnapshotsTable();
+                loadDbStats();
             } else {
                 alert("Failed to perform mass deletion.");
             }
@@ -621,8 +733,8 @@
         try {
             const res = await fetch(`/api/admin/clusters/snapshots/${id}`, { method: 'DELETE' });
             if (res.ok) {
-                loadSnapshotsTable(); // Refresh
-                // Potentially refresh global nav snapshots via optional call?
+                loadSnapshotsTable();
+                loadDbStats();
             } else {
                 alert("Failed to delete snapshot.");
             }

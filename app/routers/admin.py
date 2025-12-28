@@ -179,12 +179,16 @@ def trigger_manual_poll(session: Session = Depends(get_session), user: User = De
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/snapshots", response_model=List[dict])
+@router.get("/snapshots", response_model=dict)
 def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Groups snapshots by global timestamp (run)."""
+    from sqlmodel import func
+
+    # 1. Get total unique timestamps for pagination
+    total_runs = session.exec(select(func.count(func.distinct(ClusterSnapshot.timestamp)))).one()
+    total_snapshots = session.exec(select(func.count(ClusterSnapshot.id))).one()
     
-    # 1. Get distinct timestamps first (Paginated)
-    # limit now means "Number of Runs", not "Number of ClusterSnapshots"
+    # 2. Get distinct timestamps first (Paginated)
     ts_statement = select(ClusterSnapshot.timestamp)\
         .distinct()\
         .order_by(ClusterSnapshot.timestamp.desc())\
@@ -194,9 +198,13 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
     timestamps = session.exec(ts_statement).all()
     
     if not timestamps:
-        return []
+        return {
+            "total_runs": total_runs,
+            "total_snapshots": total_snapshots,
+            "groups": []
+        }
 
-    # 2. Fetch all snapshots for these timestamps
+    # 3. Fetch all snapshots for these timestamps
     statement = select(ClusterSnapshot, Cluster.name)\
         .join(Cluster, isouter=True)\
         .where(ClusterSnapshot.timestamp.in_(timestamps))\
@@ -208,10 +216,6 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
     groups = []
     # Helper to find or create group
     def get_or_create_group(ts):
-        # Timestamps are datetime objects. We compare by value equality.
-        # Since we just unified them in poller, equality check should be fine.
-        # But for robustness with legacy data (bucketing), let's just group by exact TS string for now.
-        # Ensure we use EST for grouping/display consistency if needed, but here just raw unique grouping
         ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
         for g in groups:
             if g['timestamp_str'] == ts_str:
@@ -242,7 +246,6 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
         if snap.status != 'Success':
             g['status'] = 'Partial/Failed'
 
-        # Resolve Name: captured_name (historical) > c_name (live join) > "Unknown"
         resolved_name = snap.captured_name or c_name or "Unknown Cluster"
 
         g['snapshots'].append({
@@ -253,7 +256,35 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
             "vcpu_count": snap.vcpu_count
         })
         
-    return groups
+    return {
+        "total_runs": total_runs,
+        "total_snapshots": total_snapshots,
+        "groups": groups
+    }
+
+class BulkDeleteRequest(BaseModel):
+    group_ids: List[str] # List of timestamp strings
+
+@router.post("/snapshots/bulk-delete")
+def bulk_delete_snapshots(request: BulkDeleteRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    """Deletes all snapshots belonging to multiple runs."""
+    from datetime import datetime
+    
+    deleted_count = 0
+    for ts_str in request.group_ids:
+        try:
+            ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+            statement = select(ClusterSnapshot).where(ClusterSnapshot.timestamp == ts)
+            snaps = session.exec(statement).all()
+            for s in snaps:
+                session.delete(s)
+                deleted_count += 1
+        except Exception as e:
+            print(f"Error deleting group {ts_str}: {e}")
+            
+    session.commit()
+    return {"status": "success", "deleted_count": deleted_count}
+
 
 @router.post("/snapshots/cleanup")
 def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):

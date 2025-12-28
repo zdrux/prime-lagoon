@@ -72,6 +72,7 @@ class AuditRule(SQLModel, table=True):
     # Scope
     match_datacenter: Optional[str] = None # "Azure", "HCI", or None for all
     match_environment: Optional[str] = None
+    is_enabled: bool = Field(default=True)
 
 class ComplianceScore(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

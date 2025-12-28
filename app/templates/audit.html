@@ -89,6 +89,15 @@
         margin-left: auto;
         margin-right: 1.5rem;
     }
+
+    .rule-suspended {
+        opacity: 0.5;
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .rule-suspended td {
+        color: var(--text-secondary);
+    }
 </style>
 <div class="page-header">
     <h1 class="page-title">Compliance Rules</h1>
@@ -185,8 +194,13 @@
                         {% set ns = namespace(count=0) %}
                         {% for rule in rules | sort(attribute='name') if rule.bundle_id == bundle.id %}
                         {% set ns.count = ns.count + 1 %}
-                        <tr>
-                            <td>{{ rule.name }}</td>
+                        <tr class="{% if not rule.is_enabled %}rule-suspended{% endif %}">
+                            <td>
+                                {{ rule.name }}
+                                {% if not rule.is_enabled %}
+                                <br><small style="color:var(--danger-color); font-weight:bold;">(SUSPENDED)</small>
+                                {% endif %}
+                            </td>
                             <td>
                                 {{ rule.resource_kind }}
                                 {% if rule.match_resource_name %}
@@ -250,9 +264,15 @@
                                     data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
                                     data-res-name="{{ rule.match_resource_name or "" }}"
                                     data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                    data-extras="{{ rule.extra_conditions or '[]' }}" style="padding:0.2rem 0.5rem;"
-                                    title="Edit Rule">
+                                    data-extras="{{ rule.extra_conditions or '[]' }}"
+                                    data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
+                                    style="padding:0.2rem 0.5rem;" title="Edit Rule">
                                     <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-secondary" onclick="toggleRuleStatus({{ rule.id }})"
+                                    style="padding:0.2rem 0.5rem;"
+                                    title="{{ 'Suspend Rule' if rule.is_enabled else 'Activate Rule' }}">
+                                    <i class="fas {{ 'fa-pause' if rule.is_enabled else 'fa-play' }}"></i>
                                 </button>
                                 <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
                                     style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
@@ -304,8 +324,13 @@
                 {% set ns = namespace(count=0) %}
                 {% for rule in rules | sort(attribute='name') if not rule.bundle_id %}
                 {% set ns.count = ns.count + 1 %}
-                <tr>
-                    <td>{{ rule.name }}</td>
+                <tr class="{% if not rule.is_enabled %}rule-suspended{% endif %}">
+                    <td>
+                        {{ rule.name }}
+                        {% if not rule.is_enabled %}
+                        <br><small style="color:var(--danger-color); font-weight:bold;">(SUSPENDED)</small>
+                        {% endif %}
+                    </td>
                     <td>
                         {{ rule.resource_kind }}
                         {% if rule.match_resource_name %}
@@ -380,8 +405,14 @@
                             data-env="{{ rule.match_environment or '' }}" data-tags="{{ rule.tags or '{}' }}"
                             data-res-name="{{ rule.match_resource_name or '' }}" data-logic="{{ rule.condition_logic }}"
                             data-check-type="{{ rule.check_type }}" data-extras="{{ rule.extra_conditions or '[]' }}"
-                            style="padding:0.2rem 0.5rem;" title="Edit Rule">
+                            data-enabled="{{ 'true' if rule.is_enabled else 'false' }}" style="padding:0.2rem 0.5rem;"
+                            title="Edit Rule">
                             <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-secondary" onclick="toggleRuleStatus({{ rule.id }})"
+                            style="padding:0.2rem 0.5rem;"
+                            title="{{ 'Suspend Rule' if rule.is_enabled else 'Activate Rule' }}">
+                            <i class="fas {{ 'fa-pause' if rule.is_enabled else 'fa-play' }}"></i>
                         </button>
                         <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
                             style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
@@ -477,6 +508,13 @@
         <div class="modal-body">
             <input type="hidden" id="r-id"> <!-- For Edit -->
             <input type="hidden" id="r-bundle-id"> <!-- For Context -->
+
+            <div class="form-group"
+                style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem; background: rgba(52, 211, 153, 0.1); padding: 0.75rem; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.2);">
+                <input type="checkbox" id="r-enabled" style="width: 1.2rem; height: 1.2rem; cursor: pointer;">
+                <label for="r-enabled" style="font-weight: 600; cursor: pointer; color: #34d399;">Rule is Active</label>
+                <small style="margin-left: auto; opacity: 0.7;">Suspended rules are skipped during audits.</small>
+            </div>
 
             <div class="form-group">
                 <label class="form-label">Rule Name</label>
@@ -953,6 +991,7 @@
         document.getElementById('r-name-match').value = '';
         document.getElementById('r-matches').innerText = '';
         document.getElementById('r-logic').value = 'AND';
+        document.getElementById('r-enabled').checked = true;
         document.getElementById('extra-conditions-container').innerHTML = '';
 
         toggleCheckTypeFields();
@@ -983,7 +1022,7 @@
                 d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
                 d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
                 d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
-                d.checkType || 'VALIDATION', d.bundleId || null
+                d.checkType || 'VALIDATION', d.bundleId || null, d.enabled || 'true'
             );
             return;
         }
@@ -997,7 +1036,7 @@
         }
     });
 
-    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, checkType, bundleId) {
+    function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, checkType, bundleId, ruleBtnEnabled) {
         // Find if this rule has a bundle_id (passed via data attributes in table)
         const isBundled = !!bundleId;
 
@@ -1014,6 +1053,7 @@
         document.getElementById('r-val').value = val || '';
         document.getElementById('r-name-match').value = resName || '';
         document.getElementById('r-logic').value = logic || 'AND';
+        document.getElementById('r-enabled').checked = (ruleBtnEnabled === 'true');
         document.getElementById('r-matches').innerText = '';
 
         toggleCheckTypeFields();
@@ -1417,7 +1457,8 @@
             match_resource_name: document.getElementById('r-name-match').value || null,
             condition_logic: document.getElementById('r-logic').value,
             extra_conditions: JSON.stringify(extras),
-            tags: JSON.stringify(ruleTags)
+            tags: JSON.stringify(ruleTags),
+            is_enabled: document.getElementById('r-enabled').checked
         };
 
         if (!data.name || !data.resource_kind) {
@@ -1455,6 +1496,19 @@
         } else {
             const err = await res.json();
             alert("Error: " + (err.detail || "Failed to save rule"));
+        }
+    }
+
+    async function toggleRuleStatus(ruleId) {
+        const res = await fetch(`/api/audit/rules/${ruleId}/toggle`, { method: 'POST' });
+        if (res.ok) {
+            // Save state of open bundles before reload
+            const openBundles = Array.from(document.querySelectorAll('.bundle-card.open')).map(c => c.id);
+            localStorage.setItem('openAuditBundles', JSON.stringify(openBundles));
+            window.location.reload();
+        } else {
+            const err = await res.json();
+            alert("Error toggling status: " + (err.detail || "Unknown error"));
         }
     }
 

@@ -134,6 +134,18 @@ def duplicate_rule(rule_id: int, session: Session = Depends(get_session)):
     session.refresh(new_rule)
     return new_rule
 
+@router.post("/rules/{rule_id}/toggle")
+def toggle_rule(rule_id: int, session: Session = Depends(get_session)):
+    db_rule = session.get(AuditRule, rule_id)
+    if not db_rule:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    
+    db_rule.is_enabled = not db_rule.is_enabled
+    session.add(db_rule)
+    session.commit()
+    session.refresh(db_rule)
+    return {"ok": True, "is_enabled": db_rule.is_enabled}
+
 # --- Export/Import ---
 
 class ExportRequest(BaseModel):
@@ -433,6 +445,10 @@ def run_audit(
             bundle_id = None
             
             target_tags = parse_tags(rule.tags)
+
+            # --- Rule Suspension check ---
+            if not rule.is_enabled and not is_custom_run:
+                continue
 
             # --- Rule Filtering ---
             if is_custom_run:

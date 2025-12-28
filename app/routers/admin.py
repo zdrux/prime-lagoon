@@ -283,15 +283,24 @@ def delete_cluster(cluster_id: int, session: Session = Depends(get_session), use
 def get_db_stats(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Returns database size and record counts."""
     import os
+    import shutil
     from app.database import DATABASE_URL
     from app.models import ClusterSnapshot, LicenseUsage, ComplianceScore
     from sqlmodel import func, select
     
-    # Get file size
+    # Get file path
     db_file = DATABASE_URL.replace("sqlite:///", "")
+    db_dir = os.path.dirname(db_file) or "."
+    
+    # Get file size
     size_bytes = 0
     if os.path.exists(db_file):
         size_bytes = os.path.getsize(db_file)
+    
+    # Get disk space
+    disk_usage = shutil.disk_usage(db_dir)
+    free_mb = round(disk_usage.free / (1024 * 1024), 2)
+    total_disk_mb = round(disk_usage.total / (1024 * 1024), 2)
     
     # Get record counts
     cluster_count = session.exec(select(func.count(Cluster.id))).one()
@@ -309,6 +318,9 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
     
     return {
         "file_size_mb": round(size_bytes / (1024 * 1024), 2),
+        "free_space_mb": free_mb,
+        "total_disk_mb": total_disk_mb,
+        "is_space_critical": free_mb < (size_bytes / (1024 * 1024)) * 1.2, # Warning if less than 120% of DB size
         "cluster_count": cluster_count,
         "snapshot_count": snapshot_count,
         "snapshot_data_mb": round(snapshot_size_bytes / (1024 * 1024), 2),

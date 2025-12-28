@@ -24,8 +24,24 @@
         <h4 style="margin:0;">Database Overview</h4>
     </div>
     <div style="padding:1.5rem;">
+        <div id="space-warning"
+            style="display:none; padding:1rem; border-radius:8px; border:1px solid var(--danger-color); background:rgba(239, 68, 68, 0.1); color:var(--danger-color); margin-bottom:1.5rem; font-size:0.9rem;">
+            <i class="fas fa-exclamation-triangle"></i> <strong>Critical Disk Space Background:</strong>
+            Available disk space is extremely low (<span id="warn-free-space"></span> MB).
+            Optimization (VACUUM) requires enough free space to clone the database (approx. <span
+                id="warn-required-space"></span> MB).
+            Please delete old snapshots or increase volume size before proceeding.
+        </div>
+
         <div
-            style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
+            style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
+            <div
+                style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
+                <div
+                    style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
+                    Free Disk Space</div>
+                <div id="db-free-space" style="font-size:2rem; font-weight:800;">- MB</div>
+            </div>
             <div
                 style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
                 <div
@@ -131,12 +147,17 @@
         const sizeEl = document.getElementById('db-size');
         const snapEl = document.getElementById('db-snapshots');
         const avgEl = document.getElementById('db-avg-size');
+        const freeEl = document.getElementById('db-free-space');
         const pathEl = document.getElementById('db-path');
 
         const snapDataEl = document.getElementById('db-snap-data');
         const snapBarEl = document.getElementById('db-snap-bar');
         const otherDataEl = document.getElementById('db-other-data');
         const otherBarEl = document.getElementById('db-other-bar');
+
+        const warnEl = document.getElementById('space-warning');
+        const warnFreeEl = document.getElementById('warn-free-space');
+        const warnReqEl = document.getElementById('warn-required-space');
 
         sizeEl.innerText = 'Loading...';
 
@@ -147,7 +168,18 @@
                 sizeEl.innerText = data.file_size_mb + ' MB';
                 snapEl.innerText = data.snapshot_count;
                 avgEl.innerText = data.avg_snapshot_size_mb + ' MB';
+                freeEl.innerText = data.free_space_mb + ' MB';
                 pathEl.innerText = data.db_filename;
+
+                if (data.is_space_critical) {
+                    warnEl.style.display = 'block';
+                    warnFreeEl.innerText = data.free_space_mb;
+                    warnReqEl.innerText = data.file_size_mb;
+                    freeEl.style.color = 'var(--danger-color)';
+                } else {
+                    warnEl.style.display = 'none';
+                    freeEl.style.color = '';
+                }
 
                 // Breakdown
                 snapDataEl.innerText = data.snapshot_data_mb + ' MB';

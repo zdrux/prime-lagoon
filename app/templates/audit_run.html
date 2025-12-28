@@ -93,10 +93,10 @@
                         <strong>Custom Selection</strong>
                         <span>Select individual bundles and rules</span>
                     </div>
-                    <div class="filter-card" onclick="setMassMode('bundle')" id="mode-bundle">
-                        <i class="fas fa-box-open fa-2x"></i>
-                        <strong>Audit Bundle</strong>
-                        <span>Target clusters matching a specific bundle</span>
+                    <div class="filter-card" onclick="setMassMode('all')" id="mode-all">
+                        <i class="fas fa-play-circle fa-2x"></i>
+                        <strong>Run All</strong>
+                        <span>Run all assigned bundles/rules against all clusters</span>
                     </div>
                 </div>
 
@@ -127,8 +127,12 @@
                 </div>
 
                 <div style="margin-top:2rem; text-align:right;">
-                    <button class="btn btn-primary" onclick="calculateMassTargets()">
+                    <button class="btn btn-primary" id="mass-next-btn" onclick="calculateMassTargets()">
                         Next: Preview Targets <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button class="btn btn-primary" id="mass-launch-btn" onclick="calculateMassTargets()"
+                        style="display:none;">
+                        Launch Audit <i class="fas fa-rocket"></i>
                     </button>
                 </div>
             </div>
@@ -660,6 +664,9 @@
             body.innerHTML = html;
             footer.innerHTML = '<button class="btn btn-secondary" onclick="closeModal()">Close</button>';
 
+            // Refresh dashboard scores
+            loadData();
+
         } catch (e) {
             body.innerHTML = `<div style="color:var(--danger-color); text-align:center; padding:2rem;">
                 <i class="fas fa-exclamation-triangle fa-2x"></i><br><br>
@@ -674,7 +681,7 @@
 
     function openMassAuditModal() {
         showMassStep(1);
-        setMassMode('traits');
+        setMassMode('custom');
         // Populate bundle dropdown
         const bundleSelect = document.getElementById('mass-bundle-id');
         bundleSelect.innerHTML = ruleBundles.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
@@ -688,9 +695,20 @@
     function setMassMode(mode) {
         selectedMassMode = mode;
         document.getElementById('mode-custom').className = 'filter-card' + (mode === 'custom' ? ' active' : '');
-        document.getElementById('mode-bundle').className = 'filter-card' + (mode === 'bundle' ? ' active' : '');
+        document.getElementById('mode-all').className = 'filter-card' + (mode === 'all' ? ' active' : '');
         document.getElementById('custom-filter').style.display = mode === 'custom' ? 'block' : 'none';
-        document.getElementById('bundle-filter').style.display = mode === 'bundle' ? 'block' : 'none';
+        document.getElementById('bundle-filter').style.display = mode === 'bundle' ? 'block' : 'none'; // Bundle filter no longer used directly but keeping for safety if needed
+
+        const nextBtn = document.getElementById('mass-next-btn');
+        const launchBtn = document.getElementById('mass-launch-btn');
+
+        if (mode === 'all') {
+            nextBtn.style.display = 'none';
+            launchBtn.style.display = 'inline-block';
+        } else {
+            nextBtn.style.display = 'inline-block';
+            launchBtn.style.display = 'none';
+        }
 
         if (mode === 'custom') {
             renderCustomSelectionList();
@@ -751,6 +769,11 @@
             }
             // In custom mode, targeted clusters are ALL clusters unless the user deselects them in preview
             targetedClusters = allClusters;
+        } else if (selectedMassMode === 'all') {
+            targetedClusters = allClusters;
+            renderMassPreview(); // Populate checkboxes for launchMassAudit
+            launchMassAudit();
+            return;
         } else {
             const payload = {
                 bundle_id: parseInt(document.getElementById('mass-bundle-id').value)
@@ -829,6 +852,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+
+                // Refresh data to show updated scores in background
+                loadData();
                 log.innerHTML += `<div style="color:var(--success-color);">[OK] Finished ${cluster.name}</div>`;
             } catch (e) {
                 log.innerHTML += `<div style="color:var(--danger-color);">[ERROR] ${cluster.name}: ${e.message}</div>`;

@@ -91,7 +91,7 @@
                         <i class="fas fa-camera"></i> Snapshots
                         <i class="fas fa-chevron-down arrow"></i>
                     </a>
-                    <div class="resource-submenu {% if page == 'admin' and active_tab in ['schedulers', 'snapshots'] %}open{% endif %}"
+                    <div class="resource-submenu {% if page == 'admin' and active_tab in ['schedulers', 'snapshots'] or page == 'settings_db_stats' %}open{% endif %}"
                         id="submenu-snapshots">
                         <a href="/admin?tab=schedulers"
                             class="sub-link {% if page == 'admin' and active_tab == 'schedulers' %}active{% endif %}">
@@ -133,7 +133,7 @@
                         <i class="fas fa-cog"></i> App Config
                         <i class="fas fa-chevron-down arrow"></i>
                     </a>
-                    <div class="resource-submenu {% if page and page.startswith('settings_') %}open{% endif %}"
+                    <div class="resource-submenu {% if page in ['settings_users', 'settings_ldap', 'settings_license'] %}open{% endif %}"
                         id="submenu-app-config">
                         <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}">
                             <i class="fas fa-users" style="width:16px;"></i> Users

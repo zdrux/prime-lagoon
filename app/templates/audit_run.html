@@ -842,10 +842,12 @@
                 if (selectedMassMode === 'custom') {
                     payload.bundle_ids = selectedBundleIds;
                     payload.rule_ids = selectedRuleIds;
-                } else {
-                    // Bundle mode: backend can either handle bundle_id or we just pass it in bundle_ids list
-                    payload.bundle_ids = [parseInt(document.getElementById('mass-bundle-id').value)];
+                } else if (selectedMassMode === 'bundle') {
+                    // Fallback for previous single-bundle mode if needed
+                    const bId = document.getElementById('mass-bundle-id').value;
+                    if (bId) payload.bundle_ids = [parseInt(bId)];
                 }
+                // If mode is 'all', payload stays empty to trigger all matching bundles
 
                 await fetch(`/api/audit/run?cluster_id=${id}`, {
                     method: 'POST',

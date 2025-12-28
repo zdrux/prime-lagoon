@@ -531,9 +531,9 @@ def run_audit(
                                         if exp_str in item.lower():
                                             m = True; break
                                     elif isinstance(item, dict):
-                                        # Specialized for Kubernetes objects like 'subjects'
-                                        name_val = item.get('name')
-                                        if name_val and exp_str in str(name_val).lower():
+                                        # Relaxed logic: Check string dump of item to allow matching 'type', 'kind', etc.
+                                        # (Restores 'grep-style' behavior for objects in list while keeping case-insensitivity)
+                                        if exp_str in str(item).lower():
                                             m = True; break
                             else:
                                 m = exp_str in str(actual).lower() if actual else False

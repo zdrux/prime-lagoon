@@ -618,7 +618,7 @@ def get_resource_trends(
     Buckets data by unified poll timestamps from ClusterSnapshot.
     """
     # 1. Base Query for Clusters (apply filters if any)
-    cluster_query = select(Cluster.id)
+    cluster_query = select(Cluster.id, Cluster.name)
     if cluster_id:
         cluster_query = cluster_query.where(Cluster.id == cluster_id)
     if environment:
@@ -626,48 +626,68 @@ def get_resource_trends(
     if datacenter:
         cluster_query = cluster_query.where(Cluster.datacenter == datacenter)
     
-    filtered_cluster_ids = session.exec(cluster_query).all()
+    clusters = session.exec(cluster_query).all()
+    filtered_cluster_ids = [c.id for c in clusters]
+    cluster_map = {c.id: c.name for c in clusters}
+
     if not filtered_cluster_ids:
-        return []
+        return [] if cluster_id else {}
 
     # 2. Get Snapshots for these clusters in the last X days
     cutoff = datetime.utcnow() - timedelta(days=days)
     
-    statement = select(
-        ClusterSnapshot.timestamp,
-        func.sum(ClusterSnapshot.node_count).label("nodes"),
-        func.sum(ClusterSnapshot.vcpu_count).label("vcpus"),
-        func.sum(ClusterSnapshot.project_count).label("projects"),
-        func.sum(ClusterSnapshot.machineset_count).label("machinesets"),
-        func.sum(ClusterSnapshot.machine_count).label("machines"),
-        func.sum(ClusterSnapshot.license_count).label("licenses"),
-        func.sum(ClusterSnapshot.licensed_node_count).label("licensed_nodes"),
-        func.count(ClusterSnapshot.id).label("cluster_count")
-    ).where(
-        ClusterSnapshot.cluster_id.in_(filtered_cluster_ids),
-        ClusterSnapshot.timestamp >= cutoff,
-        ClusterSnapshot.status == "Success"
-    ).group_by(
-        ClusterSnapshot.timestamp
-    ).order_by(
-        ClusterSnapshot.timestamp.asc()
-    )
-    
-    results = session.exec(statement).all()
-    
-    # 3. Format results
-    trends = []
-    for row in results:
-        trends.append({
-            "timestamp": row.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "nodes": row.nodes,
-            "vcpus": int(row.vcpus),
-            "projects": row.projects,
-            "machinesets": row.machinesets,
-            "machines": row.machines,
-            "clusters": row.cluster_count,
-            "licenses": row.licenses,
-            "licensed_nodes": row.licensed_nodes
-        })
-
-    return trends
+    if cluster_id:
+        # Single cluster summary (used by cluster details modal)
+        statement = select(
+            ClusterSnapshot.timestamp,
+            func.sum(ClusterSnapshot.node_count).label("nodes"),
+            func.sum(ClusterSnapshot.vcpu_count).label("vcpus"),
+            func.sum(ClusterSnapshot.license_count).label("licenses"),
+            func.sum(ClusterSnapshot.licensed_node_count).label("licensed_nodes")
+        ).where(
+            ClusterSnapshot.cluster_id == cluster_id,
+            ClusterSnapshot.timestamp >= cutoff,
+            ClusterSnapshot.status == "Success"
+        ).group_by(
+            ClusterSnapshot.timestamp
+        ).order_by(
+            ClusterSnapshot.timestamp.asc()
+        )
+        
+        results = session.exec(statement).all()
+        trends = []
+        for row in results:
+            trends.append({
+                "timestamp": row.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "nodes": row.nodes,
+                "vcpus": int(row.vcpus),
+                "licenses": row.licenses,
+                "licensed_nodes": row.licensed_nodes
+            })
+        return trends
+    else:
+        # Per-cluster license trends (used by global dashboard summary cards)
+        statement = select(
+            ClusterSnapshot.cluster_id,
+            ClusterSnapshot.timestamp,
+            ClusterSnapshot.license_count
+        ).where(
+            ClusterSnapshot.cluster_id.in_(filtered_cluster_ids),
+            ClusterSnapshot.timestamp >= cutoff,
+            ClusterSnapshot.status == "Success"
+        ).order_by(
+            ClusterSnapshot.timestamp.asc()
+        )
+        
+        results = session.exec(statement).all()
+        
+        trends = {}
+        for row in results:
+            name = cluster_map.get(row.cluster_id, f"Cluster {row.cluster_id}")
+            if name not in trends:
+                trends[name] = []
+            trends[name].append({
+                "timestamp": row.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "licenses": row.license_count
+            })
+        return trends

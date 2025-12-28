@@ -312,7 +312,7 @@ def check_scope_match(scope_val: Optional[str], cluster_val: Optional[str]) -> b
     return False
 
 def get_nested_value(data: dict, path: str):
-    return get_val(data, path)
+    return get_val(data, path, case_insensitive=True)
 
 class TargetRequest(BaseModel):
     datacenter: Optional[str] = None
@@ -522,7 +522,21 @@ def run_audit(
                         elif op == "equals":
                             m = str(actual) == str(exp)
                         elif op == "contains":
-                            m = str(exp) in str(actual) if actual else False
+                            exp_str = str(exp).lower()
+                            if isinstance(actual, list):
+                                # Smarter list matching
+                                m = False
+                                for item in actual:
+                                    if isinstance(item, str):
+                                        if exp_str in item.lower():
+                                            m = True; break
+                                    elif isinstance(item, dict):
+                                        # Specialized for Kubernetes objects like 'subjects'
+                                        name_val = item.get('name')
+                                        if name_val and exp_str in str(name_val).lower():
+                                            m = True; break
+                            else:
+                                m = exp_str in str(actual).lower() if actual else False
                         
                         cond_results.append({"match": m, "cond": cond, "actual": actual})
                     

@@ -8,7 +8,7 @@ from app.models import Cluster
 # Disable insecure request warnings for now as many internal OCP clusters use self-signed certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def get_val(obj, path):
+def get_val(obj, path, case_insensitive=False):
     """
     Helper to safely get nested values from object or dict.
     Handles metadata.labels['foo.bar'], bracketed indices [0], and dot indices .0
@@ -41,7 +41,14 @@ def get_val(obj, path):
             except (ValueError, IndexError):
                 return None
         elif isinstance(curr, dict):
-            curr = curr.get(p)
+            val = curr.get(p)
+            if val is None and case_insensitive:
+                p_lower = p.lower()
+                for k, v in curr.items():
+                    if k.lower() == p_lower:
+                        val = v
+                        break
+            curr = val
         else:
             # Object or other type
             # Try numeric index if it looks like one, for list-like objects
@@ -52,7 +59,14 @@ def get_val(obj, path):
                 except (TypeError, IndexError, KeyError):
                     curr = getattr(curr, p, None)
             else:
-                curr = getattr(curr, p, None)
+                val = getattr(curr, p, None)
+                if val is None and case_insensitive:
+                    p_lower = p.lower()
+                    for attr in dir(curr):
+                        if attr.lower() == p_lower:
+                            val = getattr(curr, attr)
+                            break
+                curr = val
                 
     return curr
 

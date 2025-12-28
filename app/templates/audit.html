@@ -187,7 +187,8 @@
                             <th style="width:20%;">Rule Name</th>
                             <th style="width:20%;">Resource</th>
                             <th style="width:25%;">Logic</th>
-                            <th style="width:25%;">Actions</th>
+                            <th style="width:20%;">Actions</th>
+                            <th style="width:15%; text-align:center;">Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -257,30 +258,39 @@
                                 </div>
                             </td>
                             <td>
-                                <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
-                                    data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
-                                    data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
-                                    data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
-                                    data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
-                                    data-res-name="{{ rule.match_resource_name or "" }}"
-                                    data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                    data-extras="{{ rule.extra_conditions or '[]' }}"
-                                    data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
-                                    style="padding:0.2rem 0.5rem;" title="Edit Rule">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-secondary" onclick="toggleRuleStatus({{ rule.id }})"
-                                    style="padding:0.2rem 0.5rem;"
+                                <div style="display:flex; gap:0.4rem;">
+                                    <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
+                                        data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
+                                        data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
+                                        data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
+                                        data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
+                                        data-res-name="{{ rule.match_resource_name or "" }}"
+                                        data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
+                                        data-extras="{{ rule.extra_conditions or '[]' }}"
+                                        data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
+                                        style="padding:0.2rem 0.5rem;" title="Edit Rule">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
+                                        style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                    <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
+                                        style="padding:0.2rem 0.5rem;" title="Delete Rule">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td style="text-align:center;">
+                                <button class="btn {{ 'btn-secondary' if rule.is_enabled else 'btn-danger' }}"
+                                    onclick="toggleRuleStatus({{ rule.id }})"
+                                    style="padding:0.3rem 0.75rem; min-width:80px; font-size:0.75rem;"
                                     title="{{ 'Suspend Rule' if rule.is_enabled else 'Activate Rule' }}">
-                                    <i class="fas {{ 'fa-pause' if rule.is_enabled else 'fa-play' }}"></i>
-                                </button>
-                                <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
-                                    style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
-                                    style="padding:0.2rem 0.5rem;" title="Delete Rule">
-                                    <i class="fas fa-trash"></i>
+                                    {% if rule.is_enabled %}
+                                    <i class="fas fa-pause" style="margin-right:0.3rem;"></i> Active
+                                    {% else %}
+                                    <i class="fas fa-play" style="margin-right:0.3rem;"></i> Paused
+                                    {% endif %}
                                 </button>
                             </td>
                         </tr>
@@ -313,11 +323,12 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Rule Name</th>
-                    <th>Resource</th>
-                    <th>Logic</th>
-                    <th>Scope</th>
-                    <th>Actions</th>
+                    <th style="width:15%;">Rule Name</th>
+                    <th style="width:15%;">Resource</th>
+                    <th style="width:25%;">Logic</th>
+                    <th style="width:15%;">Scope</th>
+                    <th style="width:20%;">Actions</th>
+                    <th style="width:10%; text-align:center;">Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -397,30 +408,40 @@
                         %}
                     </td>
                     <td>
-                        <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}" data-bundle-id=""
-                            data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
-                            data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
-                            data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
-                            data-val="{{ rule.expected_value or '' }}" data-dc="{{ rule.match_datacenter or '' }}"
-                            data-env="{{ rule.match_environment or '' }}" data-tags="{{ rule.tags or '{}' }}"
-                            data-res-name="{{ rule.match_resource_name or '' }}" data-logic="{{ rule.condition_logic }}"
-                            data-check-type="{{ rule.check_type }}" data-extras="{{ rule.extra_conditions or '[]' }}"
-                            data-enabled="{{ 'true' if rule.is_enabled else 'false' }}" style="padding:0.2rem 0.5rem;"
-                            title="Edit Rule">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-secondary" onclick="toggleRuleStatus({{ rule.id }})"
-                            style="padding:0.2rem 0.5rem;"
+                        <div style="display:flex; gap:0.4rem;">
+                            <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}" data-bundle-id=""
+                                data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
+                                data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
+                                data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
+                                data-val="{{ rule.expected_value or '' }}" data-dc="{{ rule.match_datacenter or '' }}"
+                                data-env="{{ rule.match_environment or '' }}" data-tags="{{ rule.tags or '{}' }}"
+                                data-res-name="{{ rule.match_resource_name or '' }}"
+                                data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
+                                data-extras="{{ rule.extra_conditions or '[]' }}"
+                                data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
+                                style="padding:0.2rem 0.5rem;" title="Edit Rule">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
+                                style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
+                                style="padding:0.2rem 0.5rem;" title="Delete Rule">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                    <td style="text-align:center;">
+                        <button class="btn {{ 'btn-secondary' if rule.is_enabled else 'btn-danger' }}"
+                            onclick="toggleRuleStatus({{ rule.id }})"
+                            style="padding:0.3rem 0.5rem; min-width:70px; font-size:0.75rem;"
                             title="{{ 'Suspend Rule' if rule.is_enabled else 'Activate Rule' }}">
-                            <i class="fas {{ 'fa-pause' if rule.is_enabled else 'fa-play' }}"></i>
-                        </button>
-                        <button class="btn btn-secondary" onclick="duplicateRule({{ rule.id }})"
-                            style="padding:0.2rem 0.5rem;" title="Duplicate Rule">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-danger" onclick="deleteRule({{ rule.id }})"
-                            style="padding:0.2rem 0.5rem;" title="Delete Rule">
-                            <i class="fas fa-trash"></i>
+                            {% if rule.is_enabled %}
+                            <i class="fas fa-pause"></i>
+                            {% else %}
+                            <i class="fas fa-play"></i>
+                            {% endif %}
                         </button>
                     </td>
                 </tr>

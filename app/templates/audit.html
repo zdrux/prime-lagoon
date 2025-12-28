@@ -1469,14 +1469,21 @@
 
         // 1. Filter Bundles
         bundles.forEach(bundle => {
-            const bundleName = bundle.querySelector('.bundle-header span').innerText.toLowerCase();
-            const bundleTags = Array.from(bundle.querySelectorAll('.badge')).map(b => b.innerText.toLowerCase()).join(' ');
-            const ruleRows = bundle.querySelectorAll('tbody tr:not(:last-child)'); // exclude "No rules" row
+            const bundleName = (bundle.querySelector('.bundle-header span')?.innerText || "").toLowerCase();
+            const bundleTags = Array.from(bundle.querySelectorAll('.bundle-header .badge')).map(b => b.innerText.toLowerCase()).join(' ');
+            const ruleRows = bundle.querySelectorAll('tbody tr');
             let bundleHasMatchingRule = false;
 
             ruleRows.forEach(row => {
-                const ruleName = row.querySelector('td:first-child').innerText.toLowerCase();
-                const ruleContent = row.innerText.toLowerCase();
+                // Skip the "No rules in this bundle" placeholder
+                const isPlaceholder = row.cells.length === 1 && row.innerText.toLowerCase().includes('no rules');
+                if (isPlaceholder) {
+                    row.style.display = (query === '') ? '' : 'none';
+                    return;
+                }
+
+                const ruleName = (row.querySelector('td:first-child')?.innerText || "").toLowerCase();
+                const ruleContent = (row.innerText || "").toLowerCase();
                 const matches = !query || ruleName.includes(query) || ruleContent.includes(query);
                 row.style.display = matches ? '' : 'none';
                 if (matches) bundleHasMatchingRule = true;
@@ -1487,8 +1494,6 @@
             if (bundleMatches) {
                 bundle.style.display = '';
                 visibleBundles++;
-                // If it's a search match and was closed, maybe auto-expand? 
-                // Let's not auto-expand for now to avoid mess, but ensure it's visible.
             } else {
                 bundle.style.display = 'none';
             }
@@ -1497,9 +1502,18 @@
         // 2. Filter Ad-hoc Rules
         if (adHocRows.length > 0) {
             adHocRows.forEach(row => {
-                if (row.cells.length < 5) return; // Skip "No ad-hoc rules" message
-                const content = row.innerText.toLowerCase();
-                const matches = !query || content.includes(query);
+                const isPlaceholder = row.cells.length === 1 && row.innerText.toLowerCase().includes('no ad-hoc rules');
+                if (isPlaceholder) {
+                    row.style.display = (query === '') ? '' : 'none';
+                    return;
+                }
+
+                // Legitimate ad-hoc rules have at least 5 columns
+                if (row.cells.length < 5) return;
+
+                const ruleName = (row.querySelector('td:first-child')?.innerText || "").toLowerCase();
+                const ruleContent = (row.innerText || "").toLowerCase();
+                const matches = !query || ruleName.includes(query) || ruleContent.includes(query);
                 row.style.display = matches ? '' : 'none';
                 if (matches) visibleAdHocRows++;
             });
@@ -1509,18 +1523,13 @@
                 adHocCard.style.display = 'none';
             } else {
                 adHocCard.style.display = '';
-                // Handle the "No ad-hoc rules" internal message if needed
-                const noAdHocMsg = Array.from(adHocRows).find(r => r.cells.length === 1 && r.innerText.includes('No ad-hoc rules'));
-                if (noAdHocMsg) {
-                    noAdHocMsg.style.display = visibleAdHocRows === 0 && !query ? '' : 'none';
-                }
             }
         }
 
-        // 3. Global "No results" for bundles
+        // 3. Global "No results" message
         const noBundlesMsg = document.getElementById('no-bundles-message');
         if (noBundlesMsg) {
-            noBundlesMsg.style.display = (query && visibleBundles === 0) ? 'block' : 'none';
+            noBundlesMsg.style.display = (query && visibleBundles === 0 && visibleAdHocRows === 0) ? 'block' : 'none';
         }
     }
 

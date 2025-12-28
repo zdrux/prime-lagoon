@@ -1035,6 +1035,8 @@ function renderClusterLicenseChart(data) {
 
     if (clusterLicenseChart) clusterLicenseChart.destroy();
 
+    const scaleType = window.currentClusterTrendsScale || 'linear';
+
     clusterLicenseChart = new Chart(ctx, {
         type: 'line',
         data: {
@@ -1065,13 +1067,56 @@ function renderClusterLicenseChart(data) {
                     grid: { display: false }
                 },
                 y: {
-                    beginAtZero: true,
-                    ticks: { color: '#64748b', font: { size: 10 } },
+                    type: scaleType,
+                    beginAtZero: scaleType === 'linear',
+                    min: scaleType === 'logarithmic' ? 1 : undefined,
+                    ticks: {
+                        color: '#64748b',
+                        font: { size: 10 },
+                        callback: function (value) {
+                            if (scaleType === 'logarithmic') {
+                                return value.toLocaleString();
+                            }
+                            return value;
+                        }
+                    },
                     grid: { color: 'rgba(255,255,255,0.05)' }
                 }
             }
         }
     });
+}
+
+window.currentClusterTrendsScale = 'linear';
+
+function setClusterTrendsScale(scale) {
+    window.currentClusterTrendsScale = scale;
+
+    // Update UI
+    const linBtn = document.getElementById('cluster-scale-linear');
+    const logBtn = document.getElementById('cluster-scale-log');
+
+    if (linBtn && logBtn) {
+        if (scale === 'linear') {
+            linBtn.classList.add('active');
+            linBtn.style.background = 'var(--accent-color)';
+            linBtn.style.color = '#0f172a';
+            logBtn.classList.remove('active');
+            logBtn.style.background = 'transparent';
+            logBtn.style.color = 'inherit';
+        } else {
+            logBtn.classList.add('active');
+            logBtn.style.background = 'var(--accent-color)';
+            logBtn.style.color = '#0f172a';
+            linBtn.classList.remove('active');
+            linBtn.style.background = 'transparent';
+            linBtn.style.color = 'inherit';
+        }
+    }
+
+    if (window.currentClusterLicenseId) {
+        loadClusterTrends(window.currentClusterLicenseId);
+    }
 }
 
 function toggleClusterLicenseTrends() {
@@ -1527,6 +1572,33 @@ function closeMachineModal() {
 // Historical Trends Modal Logic
 let trendsChart = null;
 let clusterLicenseChart = null;
+window.currentTrendsScale = 'logarithmic';
+
+function setTrendsScale(scale) {
+    window.currentTrendsScale = scale;
+    // Update UI
+    const linBtn = document.getElementById('trends-scale-linear');
+    const logBtn = document.getElementById('trends-scale-log');
+
+    if (linBtn && logBtn) {
+        if (scale === 'linear') {
+            linBtn.classList.add('active');
+            linBtn.style.background = 'var(--accent-color)';
+            linBtn.style.color = '#0f172a';
+            logBtn.classList.remove('active');
+            logBtn.style.background = 'transparent';
+            logBtn.style.color = 'inherit';
+        } else {
+            logBtn.classList.add('active');
+            logBtn.style.background = 'var(--accent-color)';
+            logBtn.style.color = '#0f172a';
+            linBtn.classList.remove('active');
+            linBtn.style.background = 'transparent';
+            linBtn.style.color = 'inherit';
+        }
+    }
+    loadTrendsData();
+}
 
 function showHistoricalModal() {
     const modal = document.getElementById('trends-modal');
@@ -1642,8 +1714,23 @@ function renderTrendsChart(data) {
                     grid: { color: 'rgba(255,255,255,0.05)' }
                 },
                 y: {
-                    beginAtZero: true,
-                    ticks: { color: '#64748b' },
+                    type: window.currentTrendsScale || 'logarithmic',
+                    beginAtZero: (window.currentTrendsScale || 'logarithmic') === 'linear',
+                    min: (window.currentTrendsScale || 'logarithmic') === 'logarithmic' ? 1 : undefined,
+                    ticks: {
+                        color: '#64748b',
+                        callback: function (value) {
+                            if (window.currentTrendsScale === 'logarithmic') {
+                                // Chart.js logarithmic scale labels can be messy, format them simply
+                                if (value === 1 || value === 10 || value === 100 || value === 1000 || value === 10000) {
+                                    return value.toLocaleString();
+                                }
+                                // For other values skip label to avoid clutter if too many
+                                return null;
+                            }
+                            return value;
+                        }
+                    },
                     grid: { color: 'rgba(255,255,255,0.05)' },
                     title: { display: true, text: 'Total Licenses', color: '#64748b' }
                 }

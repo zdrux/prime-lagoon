@@ -402,167 +402,162 @@
     </div>
 </div>
 
-// Token Help Logic
-function showTokenHelp() {
-document.getElementById('token-instructions-modal').classList.add('open');
-}
+<script>
+    // Token Help Logic
+    function showTokenHelp() {
+        document.getElementById('token-instructions-modal').classList.add('open');
+    }
 
-function closeTokenHelp() {
-document.getElementById('token-instructions-modal').classList.remove('open');
-}
+    function closeTokenHelp() {
+        document.getElementById('token-instructions-modal').classList.remove('open');
+    }
 
-function copyTokenCommands() {
-const text = document.getElementById('token-commands').innerText;
-navigator.clipboard.writeText(text).then(() => {
-const btn = document.querySelector('button[onclick="copyTokenCommands()"]');
-const originalText = btn.innerHTML;
-btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-btn.classList.add('btn-success');
-setTimeout(() => {
-btn.innerHTML = originalText;
-btn.classList.remove('btn-success');
-}, 2000);
-});
-}
+    function copyTokenCommands() {
+        const text = document.getElementById('token-commands').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = document.querySelector('button[onclick="copyTokenCommands()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.classList.add('btn-success');
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+            }, 2000);
+        });
+    }
 
-async function testConnection() {
-const url = document.getElementById('c-url').value;
-const token = document.getElementById('c-token').value;
-const clusterId = document.getElementById('c-id').value;
-const btn = document.querySelector('button[onclick="testConnection()"]');
-const statusDiv = document.getElementById('connection-status');
+    async function testConnection() {
+        const url = document.getElementById('c-url').value;
+        const token = document.getElementById('c-token').value;
+        const clusterId = document.getElementById('c-id').value;
+        const btn = document.querySelector('button[onclick="testConnection()"]');
+        const statusDiv = document.getElementById('connection-status');
 
-statusDiv.style.display = 'none';
-statusDiv.className = '';
+        statusDiv.style.display = 'none';
+        statusDiv.className = '';
 
-if (!url || !token) {
-statusDiv.style.display = 'block';
-statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
-statusDiv.style.color = 'var(--danger-color)';
-statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
-statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter API URL and Token first.';
-return;
-}
+        if (!url || !token) {
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+            statusDiv.style.color = 'var(--danger-color)';
+            statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter API URL and Token first.';
+            return;
+        }
 
-const originalText = btn.innerHTML;
-btn.disabled = true;
-btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Testing...';
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Testing...';
 
-try {
-const res = await fetch('/api/admin/clusters/test-connection', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-api_url: url,
-token: token,
-cluster_id: clusterId ? parseInt(clusterId) : null
-})
-});
-const data = await res.json();
+        try {
+            const res = await fetch('/api/admin/clusters/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_url: url,
+                    token: token,
+                    cluster_id: clusterId ? parseInt(clusterId) : null
+                })
+            });
+            const data = await res.json();
 
-statusDiv.style.display = 'block';
-if (data.success) {
-statusDiv.style.background = 'rgba(16, 185, 129, 0.1)';
-statusDiv.style.color = 'var(--success-color)';
-statusDiv.style.border = '1px solid rgba(16, 185, 129, 0.2)';
-statusDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
-} else {
-statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
-statusDiv.style.color = 'var(--danger-color)';
-statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
-statusDiv.innerHTML = `<i class="fas fa-times-circle"></i> Connection Failed: ${data.message}`;
-}
-} catch (e) {
-statusDiv.style.display = 'block';
-statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
-statusDiv.style.color = 'var(--danger-color)';
-statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
-statusDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${e.message}`;
-} finally {
-btn.disabled = false;
-btn.innerHTML = originalText;
-}
-}
+            statusDiv.style.display = 'block';
+            if (data.success) {
+                statusDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+                statusDiv.style.color = 'var(--success-color)';
+                statusDiv.style.border = '1px solid rgba(16, 185, 129, 0.2)';
+                statusDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
+            } else {
+                statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+                statusDiv.style.color = 'var(--danger-color)';
+                statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+                statusDiv.innerHTML = `<i class="fas fa-times-circle"></i> Connection Failed: ${data.message}`;
+            }
+        } catch (e) {
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = 'rgba(239, 68, 68, 0.1)';
+            statusDiv.style.color = 'var(--danger-color)';
+            statusDiv.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            statusDiv.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Error: ${e.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
 
-// Tab Logic
-function switchTab(tabName) {
-// Update Links
-document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
-const links = Array.from(document.querySelectorAll('.tab-link'));
-const activeLink = links.find(el => el.innerText.toLowerCase().includes(tabName) ||
-el.getAttribute('onclick')?.includes(tabName));
-if (activeLink) activeLink.classList.add('active');
+    // Tab Logic
+    function switchTab(tabName) {
+        // Update Links
+        document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
+        const links = Array.from(document.querySelectorAll('.tab-link'));
+        const activeLink = links.find(el => el.innerText.toLowerCase().includes(tabName) ||
+            el.getAttribute('onclick')?.includes(tabName));
+        if (activeLink) activeLink.classList.add('active');
 
-// Update Content
-document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-const target = document.getElementById(`tab-${tabName}`);
-if (target) target.classList.add('active');
+        // Update Content
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        const target = document.getElementById(`tab-${tabName}`);
+        if (target) target.classList.add('active');
 
-// Lazy Load
-if (tabName === 'snapshots') {
-loadSnapshotsTable();
-}
-}
+        // Lazy Load
+        if (tabName === 'snapshots') {
+            loadSnapshotsTable();
+        }
+    }
 
-// Snapshots Logic
-let _allSnapshotsGroups = [];
-let _totalRuns = 0;
-let _totalSnapshots = 0;
-let _currentPage = 0;
-const _snapshotLimit = 25;
+    // Snapshots Logic
+    let _allSnapshotsGroups = [];
+    let _totalRuns = 0;
+    let _totalSnapshots = 0;
+    let _currentPage = 0;
+    const _snapshotLimit = 25;
 
-async function loadSnapshotsTable() {
-const tbody = document.getElementById('snapshots-table-body');
-tbody.innerHTML = '<tr>
-    <td colspan="7" style="text-align:center;"><i class="fas fa-circle-notch fa-spin"></i> Loading Snapshots...</td>
-</tr>';
+    async function loadSnapshotsTable() {
+        const tbody = document.getElementById('snapshots-table-body');
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;"><i class="fas fa-circle-notch fa-spin"></i> Loading Snapshots...</td></tr>';
 
-// Reset selection
-const selectAll = document.getElementById('select-all-snapshots');
-if (selectAll) selectAll.checked = false;
-updateBulkDeleteButton();
+        // Reset selection
+        const selectAll = document.getElementById('select-all-snapshots');
+        if (selectAll) selectAll.checked = false;
+        updateBulkDeleteButton();
 
-try {
-const offset = _currentPage * _snapshotLimit;
-const res = await fetch(`/api/admin/clusters/snapshots?limit=${_snapshotLimit}&offset=${offset}`);
-if (!res.ok) throw new Error("Failed to fetch snapshots");
+        try {
+            const offset = _currentPage * _snapshotLimit;
+            const res = await fetch(`/api/admin/clusters/snapshots?limit=${_snapshotLimit}&offset=${offset}`);
+            if (!res.ok) throw new Error("Failed to fetch snapshots");
 
-const data = await res.json();
-_allSnapshotsGroups = data.groups || [];
-_totalRuns = data.total_runs || 0;
-_totalSnapshots = data.total_snapshots || 0;
+            const data = await res.json();
+            _allSnapshotsGroups = data.groups || [];
+            _totalRuns = data.total_runs || 0;
+            _totalSnapshots = data.total_snapshots || 0;
 
-// Update Totals UI
-document.getElementById('total-runs-count').innerText = _totalRuns.toLocaleString();
-document.getElementById('total-snapshots-count').innerText = _totalSnapshots.toLocaleString();
+            // Update Totals UI
+            document.getElementById('total-runs-count').innerText = _totalRuns.toLocaleString();
+            document.getElementById('total-snapshots-count').innerText = _totalSnapshots.toLocaleString();
 
-renderSnapshotRows(_allSnapshotsGroups);
-updatePaginationControls();
+            renderSnapshotRows(_allSnapshotsGroups);
+            updatePaginationControls();
 
-} catch (e) {
-console.error(e);
-tbody.innerHTML = `<tr>
-    <td colspan="7" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td>
-</tr>`;
-}
-}
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="7" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
+        }
+    }
 
-function renderSnapshotRows(groups) {
-const tbody = document.getElementById('snapshots-table-body');
-if (groups.length === 0) {
-tbody.innerHTML = '<tr>
-    <td colspan="7" style="text-align:center; opacity:0.6;">No snapshots found.</td>
-</tr>';
-return;
-}
+    function renderSnapshotRows(groups) {
+        const tbody = document.getElementById('snapshots-table-body');
+        if (groups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; opacity:0.6;">No snapshots found.</td></tr>';
+            return;
+        }
 
-tbody.innerHTML = groups.map((g, index) => {
-let ts = g.timestamp;
-if (ts && !ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
+        tbody.innerHTML = groups.map((g, index) => {
+            let ts = g.timestamp;
+            if (ts && !ts.endsWith('Z') && !ts.includes('+')) ts += 'Z';
 
-const detailsId = `details-${index}`;
+            const detailsId = `details-${index}`;
 
-const subRows = g.snapshots.map(s => `
+            const subRows = g.snapshots.map(s => `
 <tr style="background-color: rgba(255,255,255,0.02); font-size: 0.85rem;">
     <td></td>
     <td></td>
@@ -578,7 +573,7 @@ const subRows = g.snapshots.map(s => `
 </tr>
 `).join('');
 
-return `
+            return `
 <tr style="cursor:pointer; font-weight:600;" onclick="toggleSnapshotRow(event, '${detailsId}')">
     <td><input type="checkbox" class="snapshot-row-check" value="${g.group_id}"
             onclick="event.stopPropagation(); updateBulkDeleteButton()"></td>
@@ -602,455 +597,452 @@ return `
     </td>
 </tr>
 `;
-}).join('');
-}
+        }).join('');
+    }
 
-function toggleSnapshotRow(event, detailsId) {
-// Prevent toggle if clicking buttons
-if (event.target.closest('button') || event.target.closest('input')) return;
+    function toggleSnapshotRow(event, detailsId) {
+        // Prevent toggle if clicking buttons
+        if (event.target.closest('button') || event.target.closest('input')) return;
 
-const row = document.getElementById(detailsId);
-const icon = document.getElementById(`icon-${detailsId}`);
-if (row.style.display === 'none') {
-row.style.display = 'table-row';
-icon.classList.replace('fa-chevron-right', 'fa-chevron-down');
-} else {
-row.style.display = 'none';
-icon.classList.replace('fa-chevron-down', 'fa-chevron-right');
-}
-}
+        const row = document.getElementById(detailsId);
+        const icon = document.getElementById(`icon-${detailsId}`);
+        if (row.style.display === 'none') {
+            row.style.display = 'table-row';
+            icon.classList.replace('fa-chevron-right', 'fa-chevron-down');
+        } else {
+            row.style.display = 'none';
+            icon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+        }
+    }
 
-function updatePaginationControls() {
-const container = document.getElementById('snapshot-pagination');
-if (!container) return;
+    function updatePaginationControls() {
+        const container = document.getElementById('snapshot-pagination');
+        if (!container) return;
 
-const totalPages = Math.ceil(_totalRuns / _snapshotLimit);
-if (totalPages <= 1) { container.innerHTML='' ; return; } let html=` <button class="btn btn-secondary btn-sm"
-    ${_currentPage===0 ? 'disabled' : '' } onclick="changePage(${_currentPage - 1})">
+        const totalPages = Math.ceil(_totalRuns / _snapshotLimit);
+        if (totalPages <= 1) { container.innerHTML = ''; return; } let html = ` <button class="btn btn-secondary btn-sm"
+    ${_currentPage === 0 ? 'disabled' : ''} onclick="changePage(${_currentPage - 1})">
     <i class="fas fa-chevron-left"></i> Prev
     </button>
     <span style="font-size:0.9rem; margin:0 0.5rem; opacity:0.8;">Page <strong>${_currentPage + 1}</strong> of
         ${totalPages}</span>
-    <button class="btn btn-secondary btn-sm" ${(_currentPage + 1)>= totalPages ? 'disabled' : ''}
+    <button class="btn btn-secondary btn-sm" ${(_currentPage + 1) >= totalPages ? 'disabled' : ''}
         onclick="changePage(${_currentPage + 1})">
         Next <i class="fas fa-chevron-right"></i>
     </button>
     `;
-    container.innerHTML = html;
+        container.innerHTML = html;
     }
 
     function changePage(page) {
-    _currentPage = page;
-    loadSnapshotsTable();
+        _currentPage = page;
+        loadSnapshotsTable();
     }
 
     function toggleSelectAllSnapshots(el) {
-    document.querySelectorAll('.snapshot-row-check').forEach(cb => cb.checked = el.checked);
-    updateBulkDeleteButton();
+        document.querySelectorAll('.snapshot-row-check').forEach(cb => cb.checked = el.checked);
+        updateBulkDeleteButton();
     }
 
     function updateBulkDeleteButton() {
-    const selected = document.querySelectorAll('.snapshot-row-check:checked');
-    const btn = document.getElementById('bulk-delete-btn');
-    const countSpan = document.getElementById('selected-count');
+        const selected = document.querySelectorAll('.snapshot-row-check:checked');
+        const btn = document.getElementById('bulk-delete-btn');
+        const countSpan = document.getElementById('selected-count');
 
-    if (selected.length > 0) {
-    btn.style.display = 'flex';
-    countSpan.innerText = selected.length;
-    } else {
-    btn.style.display = 'none';
-    }
+        if (selected.length > 0) {
+            btn.style.display = 'flex';
+            countSpan.innerText = selected.length;
+        } else {
+            btn.style.display = 'none';
+        }
     }
 
     async function bulkDeleteSnapshots() {
-    const selected = Array.from(document.querySelectorAll('.snapshot-row-check:checked')).map(cb => cb.value);
-    if (selected.length === 0) return;
+        const selected = Array.from(document.querySelectorAll('.snapshot-row-check:checked')).map(cb => cb.value);
+        if (selected.length === 0) return;
 
-    if (!confirm(`Delete ${selected.length} snapshot runs and all their associated data? This cannot be undone.`))
-    return;
+        if (!confirm(`Delete ${selected.length} snapshot runs and all their associated data? This cannot be undone.`))
+            return;
 
-    try {
-    const btn = document.getElementById('bulk-delete-btn');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Deleting...';
+        try {
+            const btn = document.getElementById('bulk-delete-btn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Deleting...';
 
-    const res = await fetch('/api/admin/clusters/snapshots/bulk-delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ group_ids: selected })
-    });
+            const res = await fetch('/api/admin/clusters/snapshots/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_ids: selected })
+            });
 
-    if (res.ok) {
-    const data = await res.json();
-    loadSnapshotsTable();
-    loadDbStats();
-    } else {
-    alert("Failed to perform bulk deletion.");
-    }
-    } catch (e) {
-    alert("Error: " + e.message);
-    }
+            if (res.ok) {
+                const data = await res.json();
+                loadSnapshotsTable();
+                loadDbStats();
+            } else {
+                alert("Failed to perform bulk deletion.");
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
     }
 
     async function deleteSnapshotGroup(timestamp_str) {
-    if (!confirm('Are you sure you want to delete ALL snapshots in this run?')) return;
+        if (!confirm('Are you sure you want to delete ALL snapshots in this run?')) return;
 
-    try {
-    const res = await fetch('/api/admin/clusters/snapshots/bulk-delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ group_ids: [timestamp_str] })
-    });
+        try {
+            const res = await fetch('/api/admin/clusters/snapshots/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_ids: [timestamp_str] })
+            });
 
-    if (res.ok) {
-    loadSnapshotsTable();
-    loadDbStats();
-    } else {
-    alert("Failed to delete group.");
-    }
-    } catch (e) {
-    alert(e.message);
-    }
+            if (res.ok) {
+                loadSnapshotsTable();
+                loadDbStats();
+            } else {
+                alert("Failed to delete group.");
+            }
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
     function filterSnapshotsTable(query) {
-    const q = query.toLowerCase().trim();
-    if (!q) {
-    renderSnapshotRows(_allSnapshotsGroups);
-    return;
-    }
+        const q = query.toLowerCase().trim();
+        if (!q) {
+            renderSnapshotRows(_allSnapshotsGroups);
+            return;
+        }
 
-    // Client-side filter within the current group page
-    const filtered = _allSnapshotsGroups.filter(g =>
-    g.group_id.toLowerCase().includes(q) ||
-    g.snapshots.some(s => s.cluster_name.toLowerCase().includes(q))
-    );
-    renderSnapshotRows(filtered);
+        // Client-side filter within the current group page
+        const filtered = _allSnapshotsGroups.filter(g =>
+            g.group_id.toLowerCase().includes(q) ||
+            g.snapshots.some(s => s.cluster_name.toLowerCase().includes(q))
+        );
+        renderSnapshotRows(filtered);
     }
 
     async function massDeleteSnapshots() {
-    const days = document.getElementById('cleanup-days').value;
-    if (!confirm(`Are you sure you want to delete ALL snapshots older than ${days} days? This cannot be undone.`))
-    return;
+        const days = document.getElementById('cleanup-days').value;
+        if (!confirm(`Are you sure you want to delete ALL snapshots older than ${days} days? This cannot be undone.`))
+            return;
 
-    try {
-    const btn = document.querySelector('button[onclick="massDeleteSnapshots()"]');
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Deleting...';
+        try {
+            const btn = document.querySelector('button[onclick="massDeleteSnapshots()"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Deleting...';
 
-    const res = await fetch('/api/admin/clusters/snapshots/cleanup', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ days: parseInt(days) })
-    });
+            const res = await fetch('/api/admin/clusters/snapshots/cleanup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ days: parseInt(days) })
+            });
 
-    if (res.ok) {
-    const data = await res.json();
-    alert(`Successfully deleted ${data.deleted_count} snapshots.`);
-    loadSnapshotsTable();
-    loadDbStats();
-    } else {
-    alert("Failed to perform mass deletion.");
-    }
+            if (res.ok) {
+                const data = await res.json();
+                alert(`Successfully deleted ${data.deleted_count} snapshots.`);
+                loadSnapshotsTable();
+                loadDbStats();
+            } else {
+                alert("Failed to perform mass deletion.");
+            }
 
-    btn.disabled = false;
-    btn.innerHTML = originalText;
-    } catch (e) {
-    alert("Error: " + e.message);
-    }
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
     }
 
     async function deleteSnapshot(id) {
-    if (!confirm(`Delete snapshot ID ${id}? This cannot be undone.`)) return;
-    try {
-    const res = await fetch(`/api/admin/clusters/snapshots/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-    loadSnapshotsTable();
-    loadDbStats();
-    } else {
-    alert("Failed to delete snapshot.");
-    }
-    } catch (e) {
-    alert(e.message);
-    }
+        if (!confirm(`Delete snapshot ID ${id}? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`/api/admin/clusters/snapshots/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadSnapshotsTable();
+                loadDbStats();
+            } else {
+                alert("Failed to delete snapshot.");
+            }
+        } catch (e) {
+            alert(e.message);
+        }
     }
 
 
 
     async function saveSchedulerConfig() {
-    const interval = document.getElementById('poll-interval').value;
-    const retention = document.getElementById('snapshot-retention').value;
-    try {
-    const res = await fetch('/api/admin/clusters/config/scheduler', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-    poll_interval_minutes: parseInt(interval),
-    snapshot_retention_days: parseInt(retention)
-    })
-    });
-    if (res.ok) {
-    alert("Scheduler configuration saved!");
-    } else {
-    alert("Failed to save configuration.");
-    }
-    } catch (e) {
-    alert("Error: " + e.message);
-    }
+        const interval = document.getElementById('poll-interval').value;
+        const retention = document.getElementById('snapshot-retention').value;
+        try {
+            const res = await fetch('/api/admin/clusters/config/scheduler', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    poll_interval_minutes: parseInt(interval),
+                    snapshot_retention_days: parseInt(retention)
+                })
+            });
+            if (res.ok) {
+                alert("Scheduler configuration saved!");
+            } else {
+                alert("Failed to save configuration.");
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
     }
 
     async function runSchedulerNow() {
-    if (!confirm("Trigger immediate background poll? This checks all clusters and might take a minute.")) return;
+        if (!confirm("Trigger immediate background poll? This checks all clusters and might take a minute.")) return;
 
-    const btn = document.querySelector('button[onclick="runSchedulerNow()"]');
-    const originalText = btn.innerHTML;
-    const msgDiv = document.getElementById('scheduler-status-msg') || document.createElement('div');
+        const btn = document.querySelector('button[onclick="runSchedulerNow()"]');
+        const originalText = btn.innerHTML;
+        const msgDiv = document.getElementById('scheduler-status-msg') || document.createElement('div');
 
-    // Ensure msgDiv exists in DOM if not found (fallback)
-    if (!document.getElementById('scheduler-status-msg')) {
-    msgDiv.id = 'scheduler-status-msg';
-    msgDiv.style.marginTop = '1rem';
-    btn.parentElement.parentElement.appendChild(msgDiv);
-    }
+        // Ensure msgDiv exists in DOM if not found (fallback)
+        if (!document.getElementById('scheduler-status-msg')) {
+            msgDiv.id = 'scheduler-status-msg';
+            msgDiv.style.marginTop = '1rem';
+            btn.parentElement.parentElement.appendChild(msgDiv);
+        }
 
-    // UI Loading State
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Running...';
-    msgDiv.style.display = 'block';
-    msgDiv.innerHTML = '<div style="color:var(--text-secondary);"><i class="fas fa-clock"></i> Polling all clusters...
-        please wait.</div>';
+        // UI Loading State
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Running...';
+        msgDiv.style.display = 'block';
+        msgDiv.innerHTML = '<div style="color:var(--text-secondary);"><i class="fas fa-clock"></i> Polling all clusters... please wait.</div>';
 
-    try {
-    const res = await fetch('/api/admin/clusters/config/scheduler/run', { method: 'POST' });
-    if (res.ok) {
-    msgDiv.innerHTML = '<div style="color:var(--success-color); font-weight:600;"><i class="fas fa-check-circle"></i>
-        Poll completed successfully!</div>';
+        try {
+            const res = await fetch('/api/admin/clusters/config/scheduler/run', { method: 'POST' });
+            if (res.ok) {
+                msgDiv.innerHTML = '<div style="color:var(--success-color); font-weight:600;"><i class="fas fa-check-circle"></i> Poll completed successfully!</div>';
 
-    // Prompt to view
-    setTimeout(() => {
-    if (confirm("Poll completed. View new snapshots?")) {
-    switchTab('snapshots');
-    }
-    }, 500);
-    } else {
-    const err = await res.json();
-    msgDiv.innerHTML = `<div style="color:var(--danger-color);"><i class="fas fa-exclamation-circle"></i> Failed:
-        ${err.detail || 'Unknown error'}</div>`;
-    }
-    } catch (e) {
-    msgDiv.innerHTML = `<div style="color:var(--danger-color);"><i class="fas fa-exclamation-circle"></i> Error:
-        ${e.message}</div>`;
-    } finally {
-    // Restore button
-    btn.disabled = false;
-    btn.innerHTML = originalText;
+                // Prompt to view
+                setTimeout(() => {
+                    if (confirm("Poll completed. View new snapshots?")) {
+                        switchTab('snapshots');
+                    }
+                }, 500);
+            } else {
+                const err = await res.json();
+                msgDiv.innerHTML = `<div style="color:var(--danger-color);"><i class="fas fa-exclamation-circle"></i> Failed: ${err.detail || 'Unknown error'}</div>`;
+            }
+        } catch (e) {
+            msgDiv.innerHTML = `<div style="color:var(--danger-color);"><i class="fas fa-exclamation-circle"></i> Error: ${e.message}</div>`;
+        } finally {
+            // Restore button
+            btn.disabled = false;
+            btn.innerHTML = originalText;
 
-    // Hide message after a while if successful
-    setTimeout(() => {
-    if (msgDiv.innerText.includes("successfully")) {
-    msgDiv.style.display = 'none';
-    }
-    }, 5000);
-    }
+            // Hide message after a while if successful
+            setTimeout(() => {
+                if (msgDiv.innerText.includes("successfully")) {
+                    msgDiv.style.display = 'none';
+                }
+            }, 5000);
+        }
     }
     async function openRunNowModal() {
-    // Reset state
-    document.getElementById('run-step-confirm').style.display = 'block';
-    document.getElementById('run-step-loading').style.display = 'none';
-    document.getElementById('run-step-success').style.display = 'none';
-    document.getElementById('run-step-error').style.display = 'none';
-    document.getElementById('run-modal-close').style.display = 'block';
+        // Reset state
+        document.getElementById('run-step-confirm').style.display = 'block';
+        document.getElementById('run-step-loading').style.display = 'none';
+        document.getElementById('run-step-success').style.display = 'none';
+        document.getElementById('run-step-error').style.display = 'none';
+        document.getElementById('run-modal-close').style.display = 'block';
 
-    document.getElementById('run-now-modal').classList.add('open');
+        document.getElementById('run-now-modal').classList.add('open');
     }
 
     function closeRunModal() {
-    document.getElementById('run-now-modal').classList.remove('open');
+        document.getElementById('run-now-modal').classList.remove('open');
     }
 
     function goToSnapshots() {
-    closeRunModal();
-    switchTab('snapshots');
+        closeRunModal();
+        switchTab('snapshots');
     }
 
     async function confirmRunNow() {
-    // Switch to loading
-    document.getElementById('run-step-confirm').style.display = 'none';
-    document.getElementById('run-step-loading').style.display = 'block';
-    document.getElementById('run-modal-close').style.display = 'none';
+        // Switch to loading
+        document.getElementById('run-step-confirm').style.display = 'none';
+        document.getElementById('run-step-loading').style.display = 'block';
+        document.getElementById('run-modal-close').style.display = 'none';
 
-    const clusterEl = document.getElementById('run-current-cluster');
-    const indexEl = document.getElementById('run-cluster-index');
-    const resourceEl = document.getElementById('run-current-resource');
-    const progressBar = document.getElementById('run-progress-bar');
+        const clusterEl = document.getElementById('run-current-cluster');
+        const indexEl = document.getElementById('run-cluster-index');
+        const resourceEl = document.getElementById('run-current-resource');
+        const progressBar = document.getElementById('run-progress-bar');
 
-    // Reset indicators
-    clusterEl.innerText = 'Connecting...';
-    indexEl.innerText = '-/-';
-    resourceEl.innerText = 'Initializing stream...';
-    progressBar.style.width = '0%';
+        // Reset indicators
+        clusterEl.innerText = 'Connecting...';
+        indexEl.innerText = '-/-';
+        resourceEl.innerText = 'Initializing stream...';
+        progressBar.style.width = '0%';
 
-    const eventSource = new EventSource('/api/admin/clusters/config/scheduler/run-stream');
+        const eventSource = new EventSource('/api/admin/clusters/config/scheduler/run-stream');
 
-    eventSource.onmessage = function (event) {
-    const data = JSON.parse(event.data);
+        eventSource.onmessage = function (event) {
+            const data = JSON.parse(event.data);
 
-    if (data.type === 'cluster_start') {
-    clusterEl.innerText = data.cluster;
-    indexEl.innerText = `${data.index}/${data.total}`;
-    const pct = (data.index / data.total) * 100;
-    progressBar.style.width = `${pct}%`;
-    } else if (data.type === 'resource_start') {
-    resourceEl.innerText = `Fetching ${data.resource}... (${data.resource_index}/${data.resource_total})`;
-    } else if (data.type === 'error') {
-    console.error("Poll Error:", data.message);
-    // We don't stop immediately unless it's a fatal stream error
-    } else if (data.type === 'done') {
-    eventSource.close();
-    document.getElementById('run-step-loading').style.display = 'none';
-    document.getElementById('run-step-success').style.display = 'block';
-    document.getElementById('run-modal-close').style.display = 'block';
-    }
-    };
+            if (data.type === 'cluster_start') {
+                clusterEl.innerText = data.cluster;
+                indexEl.innerText = `${data.index}/${data.total}`;
+                const pct = (data.index / data.total) * 100;
+                progressBar.style.width = `${pct}%`;
+            } else if (data.type === 'resource_start') {
+                resourceEl.innerText = `Fetching ${data.resource}... (${data.resource_index}/${data.resource_total})`;
+            } else if (data.type === 'error') {
+                console.error("Poll Error:", data.message);
+                // We don't stop immediately unless it's a fatal stream error
+            } else if (data.type === 'done') {
+                eventSource.close();
+                document.getElementById('run-step-loading').style.display = 'none';
+                document.getElementById('run-step-success').style.display = 'block';
+                document.getElementById('run-modal-close').style.display = 'block';
+            }
+        };
 
-    eventSource.onerror = function (err) {
-    console.error("SSE Error:", err);
-    eventSource.close();
+        eventSource.onerror = function (err) {
+            console.error("SSE Error:", err);
+            eventSource.close();
 
-    // Only show error if we didn't finish successfully
-    if (document.getElementById('run-step-loading').style.display !== 'none') {
-    document.getElementById('run-step-loading').style.display = 'none';
-    document.getElementById('run-step-error').style.display = 'block';
-    document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still
-    be running.";
-    document.getElementById('run-modal-close').style.display = 'block';
-    }
-    };
+            // Only show error if we didn't finish successfully
+            if (document.getElementById('run-step-loading').style.display !== 'none') {
+                document.getElementById('run-step-loading').style.display = 'none';
+                document.getElementById('run-step-error').style.display = 'block';
+                document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still be running.";
+                document.getElementById('run-modal-close').style.display = 'block';
+            }
+        };
     }
 
     let currentTags = {};
 
     function renderTags() {
-    const container = document.getElementById('tags-container');
-    container.innerHTML = '';
-    for (const [k, v] of Object.entries(currentTags)) {
-    const tag = document.createElement('span');
-    tag.className = 'badge';
-    tag.style.background = 'var(--bg-primary)';
-    tag.style.border = '1px solid var(--border-color)';
-    tag.innerHTML = `${k}=${v} <i class="fas fa-times" onclick="removeTag('${k}')"
+        const container = document.getElementById('tags-container');
+        container.innerHTML = '';
+        for (const [k, v] of Object.entries(currentTags)) {
+            const tag = document.createElement('span');
+            tag.className = 'badge';
+            tag.style.background = 'var(--bg-primary)';
+            tag.style.border = '1px solid var(--border-color)';
+            tag.innerHTML = `${k}=${v} <i class="fas fa-times" onclick="removeTag('${k}')"
         style="cursor:pointer; margin-left:0.3rem; opacity:0.6;"></i>`;
-    container.appendChild(tag);
-    }
+            container.appendChild(tag);
+        }
     }
 
     function addTag() {
-    const k = document.getElementById('tag-key').value.trim();
-    const v = document.getElementById('tag-val').value.trim();
-    if (k && v) {
-    currentTags[k] = v;
-    document.getElementById('tag-key').value = '';
-    document.getElementById('tag-val').value = '';
-    renderTags();
-    }
+        const k = document.getElementById('tag-key').value.trim();
+        const v = document.getElementById('tag-val').value.trim();
+        if (k && v) {
+            currentTags[k] = v;
+            document.getElementById('tag-key').value = '';
+            document.getElementById('tag-val').value = '';
+            renderTags();
+        }
     }
 
     window.removeTag = function (k) {
-    delete currentTags[k];
-    renderTags();
+        delete currentTags[k];
+        renderTags();
     }
 
     function openModal() {
-    document.getElementById('c-id').value = '';
-    document.getElementById('c-name').value = '';
-    document.getElementById('c-url').value = '';
-    document.getElementById('c-token').value = '';
-    document.getElementById('modal-title').innerText = "Add Cluster";
+        document.getElementById('c-id').value = '';
+        document.getElementById('c-name').value = '';
+        document.getElementById('c-url').value = '';
+        document.getElementById('c-token').value = '';
+        document.getElementById('modal-title').innerText = "Add Cluster";
 
-    // Reset status
-    const statusDiv = document.getElementById('connection-status');
-    if (statusDiv) statusDiv.style.display = 'none';
+        // Reset status
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) statusDiv.style.display = 'none';
 
-    currentTags = {};
-    renderTags();
-    document.getElementById('cluster-modal').classList.add('open');
+        currentTags = {};
+        renderTags();
+        document.getElementById('cluster-modal').classList.add('open');
     }
 
     function closeModal() {
-    document.getElementById('cluster-modal').classList.remove('open');
+        document.getElementById('cluster-modal').classList.remove('open');
     }
 
     async function editCluster(id) {
-    const res = await fetch(`/api/admin/clusters/${id}`);
-    const c = await res.json();
+        const res = await fetch(`/api/admin/clusters/${id}`);
+        const c = await res.json();
 
-    document.getElementById('c-id').value = c.id;
-    document.getElementById('c-name').value = c.name;
-    document.getElementById('c-url').value = c.api_url;
-    document.getElementById('c-token').value = c.token; // usually hidden
-    document.getElementById('c-dc').value = c.datacenter || 'Azure';
-    document.getElementById('c-env').value = c.environment || 'DEV';
+        document.getElementById('c-id').value = c.id;
+        document.getElementById('c-name').value = c.name;
+        document.getElementById('c-url').value = c.api_url;
+        document.getElementById('c-token').value = c.token; // usually hidden
+        document.getElementById('c-dc').value = c.datacenter || 'Azure';
+        document.getElementById('c-env').value = c.environment || 'DEV';
 
-    // Reset status
-    const statusDiv = document.getElementById('connection-status');
-    if (statusDiv) statusDiv.style.display = 'none';
+        // Reset status
+        const statusDiv = document.getElementById('connection-status');
+        if (statusDiv) statusDiv.style.display = 'none';
 
-    try {
-    currentTags = JSON.parse(c.tags || '{}');
-    } catch (e) { currentTags = {}; }
-    renderTags();
+        try {
+            currentTags = JSON.parse(c.tags || '{}');
+        } catch (e) { currentTags = {}; }
+        renderTags();
 
-    document.getElementById('modal-title').innerText = "Edit Cluster";
-    document.getElementById('cluster-modal').classList.add('open');
+        document.getElementById('modal-title').innerText = "Edit Cluster";
+        document.getElementById('cluster-modal').classList.add('open');
     }
 
     async function saveCluster() {
-    const id = document.getElementById('c-id').value;
-    const method = id ? 'PATCH' : 'POST';
-    const url = id ? `/api/admin/clusters/${id}` : '/api/admin/clusters/';
+        const id = document.getElementById('c-id').value;
+        const method = id ? 'PATCH' : 'POST';
+        const url = id ? `/api/admin/clusters/${id}` : '/api/admin/clusters/';
 
-    const data = {
-    name: document.getElementById('c-name').value,
-    api_url: document.getElementById('c-url').value,
-    token: document.getElementById('c-token').value,
-    datacenter: document.getElementById('c-dc').value,
-    environment: document.getElementById('c-env').value,
-    tags: JSON.stringify(currentTags)
-    };
+        const data = {
+            name: document.getElementById('c-name').value,
+            api_url: document.getElementById('c-url').value,
+            token: document.getElementById('c-token').value,
+            datacenter: document.getElementById('c-dc').value,
+            environment: document.getElementById('c-env').value,
+            tags: JSON.stringify(currentTags)
+        };
 
-    await fetch(url, {
-    method: method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-    });
-    window.location.reload();
+        await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        window.location.reload();
     }
 
     async function deleteCluster(id) {
-    if (confirm("Delete cluster?")) {
-    await fetch(`/api/admin/clusters/${id}`, { method: 'DELETE' });
-    window.location.reload();
+        if (confirm("Delete cluster?")) {
+            await fetch(`/api/admin/clusters/${id}`, { method: 'DELETE' });
+            window.location.reload();
+        }
     }
-    }
-    </script>
+    // Initialize from URL
+    switchTab('{{ active_tab }}');
+</script>
 
-    <!-- Token Instructions Modal -->
-    <div id="token-instructions-modal" class="modal">
-        <div class="modal-content" style="max-width: 700px;">
-            <div class="modal-header">
-                <h3><i class="fas fa-key"></i> Create Connection Token</h3>
-                <button onclick="closeTokenHelp()" class="close-btn"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="modal-body">
-                <p style="font-size:0.9rem; margin-bottom:1rem; opacity:0.8;">Run these commands via <code>oc</code> CLI
-                    to create a long-lived service account token for the inventory app:</p>
+<!-- Token Instructions Modal -->
+<div id="token-instructions-modal" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-key"></i> Create Connection Token</h3>
+            <button onclick="closeTokenHelp()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="font-size:0.9rem; margin-bottom:1rem; opacity:0.8;">Run these commands via <code>oc</code> CLI
+                to create a long-lived service account token for the inventory app:</p>
 
-                <div
-                    style="position:relative; background:#0f172a; border-radius:8px; padding:1rem; border:1px solid var(--border-color); margin-bottom:1.5rem;">
-                    <pre id="token-commands"
-                        style="font-size:0.85rem; color:#cbd5e1; margin:0; line-height:1.4; overflow-x:auto;"># Create long-lived token
+            <div
+                style="position:relative; background:#0f172a; border-radius:8px; padding:1rem; border:1px solid var(--border-color); margin-bottom:1.5rem;">
+                <pre id="token-commands"
+                    style="font-size:0.85rem; color:#cbd5e1; margin:0; line-height:1.4; overflow-x:auto;"># Create long-lived token
 oc create -f - <<EOF
 apiVersion: v1
 kind: Secret
@@ -1067,24 +1059,24 @@ oc adm policy add-cluster-role-to-user cluster-reader -n default -z ocp-inventor
 
 # Show token
 oc get secret/ocp-inventory-sa-token -n default -o jsonpath={.data.token}|base64 -d</pre>
-                    <button class="btn btn-secondary btn-sm" onclick="copyTokenCommands()"
-                        style="position:absolute; top:0.5rem; right:0.5rem; opacity:0.8;">
-                        <i class="fas fa-copy"></i> Copy
-                    </button>
-                </div>
-
-                <div
-                    style="background:rgba(56, 189, 248, 0.05); padding:1rem; border-radius:8px; border-left:4px solid var(--accent-color); font-size:0.85rem;">
-                    <p style="margin:0;"><i class="fas fa-info-circle"></i> <strong>Note:</strong> Starting with
-                        OpenShift 4.11, ServiceAccount tokens no longer expire by default ONLY if created via a manual
-                        Secret as shown above. The token retrieved in the last step should be pasted into the Token
-                        field.</p>
-                </div>
+                <button class="btn btn-secondary btn-sm" onclick="copyTokenCommands()"
+                    style="position:absolute; top:0.5rem; right:0.5rem; opacity:0.8;">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
             </div>
-            <div class="modal-footer"
-                style="padding-top:1.5rem; border-top:1px solid var(--border-color); margin-top:1.5rem; display:flex; justify-content:flex-end;">
-                <button class="btn btn-primary" onclick="closeTokenHelp()">Got it</button>
+
+            <div
+                style="background:rgba(56, 189, 248, 0.05); padding:1rem; border-radius:8px; border-left:4px solid var(--accent-color); font-size:0.85rem;">
+                <p style="margin:0;"><i class="fas fa-info-circle"></i> <strong>Note:</strong> Starting with
+                    OpenShift 4.11, ServiceAccount tokens no longer expire by default ONLY if created via a manual
+                    Secret as shown above. The token retrieved in the last step should be pasted into the Token
+                    field.</p>
             </div>
         </div>
+        <div class="modal-footer"
+            style="padding-top:1.5rem; border-top:1px solid var(--border-color); margin-top:1.5rem; display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" onclick="closeTokenHelp()">Got it</button>
+        </div>
     </div>
-    {% endblock %}
+</div>
+{% endblock %}

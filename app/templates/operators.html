@@ -155,6 +155,12 @@
 
 <style>
     /* Scoped styles for matrix */
+    #matrix-container {
+        /* Viewport constraint: 100vh - approx header/filter height */
+        max-height: calc(100vh - 280px);
+        overflow-y: auto;
+    }
+
     #matrix-container th,
     #matrix-container td {
         padding: 1rem;
@@ -162,10 +168,23 @@
         white-space: nowrap;
     }
 
+    /* Sticky Top Header */
+    #matrix-container thead th {
+        position: sticky;
+        top: 0;
+        z-index: 15;
+        background: var(--bg-secondary);
+        /* prevent transparency */
+        border-bottom: 2px solid var(--border-color);
+        /* strong separation */
+    }
+
+    /* Sticky Left Column */
     #matrix-container th.op-name-col {
         position: sticky;
         left: 0;
         z-index: 10;
+        /* Lower than top-left corner */
         background: var(--bg-secondary);
         border-right: 1px solid var(--border-color);
         width: 250px;
@@ -173,6 +192,13 @@
         max-width: 250px;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+
+    /* Sticky Top-Left Corner (Intersection) */
+    #matrix-container thead th.op-name-col {
+        z-index: 20;
+        /* Highest priority */
+        border-bottom: 2px solid var(--border-color);
     }
 
     /* Rotate Cluster Headers */

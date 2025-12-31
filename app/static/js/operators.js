@@ -110,60 +110,95 @@ function getMode(array) {
     return maxEl;
 }
 
-function filterOperators() {
-    const term = document.getElementById('operator-search').value.toLowerCase();
-    if (!allData) return;
+// Modal Logic
+const modal = document.getElementById('op-modal');
 
-    const filteredOps = allData.operators.filter(op =>
-        op.displayName.toLowerCase().includes(term) ||
-        op.name.toLowerCase().includes(term) ||
-        op.provider.toLowerCase().includes(term)
+// Global filters state
+let activeTags = new Set();
+
+function toggleFilter(btn, filter) {
+    btn.classList.toggle('active');
+    if (activeTags.has(filter)) {
+        activeTags.delete(filter);
+    } else {
+        activeTags.add(filter);
+    }
+    applyFilters();
+}
+
+function applyFilters() {
+    if (!allData) return;
+    const term = document.getElementById('operator-search').value.toLowerCase();
+
+    // 1. Determine Visible Clusters
+    // Filter by Tags (Buttons)
+    let filteredClusters = allData.clusters;
+    if (activeTags.size > 0) {
+        const envFilters = ['DEV', 'UAT', 'PROD'].filter(f => activeTags.has(f));
+        const dcFilters = ['AZURE', 'HCI'].filter(f => activeTags.has(f));
+
+        filteredClusters = filteredClusters.filter(c => {
+            const envMatch = envFilters.length === 0 || (c.environment && envFilters.includes(c.environment.toUpperCase()));
+            const dcMatch = dcFilters.length === 0 || (c.datacenter && dcFilters.includes(c.datacenter.toUpperCase()));
+            return envMatch && dcMatch;
+        });
+    }
+
+    // Filter by Search (if search matches cluster name/metadata)
+    // We track if the search term *specifically* targets clusters to decide on operator filtering
+    const clusterMatchesTerm = term && filteredClusters.some(c =>
+        c.name.toLowerCase().includes(term) ||
+        (c.datacenter && c.datacenter.toLowerCase().includes(term)) ||
+        (c.environment && c.environment.toLowerCase().includes(term))
     );
 
+    if (term && clusterMatchesTerm) {
+        // Refine clusters to only those matching the term
+        filteredClusters = filteredClusters.filter(c =>
+            c.name.toLowerCase().includes(term) ||
+            (c.datacenter && c.datacenter.toLowerCase().includes(term)) ||
+            (c.environment && c.environment.toLowerCase().includes(term))
+        );
+    }
+
+    // 2. Determine Visible Operators
+    let filteredOps = allData.operators;
+
+    if (term) {
+        const opMatches = allData.operators.filter(op =>
+            op.displayName.toLowerCase().includes(term) ||
+            op.name.toLowerCase().includes(term) ||
+            op.provider.toLowerCase().includes(term)
+        );
+
+        // Smart Search Logic:
+        // - If search matches Operators, show those Operators (and all fitlered clusters).
+        // - If search ONLY matches Clusters (and no ops), show ALL Operators (for those clusters).
+        // - If search matches BOTH, show intersection.
+
+        const hasOpMatches = opMatches.length > 0;
+
+        if (hasOpMatches) {
+            // Term matched operators, so filter rows
+            filteredOps = opMatches;
+        } else if (clusterMatchesTerm) {
+            // Term matched clusters but NO operators -> User is searching for a cluster column
+            // Show all operators (filteredOps remains allData.operators)
+        } else {
+            // Matches nothing
+            filteredOps = [];
+        }
+    }
+
     renderMatrix({
-        clusters: allData.clusters,
+        clusters: filteredClusters,
         operators: filteredOps
     });
 }
 
-// Modal Logic
-const modal = document.getElementById('op-modal');
-
-function openOpModal(opData, clusterName) {
-    document.getElementById('op-modal-title').textContent = opData.displayName;
-    document.getElementById('op-modal-name').textContent = opData.name;
-
-    const install = opData.installations[clusterName];
-    if (!install) return;
-
-    // Header info
-    document.getElementById('op-modal-cluster').textContent = clusterName;
-    document.getElementById('op-modal-namespace').textContent = install.namespace || 'N/A';
-    document.getElementById('op-modal-approval').textContent = install.approval || 'Automatic';
-    document.getElementById('op-modal-source').textContent = install.source || 'N/A';
-    document.getElementById('op-modal-status-text').textContent = install.status;
-    document.getElementById('op-modal-status-pill').style.background = install.status === 'Succeeded' ? 'var(--success-color)' : 'var(--warning-color)';
-    document.getElementById('op-modal-version').textContent = install.version;
-    document.getElementById('op-modal-channel').textContent = install.channel;
-
-    // Managed CRDs
-    const crdList = document.getElementById('op-modal-crds');
-    crdList.innerHTML = '';
-    if (install.managed_crds && install.managed_crds.length > 0) {
-        install.managed_crds.forEach(crd => {
-            const item = document.createElement('div');
-            item.className = 'crd-item';
-            item.innerHTML = `
-                <div style="font-weight:600; font-size:0.9rem;">${crd.kind}</div>
-                <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${crd.name}</div>
-            `;
-            crdList.appendChild(item);
-        });
-    } else {
-        crdList.innerHTML = '<div style="opacity:0.5; font-style:italic;">No managed resources found.</div>';
-    }
-
-    modal.style.display = 'flex';
+// Replace old filter function
+function filterOperators() {
+    applyFilters();
 }
 
 function closeOpModal() {

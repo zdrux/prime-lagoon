@@ -36,7 +36,7 @@
                     <th>Tags</th>
                     <th>Last Compliance</th>
                     <th>Targeted Content</th>
-                    <th style="width:150px;">Actions</th>
+                    <th style="width:220px;">Actions</th>
                 </tr>
             </thead>
             <tbody id="cluster-table-body">
@@ -481,11 +481,11 @@
                     </div>
                 </td>
                 <td>
-                    <button class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem; margin-right:0.5rem;" onclick="openHistoryModal(${c.id}, '${c.name}')">
-                        <i class="fas fa-chart-line"></i> History
-                    </button>
-                    <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="openAuditModal(${c.id}, '${c.name}')">
+                    <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem; margin-right:0.5rem;" onclick="openAuditModal(${c.id}, '${c.name}')">
                         <i class="fas fa-play"></i> Run Audit
+                    </button>
+                    <button class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2); color:#aaa;" onclick="openHistoryModal(${c.id}, '${c.name}')">
+                        <i class="fas fa-chart-line"></i> History
                     </button>
                 </td>
             </tr>

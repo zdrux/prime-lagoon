@@ -37,6 +37,64 @@
     .tab-content.active {
         display: block;
     }
+
+    /* Run Modal Steps */
+    .run-step {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        opacity: 0.4;
+        transition: all 0.3s;
+    }
+
+    .run-step.active {
+        opacity: 1;
+    }
+
+    .run-step.completed {
+        opacity: 0.6;
+    }
+
+    .run-step.completed .step-icon {
+        color: var(--success-color);
+        border-color: var(--success-color);
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .step-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 2px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+        background: var(--bg-primary);
+    }
+
+    .run-step.active .step-icon {
+        border-color: var(--accent-color);
+        color: var(--accent-color);
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+    }
+
+    .step-content {
+        text-align: left;
+    }
+
+    .step-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.1rem;
+    }
+
+    .step-desc {
+        font-size: 0.75rem;
+        opacity: 0.7;
+    }
 </style>
 
 <div class="page-header">
@@ -282,34 +340,67 @@
 
             <!-- Loading State -->
             <div id="run-step-loading" style="display:none;">
-                <div style="font-size:3rem; color:var(--accent-color); margin-bottom:1rem;">
-                    <i class="fas fa-circle-notch fa-spin"></i>
+                <div
+                    style="font-size:2rem; font-weight:700; color:var(--text-primary); margin-bottom:0.5rem; font-family:monospace;">
+                    <span id="run-timer">00:00</span>
                 </div>
-                <h4 id="run-loading-title" style="margin-bottom:0.5rem;">Polling Clusters...</h4>
+                <div style="font-size:0.9rem; color:var(--text-secondary); margin-bottom:1.5rem;">Running Snapshot...
+                </div>
+
+                <div style="text-align:left; max-width:320px; margin:0 auto;">
+                    <!-- Step 1 -->
+                    <div class="run-step active" id="step-1">
+                        <div class="step-icon"><i class="fas fa-circle-notch fa-spin"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">Connection & Metadata</div>
+                            <div class="step-desc">Connecting to all clusters...</div>
+                        </div>
+                    </div>
+                    <!-- Step 2 -->
+                    <div class="run-step" id="step-2">
+                        <div class="step-icon"><i class="fas fa-circle"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">Core Inventory</div>
+                            <div class="step-desc">Fetching Nodes, Projects, Machines...</div>
+                        </div>
+                    </div>
+                    <!-- Step 3 -->
+                    <div class="run-step" id="step-3">
+                        <div class="step-icon"><i class="fas fa-circle"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">Operator List</div>
+                            <div class="step-desc">Collecting CSVs and Subscriptions...</div>
+                        </div>
+                    </div>
+                    <!-- Step 4 -->
+                    <div class="run-step" id="step-4">
+                        <div class="step-icon"><i class="fas fa-circle"></i></div>
+                        <div class="step-content">
+                            <div class="step-title">Compliance Audit</div>
+                            <div class="step-desc">Evaluating active policy bundles...</div>
+                        </div>
+                    </div>
+                </div>
 
                 <div id="run-progress-container"
-                    style="margin-top:1.5rem; text-align:left; background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color);">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.85rem;">
+                    style="margin-top:1.5rem; text-align:left; background:var(--bg-secondary); padding:0.8rem; border-radius:8px; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.3rem; font-size:0.8rem;">
                         <span id="run-current-cluster"
                             style="font-weight:600; color:var(--accent-color);">Initializing...</span>
                         <span id="run-cluster-index" style="opacity:0.7;">0/0</span>
                     </div>
                     <div
-                        style="width:100%; height:8px; background:var(--bg-primary); border-radius:4px; overflow:hidden; margin-bottom:1rem;">
+                        style="width:100%; height:6px; background:var(--bg-primary); border-radius:4px; overflow:hidden;">
                         <div id="run-progress-bar"
                             style="width:0%; height:100%; background:var(--accent-color); transition: width 0.3s ease;">
                         </div>
                     </div>
                     <div
-                        style="font-size:0.8rem; color:var(--text-secondary); display:flex; align-items:center; gap:0.5rem;">
-                        <i class="fas fa-cog fa-spin"></i>
-                        <span id="run-current-resource">Connecting to cluster...</span>
+                        style="font-size:0.75rem; color:var(--text-secondary); margin-top:0.4rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        <i class="fas fa-terminal" style="margin-right:0.3rem; opacity:0.5;"></i> <span
+                            id="run-current-resource">waiting...</span>
                     </div>
                 </div>
-
-                <p style="color:var(--text-secondary); font-size:0.8rem; margin-top:1rem;">
-                    Please wait while we gather the inventory data.
-                </p>
             </div>
 
             <!-- Success State -->
@@ -913,6 +1004,40 @@
         switchTab('snapshots');
     }
 
+    let _runTimerInterval;
+    function startRunTimer() {
+        if (_runTimerInterval) clearInterval(_runTimerInterval);
+        let sec = 0;
+        const el = document.getElementById('run-timer');
+        el.innerText = "00:00";
+        _runTimerInterval = setInterval(() => {
+            sec++;
+            const m = Math.floor(sec / 60).toString().padStart(2, '0');
+            const s = (sec % 60).toString().padStart(2, '0');
+            el.innerText = `${m}:${s}`;
+        }, 1000);
+    }
+
+    function updateRunStep(stepNum) {
+        // Reset all
+        [1, 2, 3, 4].forEach(i => {
+            const el = document.getElementById(`step-${i}`);
+            const icon = el.querySelector('.step-icon');
+            if (i < stepNum) {
+                el.classList.add('completed');
+                el.classList.remove('active');
+                icon.innerHTML = '<i class="fas fa-check"></i>';
+            } else if (i === stepNum) {
+                el.classList.add('active');
+                el.classList.remove('completed');
+                icon.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+            } else {
+                el.classList.remove('active', 'completed');
+                icon.innerHTML = '<i class="fas fa-circle"></i>';
+            }
+        });
+    }
+
     async function confirmRunNow() {
         // Switch to loading
         document.getElementById('run-step-confirm').style.display = 'none';
@@ -930,6 +1055,9 @@
         resourceEl.innerText = 'Initializing stream...';
         progressBar.style.width = '0%';
 
+        startRunTimer();
+        updateRunStep(1);
+
         const eventSource = new EventSource('/api/admin/clusters/config/scheduler/run-stream');
 
         eventSource.onmessage = function (event) {
@@ -940,13 +1068,25 @@
                 indexEl.innerText = `${data.index}/${data.total}`;
                 const pct = (data.index / data.total) * 100;
                 progressBar.style.width = `${pct}%`;
+                // Step 2 is collecting core resources (nodes etc)
+                updateRunStep(2);
             } else if (data.type === 'resource_start') {
-                resourceEl.innerText = `Fetching ${data.resource}... (${data.resource_index}/${data.resource_total})`;
+                resourceEl.innerText = `${data.resource}...`;
+
+                if (['csvs', 'subscriptions'].includes(data.resource.toLowerCase())) {
+                    updateRunStep(3);
+                } else if (data.resource.includes('Compliance')) {
+                    updateRunStep(4);
+                } else if (['nodes', 'projects'].includes(data.resource.toLowerCase())) {
+                    updateRunStep(2);
+                }
+
             } else if (data.type === 'error') {
                 console.error("Poll Error:", data.message);
                 // We don't stop immediately unless it's a fatal stream error
             } else if (data.type === 'done') {
                 eventSource.close();
+                clearInterval(_runTimerInterval);
                 document.getElementById('run-step-loading').style.display = 'none';
                 document.getElementById('run-step-success').style.display = 'block';
                 document.getElementById('run-modal-close').style.display = 'block';
@@ -961,12 +1101,13 @@
             setTimeout(() => {
                 if (document.getElementById('run-step-loading').style.display !== 'none') {
                     eventSource.close();
+                    clearInterval(_runTimerInterval);
                     document.getElementById('run-step-loading').style.display = 'none';
                     document.getElementById('run-step-error').style.display = 'block';
                     document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still be running.";
                     document.getElementById('run-modal-close').style.display = 'block';
                 }
-            }, 15000);
+            }, 10000); // 10s grace
         };
     }
 

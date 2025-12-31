@@ -156,7 +156,7 @@ def poll_cluster(
                         "resource_total": len(res_keys)
                     })
                 
-                timeout = 300 if key in ["csvs", "subscriptions"] else 60
+                timeout = 600 if key in ["csvs", "subscriptions"] else 120
                 
                 # Fetch CSVs as Table to reduced payload size
                 use_table = (key == "csvs")
@@ -322,6 +322,14 @@ def poll_cluster(
 
         # 5. Run Compliance checks (if enabled)
         if run_compliance and audit_rules:
+            if progress_callback:
+                progress_callback({
+                    "type": "resource_start", 
+                    "cluster": cluster.name, 
+                    "resource": "Compliance Audit",
+                    "resource_index": len(res_keys) + 1,
+                    "resource_total": len(res_keys) + 1
+                })
             from app.services.compliance import evaluate_cluster_compliance
             try:
                 evaluate_cluster_compliance(session, cluster, audit_rules, audit_bundles, run_timestamp=run_timestamp)

@@ -42,21 +42,32 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     target_ts = None
     if snapshot_time:
         try:
-            clean_ts = snapshot_time.replace("T", " ")
+            # Handle potential 'Z' suffix or T separator
+            clean_ts = snapshot_time.replace("T", " ").replace("Z", "")
+            # Truncate potential fractional seconds if present in input string
+            if "." in clean_ts:
+                clean_ts = clean_ts.split(".")[0]
             target_ts = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
         except:
+            print(f"Failed to parse snapshot time: {snapshot_time}")
             pass
     
     latest_ts = None
     for cluster in clusters:
         # Get snapshot
         query = select(ClusterSnapshot).where(ClusterSnapshot.cluster_id == cluster.id)
+        
         if target_ts:
-            query = query.where(ClusterSnapshot.timestamp == target_ts)
+            # Fuzzy match (within 1 second) to handle microsecond differences
+            # and potentialtimezone offsets if any (though we assume UTC)
+            from datetime import timedelta
+            query = query.where(ClusterSnapshot.timestamp >= target_ts - timedelta(seconds=1))
+            query = query.where(ClusterSnapshot.timestamp <= target_ts + timedelta(seconds=1))
         else:
             query = query.where(ClusterSnapshot.status == "Success").order_by(ClusterSnapshot.timestamp.desc())
         
         snap = session.exec(query.limit(1)).first()
+
         
         if snap and (not latest_ts or snap.timestamp > latest_ts):
             latest_ts = snap.timestamp

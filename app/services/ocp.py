@@ -139,14 +139,28 @@ def parse_cpu(cpu_val: Any) -> float:
     except Exception:
         return 0.0
 
-def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None, timeout: int = 300):
+def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None, timeout: int = 300, use_table: bool = False):
     """
     Generic fetcher with enrichment for specific types.
     """
     dyn_client = get_dynamic_client(cluster)
     resource_api = dyn_client.resources.get(api_version=api_version, kind=kind)
     
-    resp = resource_api.get(namespace=namespace, _request_timeout=timeout)
+    kwargs = {'_request_timeout': timeout}
+    if namespace:
+        kwargs['namespace'] = namespace
+        
+    if use_table:
+        # Request Table format to reduce payload size (no full schemas/icons)
+        # Fixed header: g=meta.k8s.io (not /v1 suffix)
+        kwargs['header_params'] = {'Accept': 'application/json;as=Table;g=meta.k8s.io;v=v1'}
+
+    resp = resource_api.get(**kwargs)
+    
+    if use_table:
+        # Return the raw Table object (dict)
+        return resp.to_dict() if hasattr(resp, 'to_dict') else resp
+
     items = resp.items
     
     # Enrichment

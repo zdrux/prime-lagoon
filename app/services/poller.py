@@ -157,45 +157,93 @@ def poll_cluster(
                     })
                 
                 timeout = 300 if key in ["csvs", "subscriptions"] else 60
-                items = fetch_resources(cluster, meta["api_version"], meta["kind"], timeout=timeout)
-                # Convert K8s objects to pure dicts for JSON serialization
-                # Use .to_dict() if available for recursive serialization, otherwise use dict()
-                resource_list = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
                 
-                # SPECIAL HANDLING: Minify CSVs to save space
-                if key == "csvs":
-                    minified_csvs = []
-                    for csv in resource_list:
-                        minified_csvs.append({
-                            "metadata": {
-                                "name": csv.get("metadata", {}).get("name"),
-                                "namespace": csv.get("metadata", {}).get("namespace"),
-                                "creationTimestamp": csv.get("metadata", {}).get("creationTimestamp")
-                            },
-                            "spec": {
-                                "version": csv.get("spec", {}).get("version"),
-                                "displayName": csv.get("spec", {}).get("displayName"),
-                                "provider": csv.get("spec", {}).get("provider"),
-                                # AGGRESSIVE MINIFICATION: Only store owned CRDs (name, kind, displayName)
-                                # This drastically reduces snapshot size as full CRD definitions are huge.
-                                "customresourcedefinitions": {
-                                    "owned": [
-                                        {
-                                            "name": o.get("name"), 
-                                            "kind": o.get("kind"), 
-                                            "displayName": o.get("displayName")
-                                        } 
-                                        for o in csv.get("spec", {}).get("customresourcedefinitions", {}).get("owned", [])
-                                    ]
-                                }
-                            },
-                            "status": {
-                                "phase": csv.get("status", {}).get("phase"),
-                                "reason": csv.get("status", {}).get("reason")
-                            }
-                        })
-                    snapshot_data[key] = minified_csvs
+                # Fetch CSVs as Table to reduced payload size
+                use_table = (key == "csvs")
+                items = fetch_resources(cluster, meta["api_version"], meta["kind"], timeout=timeout, use_table=use_table)
+                
+                if use_table and key == "csvs":
+                     # Process Table Response for CSVs
+                     minified_csvs = []
+                     
+                     # Table structure: { "kind": "Table", "columnDefinitions": [...], "rows": [...] }
+                     # Fallback if somehow we got a list (e.g. mock or error in fetcher logic fallback)
+                     if isinstance(items, dict) and items.get("kind") == "Table":
+                         rows = items.get("rows", [])
+                         cols = items.get("columnDefinitions", [])
+                         
+                         # Map column names to indices for robust parsing
+                         # Typically: Name, Display, Version, Replaces, Phase
+                         col_idx = {c["name"].lower(): i for i, c in enumerate(cols)}
+                         
+                         for row in rows:
+                             # row["object"] contains PartialObjectMetadata (name, namespace, etc)
+                             metadata = row.get("object", {}).get("metadata", {})
+                             w_cells = row.get("cells", [])
+                             
+                             # Extract cells safely
+                             display_name = w_cells[col_idx["display"]] if "display" in col_idx and col_idx["display"] < len(w_cells) else ""
+                             version = w_cells[col_idx["version"]] if "version" in col_idx and col_idx["version"] < len(w_cells) else ""
+                             phase = w_cells[col_idx["phase"]] if "phase" in col_idx and col_idx["phase"] < len(w_cells) else ""
+                             
+                             minified_csvs.append({
+                                 "metadata": {
+                                     "name": metadata.get("name"),
+                                     "namespace": metadata.get("namespace"),
+                                     "creationTimestamp": metadata.get("creationTimestamp")
+                                 },
+                                 "spec": {
+                                     "version": version,
+                                     "displayName": display_name,
+                                     "provider": "Unknown", # Not usually in Table
+                                     "customresourcedefinitions": {
+                                         "owned": [] # Not in Table
+                                     }
+                                 },
+                                 "status": {
+                                     "phase": phase
+                                 }
+                             })
+                         snapshot_data[key] = minified_csvs
+                     else:
+                         # Fallback if fetch_resources returned generic items list (e.g. mock override or server ignored Accept header)
+                         if isinstance(items, dict) and "items" in items:
+                             # It's a Kubernetes List object as a dict
+                             items = items.get("items", [])
+                         
+                         resource_list = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
+                         minified_csvs = []
+                         for csv in resource_list:
+                             minified_csvs.append({
+                                 "metadata": {
+                                     "name": csv.get("metadata", {}).get("name"),
+                                     "namespace": csv.get("metadata", {}).get("namespace"),
+                                     "creationTimestamp": csv.get("metadata", {}).get("creationTimestamp")
+                                 },
+                                 "spec": {
+                                     "version": csv.get("spec", {}).get("version"),
+                                     "displayName": csv.get("spec", {}).get("displayName"),
+                                     "provider": csv.get("spec", {}).get("provider"),
+                                     "customresourcedefinitions": {
+                                         "owned": [
+                                             {
+                                                 "name": o.get("name"), 
+                                                 "kind": o.get("kind"), 
+                                                 "displayName": o.get("displayName")
+                                             } 
+                                             for o in csv.get("spec", {}).get("customresourcedefinitions", {}).get("owned", [])
+                                         ]
+                                     }
+                                 },
+                                 "status": {
+                                     "phase": csv.get("status", {}).get("phase"),
+                                     "reason": csv.get("status", {}).get("reason")
+                                 }
+                             })
+                         snapshot_data[key] = minified_csvs
                 else:
+                    # Standard List Handling
+                    resource_list = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
                     snapshot_data[key] = resource_list
 
             except Exception as e:
@@ -217,6 +265,9 @@ def poll_cluster(
                     snapshot_data["__errors"][key] = "Timeout"
                 else:
                     logger.error(f"Error fetching {key} for {cluster.name}: {e}")
+                    if "__errors" not in snapshot_data:
+                        snapshot_data["__errors"] = {}
+                    snapshot_data["__errors"][key] = str(e)
                 
                 snapshot_data[key] = []
                 # Partial status is still appropriate

@@ -177,5 +177,5 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     return {
         "clusters": matrix_data["clusters"],
         "operators": op_list,
-        "snapshot_time": latest_ts.isoformat() if latest_ts else None
+        "snapshot_time": (latest_ts.isoformat() + "Z") if latest_ts else None
     }

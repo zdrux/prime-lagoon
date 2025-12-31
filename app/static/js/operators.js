@@ -53,6 +53,35 @@ function renderMatrix(data) {
     });
 
     // 2. Rows
+    if (data.operators.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = data.clusters.length + 1;
+        td.style.textAlign = 'center';
+        td.style.padding = '4rem 2rem';
+        td.style.opacity = '0.6';
+
+        // Check if any cluster has data_collected = true
+        const anyCollected = data.clusters.some(c => c.data_collected !== false);
+
+        if (!anyCollected) {
+            td.innerHTML = `
+                <i class="fas fa-info-circle" style="font-size:2rem; margin-bottom:1rem; display:block;"></i>
+                <div style="font-size:1.1rem; font-weight:600;">Data Not Collected</div>
+                <div style="font-size:0.9rem;">Operator data was not collected for this snapshot run.</div>
+            `;
+        } else {
+            td.innerHTML = `
+                <i class="fas fa-check-circle" style="font-size:2rem; margin-bottom:1rem; display:block; color:var(--success-color);"></i>
+                <div style="font-size:1.1rem; font-weight:600;">No Operators Found</div>
+                <div style="font-size:0.9rem;">All clusters have zero OLM subscriptions matching the criteria.</div>
+            `;
+        }
+        tr.appendChild(td);
+        tableBody.appendChild(tr);
+        return;
+    }
+
     data.operators.forEach(op => {
         const tr = document.createElement('tr');
 

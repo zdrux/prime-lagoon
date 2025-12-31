@@ -67,21 +67,42 @@
 
         <div style="margin-top:2rem; border-top:1px solid var(--border-color); padding-top:1.5rem;">
             <h5 style="margin-bottom:1rem; opacity:0.8;">Data Breakdown</h5>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; margin-bottom: 1rem;">
                 <div class="card"
                     style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
-                        <span style="opacity:0.7;">Snapshots (JSON)</span>
-                        <strong id="db-snap-data">- MB</strong>
+                        <span style="opacity:0.7;">Operator Data (CSVs & Subscriptions)</span>
+                        <strong id="db-op-data">- MB</strong>
                     </div>
                     <div class="progress-bar-container" style="height:8px;">
-                        <div id="db-snap-bar" class="progress-bar" style="width: 0%"></div>
+                        <div id="db-op-bar" class="progress-bar" style="width: 0%; background:var(--accent-color);">
+                        </div>
                     </div>
                 </div>
                 <div class="card"
                     style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
-                        <span style="opacity:0.7;">Application Data & Logic</span>
+                        <span style="opacity:0.7;">Cluster Inventory (Nodes, Projects, etc.)</span>
+                        <strong id="db-inv-data">- MB</strong>
+                    </div>
+                    <div class="progress-bar-container" style="height:8px;">
+                        <div id="db-inv-bar" class="progress-bar" style="width: 0%; background:#10b981;"></div>
+                    </div>
+                </div>
+                <div class="card"
+                    style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.7;">Audit & Compliance History</span>
+                        <strong id="db-audit-data">- MB</strong>
+                    </div>
+                    <div class="progress-bar-container" style="height:8px;">
+                        <div id="db-audit-bar" class="progress-bar" style="width: 0%; background:#f59e0b;"></div>
+                    </div>
+                </div>
+                <div class="card"
+                    style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
+                        <span style="opacity:0.7;">DB Overhead & App Logic</span>
                         <strong id="db-other-data">- MB</strong>
                     </div>
                     <div class="progress-bar-container" style="height:8px;">
@@ -91,7 +112,7 @@
                 </div>
             </div>
             <div style="margin-top:1rem; font-size:0.75rem; opacity:0.5; text-align:right;">
-                * Other includes License History, Compliance Results, and DB Overhead (approx).
+                * Operator data is estimated based on common OLM resource patterns in snapshots.
             </div>
         </div>
 
@@ -103,11 +124,10 @@
                     style="font-family:monospace; font-size:0.85rem; opacity:0.8; background:var(--bg-primary); padding:0.2rem 0.5rem; border-radius:4px;">-</span>
             </div>
             <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.6; margin:0;">
-                <i class="fas fa-info-circle"></i> This database stores cluster inventory snapshots and audit logs.
-                Storage usage increases over time as new snapshots are taken. You can manage data retention in the
-                <a href="/admin?tab=snapshots"
-                    style="color:var(--accent-color); text-decoration:none; font-weight:600;">Snapshots >
-                    Snapshots</a> tab by deleting historical data.
+                <i class="fas fa-info-circle"></i> This database stores cluster inventory snapshots, compliance results,
+                and license usage history. Storage usage increases over time as new snapshots are taken.
+                The <strong>Retention Policy</strong> now automatically cleans up old records across all categories
+                to keep the database lean.
             </p>
         </div>
     </div>
@@ -182,13 +202,30 @@
                 }
 
                 // Breakdown
-                snapDataEl.innerText = data.snapshot_data_mb + ' MB';
+                const opDataEl = document.getElementById('db-op-data');
+                const opBarEl = document.getElementById('db-op-bar');
+                const invDataEl = document.getElementById('db-inv-data');
+                const invBarEl = document.getElementById('db-inv-bar');
+                const auditDataEl = document.getElementById('db-audit-data');
+                const auditBarEl = document.getElementById('db-audit-bar');
+                const otherDataEl = document.getElementById('db-other-data');
+                const otherBarEl = document.getElementById('db-other-bar');
+
+                const auditHistoryMb = (data.usage_data_mb || 0) + (data.compliance_data_mb || 0);
+
+                opDataEl.innerText = data.op_data_mb + ' MB';
+                invDataEl.innerText = data.inventory_data_mb + ' MB';
+                auditDataEl.innerText = auditHistoryMb.toFixed(2) + ' MB';
                 otherDataEl.innerText = data.other_data_mb + ' MB';
 
-                const snapPct = (data.snapshot_data_mb / data.file_size_mb * 100) || 0;
+                const opPct = (data.op_data_mb / data.file_size_mb * 100) || 0;
+                const invPct = (data.inventory_data_mb / data.file_size_mb * 100) || 0;
+                const auditPct = (auditHistoryMb / data.file_size_mb * 100) || 0;
                 const otherPct = (data.other_data_mb / data.file_size_mb * 100) || 0;
 
-                snapBarEl.style.width = snapPct + '%';
+                opBarEl.style.width = opPct + '%';
+                invBarEl.style.width = invPct + '%';
+                auditBarEl.style.width = auditPct + '%';
                 otherBarEl.style.width = otherPct + '%';
             } else {
                 sizeEl.innerText = 'Error';

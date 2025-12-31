@@ -274,9 +274,19 @@ def bulk_delete_snapshots(request: BulkDeleteRequest, session: Session = Depends
     for ts_str in request.group_ids:
         try:
             ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+            # Delete Related Data
+            from app.models import LicenseUsage, ComplianceScore
+            session.execute(select(LicenseUsage).where(LicenseUsage.timestamp == ts_str)) # LicenseUsage uses string timestamp
+            
+            # Snapshots
             statement = select(ClusterSnapshot).where(ClusterSnapshot.timestamp == ts)
             snaps = session.exec(statement).all()
             for s in snaps:
+                # Delete related LicenseUsage for this cluster/timestamp
+                session.execute(text("DELETE FROM licenseusage WHERE cluster_id = :cid AND timestamp = :ts"), {"cid": s.cluster_id, "ts": ts_str})
+                # Delete related ComplianceScore
+                session.execute(text("DELETE FROM compliancescore WHERE cluster_id = :cid AND timestamp = :ts"), {"cid": s.cluster_id, "ts": ts_str})
+                
                 session.delete(s)
                 deleted_count += 1
         except Exception as e:
@@ -291,7 +301,15 @@ def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_se
     """Deletes snapshots older than X days."""
     from datetime import datetime, timedelta
     cutoff = datetime.utcnow() - timedelta(days=request.days)
+    cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
     
+    from sqlalchemy import text
+    # Delete related records based on timestamp
+    # Note: Compliance/License tables use string timestamps
+    session.execute(text("DELETE FROM licenseusage WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
+    session.execute(text("DELETE FROM compliancescore WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
+    
+    # Delete Snapshots
     statement = select(ClusterSnapshot).where(ClusterSnapshot.timestamp < cutoff)
     results = session.exec(statement).all()
     
@@ -361,6 +379,27 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
     usage_size_bytes = session.exec(select(func.sum(func.length(LicenseUsage.details_json)))).one() or 0
     compliance_size_bytes = session.exec(select(func.sum(func.length(ComplianceScore.results_json)))).one() or 0
     
+    # ESTIMATE Operator portion within snapshots (sum of lengths of csvs + subscriptions keys)
+    # We'll use a rough estimation if json_extract is not performing well or available
+    # For this demo, let's try to fetch a few samples and calculate average ratio
+    op_ratio = 0.4 # Default estimate: 40% of snapshot data is OLM data (CSVs are bulky)
+    try:
+        sample = session.exec(select(ClusterSnapshot.data_json).limit(5)).all()
+        if sample:
+            ratios = []
+            for sj in sample:
+                try:
+                    d = json.loads(sj)
+                    full_len = len(sj)
+                    op_len = len(json.dumps(d.get("csvs", []))) + len(json.dumps(d.get("subscriptions", [])))
+                    if full_len > 0: ratios.append(op_len / full_len)
+                except: continue
+            if ratios: op_ratio = sum(ratios) / len(ratios)
+    except: pass
+
+    op_data_bytes = int(snapshot_size_bytes * op_ratio)
+    inventory_data_bytes = snapshot_size_bytes - op_data_bytes
+
     total_json_bytes = snapshot_size_bytes + usage_size_bytes + compliance_size_bytes
     other_size_bytes = max(0, size_bytes - total_json_bytes)
     
@@ -374,6 +413,8 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
         "cluster_count": cluster_count,
         "snapshot_count": snapshot_count,
         "snapshot_data_mb": round(snapshot_size_bytes / (1024 * 1024), 2),
+        "op_data_mb": round(op_data_bytes / (1024 * 1024), 2),
+        "inventory_data_mb": round(inventory_data_bytes / (1024 * 1024), 2),
         "usage_data_mb": round(usage_size_bytes / (1024 * 1024), 2),
         "compliance_data_mb": round(compliance_size_bytes / (1024 * 1024), 2),
         "other_data_mb": round(other_size_bytes / (1024 * 1024), 2),

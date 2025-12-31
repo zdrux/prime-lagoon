@@ -64,7 +64,16 @@ def cleanup_old_snapshots(session: Session):
     
     logger.info(f"Running automated cleanup (Retention: {days} days)...")
     cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
     
+    from sqlalchemy import text
+    from app.models import LicenseUsage, ComplianceScore
+
+    # 1. Delete associated data
+    session.execute(text("DELETE FROM licenseusage WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
+    session.execute(text("DELETE FROM compliancescore WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
+
+    # 2. Snapshots
     statement = select(ClusterSnapshot).where(ClusterSnapshot.timestamp < cutoff)
     old_snapshots = session.exec(statement).all()
     

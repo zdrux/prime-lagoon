@@ -199,32 +199,7 @@ function refreshCurrentView() {
     // Fallback: Reload the entire page if we don't have a specific refresh handler
     window.location.reload();
 }
-// If resource table is visible
-// If resource table is visible
-const tableTitle = document.getElementById('resource-table-title');
-if (tableTitle && tableTitle.innerText.includes('Inventory')) {
-    // Should be covered by loadSummary if it's main inventory, 
-    // but if it's a specific resource view:
-    // We need to store current clusterId and resourceType in global or URL?
-    // URL search params are source of truth for view
-    const params = new URLSearchParams(window.location.search);
-    const cId = params.get('cluster_id');
-    const rType = params.get('resource_type');
-    if (cId && rType) {
-        loadResource(cId, rType);
-    }
-} else {
-    // Fallback catch-all for other views
-    const params = new URLSearchParams(window.location.search);
-    const cId = params.get('cluster_id');
-    const rType = params.get('resource_type');
-    if (cId && rType) {
-        loadResource(cId, rType);
-    } else {
-        loadSummary();
-    }
-}
-}
+
 
 async function loadSummary() {
     const summaryDiv = document.getElementById('dashboard-summary');

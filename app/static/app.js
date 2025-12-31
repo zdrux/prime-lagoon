@@ -157,11 +157,26 @@ function toggleTimeTravel(timestamp) {
         document.body.classList.remove('historical-mode');
     }
 
-    // Refresh current view
-    // Detect what we are viewing
+    // 1. Dashboard Summary
     const dashboardSummary = document.getElementById('dashboard-summary');
-    if (dashboardSummary && dashboardSummary.style.display !== 'none') {
+    if (dashboardSummary) {
         loadSummary();
+        return;
+    }
+
+    // 2. Operator Matrix
+    if (typeof loadMatrix === 'function') {
+        loadMatrix();
+        // Since loadMatrix is likely in operators.js which might not be loaded yet or at all
+        // It's safer to check for the container
+    }
+    const matrixContainer = document.getElementById('matrix-container');
+    if (matrixContainer) {
+        if (typeof loadMatrix === 'function') {
+            loadMatrix();
+        } else {
+            window.location.reload(); // Fallback
+        }
         return;
     }
 
@@ -193,6 +208,7 @@ function toggleTimeTravel(timestamp) {
 
 async function loadSummary() {
     const summaryDiv = document.getElementById('dashboard-summary');
+    if (!summaryDiv) return;
     try {
         if (window.currentSnapshotTime) {
             url += `?snapshot_time=${window.currentSnapshotTime}`;
@@ -344,7 +360,9 @@ async function loadSummary() {
         updateGlobalSummary();
 
     } catch (e) {
-        summaryDiv.innerHTML = `<div class="card" style="color:var(--danger-color);">Error loading summary: ${e.message}</div>`;
+        if (summaryDiv) {
+            summaryDiv.innerHTML = `<div class="card" style="color:var(--danger-color);">Error loading summary: ${e.message}</div>`;
+        }
     }
 }
 

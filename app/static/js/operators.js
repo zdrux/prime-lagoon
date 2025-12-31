@@ -6,7 +6,11 @@ let allData = null; // Store for filtering
 
 async function loadMatrix() {
     try {
-        const response = await fetch('/api/operators/matrix');
+        let url = '/api/operators/matrix';
+        if (window.currentSnapshotTime) {
+            url += `?snapshot_time=${window.currentSnapshotTime}`;
+        }
+        const response = await fetch(url);
         const data = await response.json();
         allData = data;
         renderMatrix(data);

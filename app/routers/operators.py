@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 from datetime import datetime
 
@@ -13,10 +13,10 @@ router = APIRouter(
 )
 
 @router.get("/matrix")
-def get_operator_matrix(session: Session = Depends(get_session)):
+def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = Depends(get_session)):
     """
     Returns a matrix of installed operators across all clusters.
-    Data is sourced from the latest successful snapshot for each cluster.
+    Data is sourced from the latest successful snapshot (or specific snapshot_time) for each cluster.
     """
     clusters = session.exec(select(Cluster)).all()
     
@@ -38,13 +38,23 @@ def get_operator_matrix(session: Session = Depends(get_session)):
         "clusters": [],
         "operators": {}
     }
+
+    target_ts = None
+    if snapshot_time:
+        try:
+            target_ts = datetime.strptime(snapshot_time, "%Y-%m-%d %H:%M:%S")
+        except:
+            pass
     
     for cluster in clusters:
-        # Get latest snapshot
-        snap = session.exec(select(ClusterSnapshot).where(
-            ClusterSnapshot.cluster_id == cluster.id,
-            ClusterSnapshot.status == "Success"
-        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+        # Get snapshot
+        query = select(ClusterSnapshot).where(ClusterSnapshot.cluster_id == cluster.id)
+        if target_ts:
+            query = query.where(ClusterSnapshot.timestamp == target_ts)
+        else:
+            query = query.where(ClusterSnapshot.status == "Success").order_by(ClusterSnapshot.timestamp.desc())
+        
+        snap = session.exec(query.limit(1)).first()
         
         cluster_info = {
             "id": cluster.id,

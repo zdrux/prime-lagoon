@@ -90,7 +90,6 @@ function renderMatrix(data) {
         tdName.className = 'op-name-col';
         tdName.innerHTML = `
             <div style="font-weight:600;">${op.displayName}</div>
-            <div style="font-size:0.75rem; opacity:0.6;">${op.provider}</div>
         `;
         tr.appendChild(tdName);
 
@@ -210,8 +209,7 @@ function applyFilters() {
     if (term) {
         const opMatches = allData.operators.filter(op =>
             op.displayName.toLowerCase().includes(term) ||
-            op.name.toLowerCase().includes(term) ||
-            op.provider.toLowerCase().includes(term)
+            op.name.toLowerCase().includes(term)
         );
 
         // Smart Search Logic:
@@ -242,6 +240,54 @@ function applyFilters() {
 // Replace old filter function
 function filterOperators() {
     applyFilters();
+}
+
+function openOpModal(op, clusterName) {
+    const install = op.installations[clusterName];
+    if (!install) return;
+
+    document.getElementById('op-modal-title').innerText = op.displayName;
+    document.getElementById('op-modal-name').innerText = op.name;
+    document.getElementById('op-modal-cluster').innerText = clusterName;
+    document.getElementById('op-modal-namespace').innerText = install.namespace || '-';
+    document.getElementById('op-modal-approval').innerText = install.approval || '-';
+    document.getElementById('op-modal-version').innerText = install.version || '-';
+    document.getElementById('op-modal-channel').innerText = install.channel || '-';
+    document.getElementById('op-modal-source').innerText = install.source || '-';
+
+    const statusPill = document.getElementById('op-modal-status-pill');
+    const statusText = document.getElementById('op-modal-status-text');
+    statusText.innerText = install.status || 'Unknown';
+
+    // Simple color logic for status
+    if (install.status === 'Succeeded') {
+        statusPill.style.background = '#10b981'; // Green
+    } else if (install.status === 'Failed') {
+        statusPill.style.background = '#ef4444'; // Red
+    } else {
+        statusPill.style.background = '#eab308'; // Warning
+    }
+
+    const crdsContainer = document.getElementById('op-modal-crds');
+    crdsContainer.innerHTML = '';
+    if (install.managed_crds && install.managed_crds.length > 0) {
+        install.managed_crds.forEach(crd => {
+            const div = document.createElement('div');
+            div.style.padding = '0.5rem';
+            div.style.background = 'rgba(255,255,255,0.03)';
+            div.style.border = '1px solid var(--border-color)';
+            div.style.borderRadius = '4px';
+            div.innerHTML = `
+                <div style="font-weight:600; font-size:0.85rem;">${crd.displayName || crd.kind}</div>
+                <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${crd.name}</div>
+            `;
+            crdsContainer.appendChild(div);
+        });
+    } else {
+        crdsContainer.innerHTML = '<div style="opacity:0.5; font-style:italic; font-size:0.9rem;">No managed resources reported.</div>';
+    }
+
+    modal.style.display = 'block';
 }
 
 function closeOpModal() {

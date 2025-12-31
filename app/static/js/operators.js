@@ -98,10 +98,8 @@ function renderMatrix(data) {
             }
             tr.appendChild(td);
         });
+        tableBody.appendChild(tr);
     });
-
-    tableBody.appendChild(tr);
-});
 }
 
 function getMode(array) {

@@ -139,14 +139,14 @@ def parse_cpu(cpu_val: Any) -> float:
     except Exception:
         return 0.0
 
-def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None):
+def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None, timeout: int = 60):
     """
     Generic fetcher with enrichment for specific types.
     """
     dyn_client = get_dynamic_client(cluster)
     resource_api = dyn_client.resources.get(api_version=api_version, kind=kind)
     
-    resp = resource_api.get(namespace=namespace)
+    resp = resource_api.get(namespace=namespace, _request_timeout=timeout)
     items = resp.items
     
     # Enrichment

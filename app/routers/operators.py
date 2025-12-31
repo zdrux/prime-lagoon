@@ -58,7 +58,14 @@ def get_operator_matrix(session: Session = Depends(get_session)):
                 data = json.loads(snap.data_json)
                 subs = data.get("subscriptions", [])
                 csvs = data.get("csvs", [])
+                errors = data.get("__errors", {})
                 
+                # Check if we have specific errors for OLM resources
+                if errors.get("subscriptions") == "Forbidden" or errors.get("csvs") == "Forbidden":
+                    cluster_info["auth_error"] = True
+                else:
+                    cluster_info["auth_error"] = False
+
                 # Create a lookup for CSVs by name (metadata.name)
                 # csvs is a list of minified objects from poller
                 csv_map = {c["metadata"]["name"]: c for c in csvs if "metadata" in c and "name" in c["metadata"]}

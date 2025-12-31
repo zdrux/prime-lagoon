@@ -36,8 +36,15 @@ function renderMatrix(data) {
     data.clusters.forEach(c => {
         const th = document.createElement('th');
         th.className = 'cluster-header';
+
+        let label = c.name;
+        let warningHtml = '';
+        if (c.auth_error) {
+            warningHtml = `<i class="fas fa-exclamation-triangle" style="color:var(--warning-color); font-size:0.8rem; margin-right:4px;" title="Permission denied for Operator API"></i>`;
+        }
+
         // HTML trick for rotated text
-        th.innerHTML = `<div><span title="${c.name}">${c.name}</span></div>`;
+        th.innerHTML = `<div>${warningHtml}<span title="${c.name}">${label}</span></div>`;
         tableHead.appendChild(th);
     });
 

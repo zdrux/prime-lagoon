@@ -135,9 +135,29 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
                     snapshot_data[key] = minified_csvs
                 else:
                     snapshot_data[key] = resource_list
+
             except Exception as e:
-                logger.error(f"Error fetching {key} for {cluster.name}: {e}")
+                # Check for Forbidden (403)
+                is_forbidden = False
+                error_str = str(e)
+                if "403" in error_str or "Forbidden" in error_str:
+                    is_forbidden = True
+                
+                if is_forbidden:
+                    logger.warning(f"Permission denied fetching {key} for {cluster.name}")
+                    if "__errors" not in snapshot_data:
+                        snapshot_data["__errors"] = {}
+                    snapshot_data["__errors"][key] = "Forbidden"
+                elif "ReadTimeoutError" in error_str or "Timeout" in error_str or "timed out" in error_str:
+                    logger.warning(f"Timeout fetching {key} for {cluster.name}")
+                    if "__errors" not in snapshot_data:
+                        snapshot_data["__errors"] = {}
+                    snapshot_data["__errors"][key] = "Timeout"
+                else:
+                    logger.error(f"Error fetching {key} for {cluster.name}: {e}")
+                
                 snapshot_data[key] = []
+                # Partial status is still appropriate
                 status = "Partial"
 
         # 2. Calculate Stats from collected resources

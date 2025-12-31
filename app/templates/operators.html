@@ -36,9 +36,16 @@
         <button class="filter-btn" onclick="toggleOperatorFilter(this, 'HCI')"
             style="font-size:0.8rem; padding:0.4rem 0.8rem;">HCI</button>
 
+        <!-- Snapshot Timestamp -->
+        <div id="snapshot-timestamp-indicator"
+            style="margin-left:auto; font-size: 0.75rem; color: var(--text-secondary); opacity: 0.8; display:none;">
+            <i class="fas fa-clock" style="margin-right:0.4rem; opacity:0.5;"></i>
+            Data as of: <span id="snapshot-time-display" style="font-weight:600; color:var(--accent-color);"></span>
+        </div>
+
         <!-- Legend (Aligned Right) -->
         <div
-            style="margin-left:auto; display:flex; gap: 1rem; font-size: 0.75rem; padding: 0.4rem 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color); height: fit-content;">
+            style="margin-left:1rem; display:flex; gap: 1rem; font-size: 0.75rem; padding: 0.4rem 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color); height: fit-content;">
             <div style="display:flex; align-items:center; gap: 0.4rem;">
                 <span class="ver-pill ver-match" style="cursor:default; font-size:0.7rem;">Version</span>
                 <span style="color:var(--text-secondary);">Consensus</span>

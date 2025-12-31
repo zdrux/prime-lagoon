@@ -14,6 +14,14 @@ async function loadMatrix() {
         const data = await response.json();
         allData = data;
         renderMatrix(data);
+
+        if (data.snapshot_time) {
+            document.getElementById('snapshot-time-display').innerText = formatTimestamp(data.snapshot_time);
+            document.getElementById('snapshot-timestamp-indicator').style.display = 'block';
+        } else {
+            document.getElementById('snapshot-timestamp-indicator').style.display = 'none';
+        }
+
         document.getElementById('loading-matrix').style.display = 'none';
         document.getElementById('matrix-container').style.display = 'block';
     } catch (error) {
@@ -223,6 +231,19 @@ function applyFilters() {
     renderMatrix({
         clusters: filteredClusters,
         operators: filteredOps
+    });
+}
+
+function formatTimestamp(isoStr) {
+    if (!isoStr) return '';
+    const date = new Date(isoStr);
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
     });
 }
 

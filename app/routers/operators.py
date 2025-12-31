@@ -47,6 +47,7 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
         except:
             pass
     
+    latest_ts = None
     for cluster in clusters:
         # Get snapshot
         query = select(ClusterSnapshot).where(ClusterSnapshot.cluster_id == cluster.id)
@@ -57,6 +58,9 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
         
         snap = session.exec(query.limit(1)).first()
         
+        if snap and (not latest_ts or snap.timestamp > latest_ts):
+            latest_ts = snap.timestamp
+            
         cluster_info = {
             "id": cluster.id,
             "name": cluster.name,
@@ -172,5 +176,6 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     
     return {
         "clusters": matrix_data["clusters"],
-        "operators": op_list
+        "operators": op_list,
+        "snapshot_time": latest_ts.isoformat() if latest_ts else None
     }

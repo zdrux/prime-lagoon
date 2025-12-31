@@ -210,8 +210,11 @@ async function loadSummary() {
     const summaryDiv = document.getElementById('dashboard-summary');
     if (!summaryDiv) return;
     try {
+        let url = '/api/dashboard/summary';
+        let fastMode = false;
+
         if (window.currentSnapshotTime) {
-            url += `?snapshot_time=${window.currentSnapshotTime}`;
+            url += `?snapshot_time=${encodeURIComponent(window.currentSnapshotTime)}`;
         } else {
             // Live mode: use simple clusters list first for extreme speed
             url = '/api/dashboard/simple-clusters';

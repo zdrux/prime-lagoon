@@ -69,7 +69,9 @@ def get_cluster_resources(cluster_id: int, resource_type: str, snapshot_time: Op
     # Time Travel Logic
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            # Handle both T and space separators
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 data = json.loads(snap.data_json)
@@ -96,7 +98,8 @@ def get_cluster_details(cluster_id: int, snapshot_time: Optional[str] = Query(No
     snapshot_data = None
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -119,7 +122,8 @@ def get_node_details_endpoint(cluster_id: int, node_name: str, snapshot_time: Op
     snapshot_data = None
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -141,7 +145,8 @@ def get_machine_details_endpoint(cluster_id: int, machine_name: str, snapshot_ti
     snapshot_data = None
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -161,7 +166,8 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
     # Priority 1: Time Travel Snapshot
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 data = json.loads(snap.data_json)
@@ -235,7 +241,8 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     target_dt = None
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time, "%Y-%m-%dT%H:%M:%S")
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
         except:
             pass
 

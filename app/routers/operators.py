@@ -42,7 +42,8 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     target_ts = None
     if snapshot_time:
         try:
-            target_ts = datetime.strptime(snapshot_time, "%Y-%m-%d %H:%M:%S")
+            clean_ts = snapshot_time.replace("T", " ")
+            target_ts = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
         except:
             pass
     

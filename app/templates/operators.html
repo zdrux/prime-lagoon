@@ -92,9 +92,9 @@
             <button onclick="closeOpModal()" class="close-btn"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body" style="padding: 1.5rem;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div style="max-width: 600px; margin: 0 auto;">
 
-                <!-- Left: Installation Metadata -->
+                <!-- Installation Metadata -->
                 <div>
                     <h5
                         style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:1rem; color:var(--accent-color);">
@@ -142,18 +142,6 @@
                                 Source</label>
                             <span id="op-modal-source" style="font-size:0.85rem;">-</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Right: Managed Resources -->
-                <div>
-                    <h5
-                        style="margin-top:0; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-bottom:1rem; color:var(--accent-color);">
-                        <i class="fas fa-cubes"></i> Managed Resources (APIs)
-                    </h5>
-                    <div id="op-modal-crds"
-                        style="max-height: 300px; overflow-y: auto; display:flex; flex-direction:column; gap:0.5rem;">
-                        <!-- CRDs list here -->
                     </div>
                 </div>
             </div>

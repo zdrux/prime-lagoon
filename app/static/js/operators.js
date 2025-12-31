@@ -279,34 +279,36 @@ function openOpModal(op, clusterName) {
     }
 
     const crdsContainer = document.getElementById('op-modal-crds');
-    crdsContainer.innerHTML = '';
-    if (install.managed_crds && install.managed_crds.length > 0) {
-        install.managed_crds.forEach(crd => {
-            const div = document.createElement('div');
-            div.style.padding = '0.5rem';
-            div.style.background = 'rgba(255,255,255,0.03)';
-            div.style.border = '1px solid var(--border-color)';
-            div.style.borderRadius = '4px';
-            div.innerHTML = `
-                <div style="font-weight:600; font-size:0.85rem;">${crd.displayName || crd.kind}</div>
-                <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${crd.name}</div>
-            `;
-            crdsContainer.appendChild(div);
-        });
-    } else {
-        crdsContainer.innerHTML = '<div style="opacity:0.5; font-style:italic; font-size:0.9rem;">No managed resources reported.</div>';
+    if (crdsContainer) {
+        crdsContainer.innerHTML = '';
+        if (install.managed_crds && install.managed_crds.length > 0) {
+            install.managed_crds.forEach(crd => {
+                const div = document.createElement('div');
+                div.style.padding = '0.5rem';
+                div.style.background = 'rgba(255,255,255,0.03)';
+                div.style.border = '1px solid var(--border-color)';
+                div.style.borderRadius = '4px';
+                div.innerHTML = `
+                    <div style="font-weight:600; font-size:0.85rem;">${crd.displayName || crd.kind}</div>
+                    <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${crd.name}</div>
+                `;
+                crdsContainer.appendChild(div);
+            });
+        } else {
+            crdsContainer.innerHTML = '<div style="opacity:0.5; font-style:italic; font-size:0.9rem;">No managed resources reported.</div>';
+        }
     }
 
-    modal.style.display = 'block';
+    modal.classList.add('open');
 }
 
 function closeOpModal() {
-    modal.style.display = 'none';
+    modal.classList.remove('open');
 }
 
 // Close on outside click
 window.onclick = function (event) {
     if (event.target == modal) {
-        modal.style.display = "none";
+        modal.classList.remove('open');
     }
 }

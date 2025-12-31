@@ -186,23 +186,6 @@ function applyFilters() {
         });
     }
 
-    // Filter by Search (if search matches cluster name/metadata)
-    // We track if the search term *specifically* targets clusters to decide on operator filtering
-    const clusterMatchesTerm = term && filteredClusters.some(c =>
-        c.name.toLowerCase().includes(term) ||
-        (c.datacenter && c.datacenter.toLowerCase().includes(term)) ||
-        (c.environment && c.environment.toLowerCase().includes(term))
-    );
-
-    if (term && clusterMatchesTerm) {
-        // Refine clusters to only those matching the term
-        filteredClusters = filteredClusters.filter(c =>
-            c.name.toLowerCase().includes(term) ||
-            (c.datacenter && c.datacenter.toLowerCase().includes(term)) ||
-            (c.environment && c.environment.toLowerCase().includes(term))
-        );
-    }
-
     // 2. Determine Visible Operators
     let filteredOps = allData.operators;
 
@@ -212,22 +195,28 @@ function applyFilters() {
             op.name.toLowerCase().includes(term)
         );
 
-        // Smart Search Logic:
-        // - If search matches Operators, show those Operators (and all fitlered clusters).
-        // - If search ONLY matches Clusters (and no ops), show ALL Operators (for those clusters).
-        // - If search matches BOTH, show intersection.
-
         const hasOpMatches = opMatches.length > 0;
 
         if (hasOpMatches) {
-            // Term matched operators, so filter rows
+            // If term matches Operators, show those Operators across all button-filtered clusters.
             filteredOps = opMatches;
-        } else if (clusterMatchesTerm) {
-            // Term matched clusters but NO operators -> User is searching for a cluster column
-            // Show all operators (filteredOps remains allData.operators)
         } else {
-            // Matches nothing
-            filteredOps = [];
+            // If term matches NO operators, then try matching Cluster metadata
+            const clusterMatches = filteredClusters.filter(c =>
+                c.name.toLowerCase().includes(term) ||
+                (c.datacenter && c.datacenter.toLowerCase().includes(term)) ||
+                (c.environment && c.environment.toLowerCase().includes(term))
+            );
+
+            if (clusterMatches.length > 0) {
+                // User is likely searching for a specific cluster/environment
+                filteredClusters = clusterMatches;
+                // Since no ops matched, we show all ops (standard behavior for cluster search)
+                filteredOps = allData.operators;
+            } else {
+                // Matches nothing
+                filteredOps = [];
+            }
         }
     }
 

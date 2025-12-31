@@ -60,6 +60,8 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
         cluster_info = {
             "id": cluster.id,
             "name": cluster.name,
+            "environment": cluster.environment,
+            "datacenter": cluster.datacenter,
             "has_data": False,
             "data_collected": False
         }

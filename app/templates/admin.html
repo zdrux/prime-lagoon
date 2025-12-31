@@ -1053,6 +1053,17 @@
     }
     // Initialize from URL
     switchTab('{{ active_tab }}');
+
+    // Missing function to prevent errors
+    async function loadDbStats() {
+        // Since we are on the admin page, we might want to refresh global stats if they were visible.
+        // For now, this placeholder prevents ReferenceErrors after deletion.
+        console.log("Reloading DB stats...");
+        try {
+            // Optional: Fetch if we want to log or update a future widget
+            // const res = await fetch('/api/admin/db-stats'); 
+        } catch (e) { console.error(e); }
+    }
 </script>
 
 <!-- Token Instructions Modal -->

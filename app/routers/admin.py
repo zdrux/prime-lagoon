@@ -226,6 +226,10 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
             "groups": []
         }
 
+    from app.models import ComplianceScore
+    compliance_runs = session.exec(select(ComplianceScore.timestamp).where(ComplianceScore.timestamp.in_([ts.strftime("%Y-%m-%d %H:%M:%S") for ts in timestamps]))).all()
+    compliance_ts_set = set(compliance_runs)
+
     # 3. Fetch all snapshots for these timestamps
     statement = select(ClusterSnapshot, Cluster.name)\
         .join(Cluster, isouter=True)\
@@ -252,14 +256,32 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
             "status": "Success", # Will degrade if any child is partial/failed
             "total_nodes": 0,
             "total_vcpu": 0,
+            "collected_components": ["Cluster"], # Cluster always collected
             "snapshots": []
         }
+        
+        if ts_str in compliance_ts_set:
+            new_g["collected_components"].append("Compliance")
+            
         groups.append(new_g)
         return new_g
 
     for snap, c_name in results:
         g = get_or_create_group(snap.timestamp)
         
+        # Check for OLM data (Operator) only if not already detected for this group
+        if "Operator" not in g["collected_components"] and snap.data_json:
+            try:
+                # We only need to check one snapshot in the group usually, as it's a global toggle
+                # but let's be safe and check if 'csvs' OR 'subscriptions' keys exist
+                # To be fast, we don't need full parse if we just want to see if key exists in string
+                # but json.loads is safer.
+                data_sample = json.loads(snap.data_json)
+                if data_sample.get('csvs') or data_sample.get('subscriptions'):
+                    g["collected_components"].append("Operator")
+            except:
+                pass
+
         # Aggregate logic
         g['total_clusters'] += 1
         g['total_nodes'] += (snap.node_count or 0)

@@ -19,8 +19,7 @@ POLL_RESOURCES = {
     "clusteroperators": {"api_version": "config.openshift.io/v1", "kind": "ClusterOperator"},
     "infrastructures": {"api_version": "config.openshift.io/v1", "kind": "Infrastructure"},
     "clusterversions": {"api_version": "config.openshift.io/v1", "kind": "ClusterVersion"},
-    "subscriptions": {"api_version": "operators.coreos.com/v1alpha1", "kind": "Subscription"},
-    "csvs": {"api_version": "operators.coreos.com/v1alpha1", "kind": "ClusterServiceVersion"},
+    # OLM Resources are optional, defined in config
 }
 
 def poll_all_clusters(progress_callback=None):
@@ -33,13 +32,32 @@ def poll_all_clusters(progress_callback=None):
         clusters = session.exec(select(Cluster)).all()
         rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
         default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
+        
+        # Poll Config
+        collect_olm = (session.get(AppConfig, "SNAPSHOT_COLLECT_OLM") or AppConfig(value="True")).value.lower() == "true"
+        run_compliance = (session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE") or AppConfig(value="False")).value.lower() == "true"
+        
+        # Load Audit Rules if needed
+        audit_rules = []
+        audit_bundles = []
+        if run_compliance:
+            from app.models import AuditRule, AuditBundle
+            audit_rules = session.exec(select(AuditRule)).all()
+            audit_bundles = session.exec(select(AuditBundle)).all()
     
     total = len(clusters)
     for i, cluster in enumerate(clusters):
         try:
             if progress_callback:
                 progress_callback({"type": "cluster_start", "cluster": cluster.name, "index": i + 1, "total": total})
-            poll_cluster(cluster.id, rules, progress_callback, run_timestamp, default_include=default_include)
+            poll_cluster(
+                cluster.id, rules, progress_callback, run_timestamp, 
+                default_include=default_include,
+                collect_olm=collect_olm,
+                run_compliance=run_compliance,
+                audit_rules=audit_rules,
+                audit_bundles=audit_bundles
+            )
             if progress_callback:
                 progress_callback({"type": "cluster_end", "cluster": cluster.name})
         except Exception as e:
@@ -88,7 +106,17 @@ def cleanup_old_snapshots(session: Session):
     else:
         logger.info("No old snapshots to cleanup.")
 
-def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_timestamp=None, default_include=False):
+def poll_cluster(
+    cluster_id: int, 
+    rules: list, 
+    progress_callback=None, 
+    run_timestamp=None, 
+    default_include=False,
+    collect_olm=True,
+    run_compliance=False,
+    audit_rules=None,
+    audit_bundles=None
+):
     """Fetches all resources for a cluster, saves snapshot, and updates license usage."""
     if run_timestamp is None:
         run_timestamp = datetime.utcnow()
@@ -104,8 +132,20 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
         
         # 1. Fetch all resources
         res_keys = list(POLL_RESOURCES.keys())
+        
+        # Add Optional Resources
+        if collect_olm:
+            res_keys.append("subscriptions")
+            res_keys.append("csvs")
+
         for i, key in enumerate(res_keys):
-            meta = POLL_RESOURCES[key]
+            if key in POLL_RESOURCES:
+                meta = POLL_RESOURCES[key]
+            elif key == "subscriptions":
+                meta = {"api_version": "operators.coreos.com/v1alpha1", "kind": "Subscription"}
+            elif key == "csvs":
+                meta = {"api_version": "operators.coreos.com/v1alpha1", "kind": "ClusterServiceVersion"}
+            
             try:
                 if progress_callback:
                     progress_callback({
@@ -216,4 +256,13 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
         session.add(snapshot)
         
         session.commit()
+        session.commit()
         logger.info(f"Snapshot saved for {cluster.name}")
+
+        # 5. Run Compliance checks (if enabled)
+        if run_compliance and audit_rules:
+            from app.services.compliance import evaluate_cluster_compliance
+            try:
+                evaluate_cluster_compliance(session, cluster, audit_rules, audit_bundles)
+            except Exception as e:
+                logger.error(f"Failed to run compliance for {cluster.name}: {e}")

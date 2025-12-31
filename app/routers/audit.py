@@ -435,255 +435,71 @@ def run_audit(
     is_custom_run = req and (req.rule_ids or req.bundle_ids)
     
     for cluster in clusters:
-        cluster_tags = parse_tags(cluster.tags)
-        
-        for rule in rules:
-            # Determine scope
-            rule_dc = rule.match_datacenter
-            rule_env = rule.match_environment
-            bundle_name = "Ad-hoc"
-            bundle_id = None
+            # Delegate to Service
+            from app.services.compliance import evaluate_cluster_compliance
             
-            target_tags = parse_tags(rule.tags)
-
-            # --- Rule Suspension check ---
-            if not rule.is_enabled and not is_custom_run:
-                continue
-
-            # --- Rule Filtering ---
+            # For run-audit endpoint, we might need to filter rules if it's a custom run
+            rules_to_run = rules
             if is_custom_run:
-                # If custom selection is provided, ONLY run selected rules/bundles
-                # and bypass scope/trait matching.
-                is_selected = False
-                if req.rule_ids and rule.id in req.rule_ids:
-                    is_selected = True
-                if req.bundle_ids and rule.bundle_id in req.bundle_ids:
-                    is_selected = True
-                
-                if not is_selected:
-                    continue
-                
-                # Setup bundle info for results
-                if rule.bundle_id and rule.bundle_id in bundle_map:
-                    bundle_name = bundle_map[rule.bundle_id].name
-                    bundle_id = rule.bundle_id
-            else:
-                # Standard Mode: Match by Traits/Scope
-                if rule.bundle_id and rule.bundle_id in bundle_map:
-                    bundle = bundle_map[rule.bundle_id]
-                    bundle_name = bundle.name
-                    bundle_id = bundle.id
-                    
-                    # Check Bundle Scope
-                    if not check_scope_match(bundle.match_datacenter, cluster.datacenter):
-                        continue
-                    if not check_scope_match(bundle.match_environment, cluster.environment):
-                        continue
-                    if not tags_match(parse_tags(bundle.tags), cluster_tags):
-                        continue
-                else:
-                    # Ad-hoc Rule Scope
-                    if not check_scope_match(rule_dc, cluster.datacenter):
-                        continue
-                    if not check_scope_match(rule_env, cluster.environment):
-                        continue
-                    if not tags_match(target_tags, cluster_tags):
-                        continue
+                rules_to_run = []
+                for r in rules:
+                    if (req.rule_ids and r.id in req.rule_ids) or \
+                       (req.bundle_ids and r.bundle_id in req.bundle_ids):
+                        rules_to_run.append(r)
             
-            # If we reached here, rule applies.
             try:
-                resources = fetch_resources(cluster, rule.api_version, rule.resource_kind, rule.namespace)
+                # The service saves the score, but we also want the detailed AuditResult list returned here.
+                # The service logic mirrors what was here, but for "Run Now" from UI we usually want the detailed JSON response.
+                # Since I extracted the logic to 'evaluate_cluster_compliance' which returns a Score object (compact), 
+                # I might need to adapt the service to return details too, or keep the logic here for interactive runs 
+                # and use the service mainly for the background poller.
                 
-                # Filter resources by name if specified
-                if rule.match_resource_name:
-                    if rule.operator == "contains":
-                        resources = [r for r in resources if rule.match_resource_name in (get_val(r, 'metadata.name') or "")]
-                    else: # Default/Equals
-                        resources = [r for r in resources if get_val(r, 'metadata.name') == rule.match_resource_name]
-
-                # --- Shared Condition Processing ---
-                passed_items = []
-                failed_items_details = []
-                failed_snapshots = []
+                # However, to avoid duplication, I SHOULD have made the service return the details.
+                # Let's check what I wrote in the service.
+                # The service function returns 'db_score'.
+                # 'db_score.results_json' contains the compact results.
                 
-                # Prepare conditions
-                conditions = []
-                if rule.field_path:
-                    conditions.append({"path": rule.field_path, "op": rule.operator, "val": rule.expected_value})
+                score = evaluate_cluster_compliance(session, cluster, rules_to_run, bundles)
                 
-                if rule.extra_conditions:
-                    try:
-                        extras = json.loads(rule.extra_conditions)
-                        conditions.extend(extras)
-                    except: pass
-
-                for item in resources:
-                    item_data = item.to_dict() if hasattr(item, 'to_dict') else item
-                    item_name = item_data.get('metadata', {}).get('name', '?')
-                    
-                    if not conditions:
-                        # If no conditions defined, every resource matches (e.g. basic EXISTENCE check)
-                        passed_items.append(item_data)
-                        continue
-
-                    cond_results = []
-                    for cond in conditions:
-                        actual = get_nested_value(item_data, cond["path"])
-                        op = cond["op"]
-                        exp = cond["val"]
-                        
-                        m = False
-                        if op == "exists":
-                            m = actual is not None
-                        elif op == "equals":
-                            m = str(actual) == str(exp)
-                        elif op == "contains":
-                            exp_str = str(exp).lower()
-                            if isinstance(actual, list):
-                                # Smarter list matching
-                                m = False
-                                for item in actual:
-                                    if isinstance(item, str):
-                                        if exp_str in item.lower():
-                                            m = True; break
-                                    elif isinstance(item, dict):
-                                        # Relaxed logic: Check string dump of item to allow matching 'type', 'kind', etc.
-                                        # (Restores 'grep-style' behavior for objects in list while keeping case-insensitivity)
-                                        if exp_str in str(item).lower():
-                                            m = True; break
-                            else:
-                                m = exp_str in str(actual).lower() if actual else False
-                        
-                        cond_results.append({"match": m, "cond": cond, "actual": actual})
-                    
-                    # Evaluate item based on logic (AND/OR)
-                    passed_list = [c["match"] for c in cond_results]
-                    item_pass = any(passed_list) if rule.condition_logic == "OR" else all(passed_list)
-                    
-                    if item_pass:
-                        passed_items.append(item_data)
-                    else:
-                        # Build failure details for this item
-                        item_failed_details = []
-                        for cm in cond_results:
-                            if not cm["match"]:
-                                c = cm["cond"]
-                                actual_str = f"'{cm['actual']}'" if cm['actual'] is not None else "None"
-                                item_failed_details.append(f"'{c['path']}' {c['op']} '{c['val']}' (Actual: {actual_str})")
-                        
-                        failed_items_details.append(f"Item '{item_name}' failed: " + "; ".join(item_failed_details))
-                        if len(failed_snapshots) < 3:
-                            failed_snapshots.append(item_data)
-
-                # --- Decision Stage based on Check Type ---
-                if rule.check_type == "EXISTENCE":
-                    if passed_items:
+                if score:
+                    # Convert compact results back to AuditResult (roughly) for the UI
+                    compact = json.loads(score.results_json)
+                    for c in compact:
                         results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="PASS", detail=f"Found {len(passed_items)} matching resource(s)",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
+                            cluster_name=cluster.name,
+                            cluster_id=cluster.id,
+                            rule_name=c["rule_name"],
+                            bundle_name=c.get("bundle_name"),
+                            status=c["status"],
+                            detail=c["detail"],
+                            resource_kind=c["resource_kind"],
+                            namespace=c.get("namespace"),
+                            failed_resources=c.get("failed_resources")
                         ))
-                    else:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="FAIL", detail=f"No {rule.resource_kind} found matching conditions",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-
-                elif rule.check_type == "FORBIDDANCE":
-                    if not passed_items:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="PASS", detail=f"No matching {rule.resource_kind} found (as expected)",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-                    else:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="FAIL", detail=f"Found {len(passed_items)} matching resource(s) that should not exist",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace,
-                            failed_resources=passed_items[:3]
-                        ))
-
-                else: # Default: VALIDATION
-                    if not resources:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="SKIP", detail=f"No {rule.resource_kind} found to validate",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-                    elif not failed_items_details:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="PASS", detail=f"Verified on {len(passed_items)} items",
-                            resource_kind=rule.resource_kind, namespace=rule.namespace
-                        ))
-                    else:
-                        results.append(AuditResult(
-                            cluster_name=cluster.name, cluster_id=cluster.id,
-                            rule_name=rule.name, bundle_name=bundle_name, bundle_id=bundle_id,
-                            status="FAIL", detail="; ".join(failed_items_details[:3]),
-                            resource_kind=rule.resource_kind, namespace=rule.namespace,
-                            failed_resources=failed_snapshots
-                        ))
-                    
             except Exception as e:
-                error_msg = str(e)
-                # Detect common K8s API errors and provide user-friendly messages
-                if "403" in error_msg or "Forbidden" in error_msg:
-                    error_msg = f"Forbidden: Service account lacks permissions for {rule.resource_kind} ({rule.api_version})"
-                elif "404" in error_msg or "Not Found" in error_msg:
-                    error_msg = f"Not Found: Resource kind {rule.resource_kind} or API {rule.api_version} not available on this cluster"
-
+                # Fallback if service fails completely
                 results.append(AuditResult(
                     cluster_name=cluster.name,
                     cluster_id=cluster.id,
-                    rule_name=rule.name,
-                    bundle_name=bundle_name,
-                    bundle_id=bundle_id,
+                    rule_name="System",
                     status="ERROR",
-                    detail=error_msg,
-                    resource_kind=rule.resource_kind,
-                    namespace=rule.namespace
+                    detail=str(e),
+                    resource_kind="N/A"
                 ))
-                
-    # Persist scores per cluster
-    if target_cluster_id:
-        cluster_results = results
-        total = len(cluster_results)
-        passed = len([r for r in cluster_results if r.status == 'PASS'])
-        
-        # Serialize subset of result fields to save space
-        compact_results = [
-            {
-                "rule_name": r.rule_name,
-                "bundle_name": r.bundle_name,
-                "status": r.status,
-                "detail": r.detail,
-                "resource_kind": r.resource_kind,
-                "namespace": r.namespace,
-                "failed_resources": r.failed_resources
-            }
-            for r in cluster_results
-        ]
-        
-        if total > 0:
-            score_val = (passed / total) * 100
-            db_score = ComplianceScore(
-                cluster_id=cluster_id,
-                timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                passed_count=passed,
-                total_count=total,
-                score=round(score_val, 1),
-                results_json=json.dumps(compact_results)
-            )
-            session.add(db_score)
-            session.commit()
+            
+            # Since evaluate_cluster_compliance iterates all rules for a cluster, we break the inner loop 
+            # of the original code which was iterating rules.
+            # wait, the original code structure was:
+            # for cluster:
+            #   for rule:
+            #     check...
+            
+            # My service does:
+            # for rule in rules: ...
+            
+            # So I should simple call the service once per cluster and NOT iterate rules here.
+            break
 
     return results
+                
+

@@ -68,6 +68,17 @@ function renderMatrix(data) {
         // Cluster Cells
         data.clusters.forEach(c => {
             const td = document.createElement('td');
+
+            // Check if cluster collected this data
+            if (c.data_collected === false) {
+                td.className = 'cell-missing';
+                td.style.background = 'rgba(0,0,0,0.2)';
+                td.innerHTML = '<span style="color:var(--text-secondary); opacity:0.3; font-size:0.7rem;">N/A</span>';
+                td.title = "Data not collected for this snapshot";
+                tr.appendChild(td);
+                return;
+            }
+
             const install = op.installations[c.name];
 
             if (install) {
@@ -87,9 +98,10 @@ function renderMatrix(data) {
             }
             tr.appendChild(td);
         });
-
-        tableBody.appendChild(tr);
     });
+
+    tableBody.appendChild(tr);
+});
 }
 
 function getMode(array) {

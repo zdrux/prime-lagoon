@@ -49,13 +49,22 @@ def get_operator_matrix(session: Session = Depends(get_session)):
         cluster_info = {
             "id": cluster.id,
             "name": cluster.name,
-            "has_data": False
+            "has_data": False,
+            "data_collected": False
         }
         
         if snap and snap.data_json:
             cluster_info["has_data"] = True
             try:
                 data = json.loads(snap.data_json)
+                
+                # Check for Data Collection Status
+                # If csvs/subscriptions keys are MISSING (not just empty), then data was not collected
+                if "csvs" not in data and "subscriptions" not in data:
+                    cluster_info["data_collected"] = False
+                else:
+                    cluster_info["data_collected"] = True
+
                 subs = data.get("subscriptions", [])
                 csvs = data.get("csvs", [])
                 errors = data.get("__errors", {})

@@ -38,6 +38,8 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "active_tab": tab,
         "poll_interval": poll_interval,
         "retention_days": retention_days,
+        "collect_olm": (session.get(AppConfig, "SNAPSHOT_COLLECT_OLM") or AppConfig(value="True")).value.lower() == "true",
+        "run_compliance": (session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE") or AppConfig(value="False")).value.lower() == "true",
         "user": user
     })
 

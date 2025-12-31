@@ -13,6 +13,8 @@ from app.dependencies import admin_required
 class ConfigUpdate(BaseModel):
     poll_interval_minutes: int
     snapshot_retention_days: int
+    collect_olm: bool
+    run_compliance: bool
 
 class CleanupRequest(BaseModel):
     days: int
@@ -117,6 +119,24 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     else:
         db_retention.value = str(config.snapshot_retention_days)
         session.add(db_retention)
+        
+    # Update OLM Collection
+    db_olm = session.get(AppConfig, "SNAPSHOT_COLLECT_OLM")
+    if not db_olm:
+        db_olm = AppConfig(key="SNAPSHOT_COLLECT_OLM", value=str(config.collect_olm))
+        session.add(db_olm)
+    else:
+        db_olm.value = str(config.collect_olm)
+        session.add(db_olm)
+
+    # Update Compliance
+    db_comp = session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE")
+    if not db_comp:
+        db_comp = AppConfig(key="SNAPSHOT_COLLECT_COMPLIANCE", value=str(config.run_compliance))
+        session.add(db_comp)
+    else:
+        db_comp.value = str(config.run_compliance)
+        session.add(db_comp)
     
     session.commit()
     
@@ -126,7 +146,9 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     return {
         "status": "updated", 
         "interval": config.poll_interval_minutes,
-        "retention_days": config.snapshot_retention_days
+        "retention_days": config.snapshot_retention_days,
+        "collect_olm": config.collect_olm,
+        "run_compliance": config.run_compliance
     }
 
 @router.get("/config/scheduler/run-stream")
@@ -391,11 +413,22 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
                 try:
                     d = json.loads(sj)
                     full_len = len(sj)
-                    op_len = len(json.dumps(d.get("csvs", []))) + len(json.dumps(d.get("subscriptions", [])))
+                    
+                    # Safe Extraction of Operator Data Size
+                    op_len = 0
+                    if "csvs" in d:
+                        op_len += len(json.dumps(d["csvs"]))
+                    if "subscriptions" in d:
+                        op_len += len(json.dumps(d["subscriptions"]))
+                        
                     if full_len > 0: ratios.append(op_len / full_len)
-                except: continue
+                except Exception as e:
+                    # If JSON fails or other error, assume 0 for this sample or skip
+                    continue
             if ratios: op_ratio = sum(ratios) / len(ratios)
-    except: pass
+            else: op_ratio = 0 # No OLM data found in samples
+    except: 
+        op_ratio = 0
 
     op_data_bytes = int(snapshot_size_bytes * op_ratio)
     inventory_data_bytes = snapshot_size_bytes - op_data_bytes

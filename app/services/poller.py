@@ -176,7 +176,18 @@ def poll_cluster(
                                 "version": csv.get("spec", {}).get("version"),
                                 "displayName": csv.get("spec", {}).get("displayName"),
                                 "provider": csv.get("spec", {}).get("provider"),
-                                "customresourcedefinitions": csv.get("spec", {}).get("customresourcedefinitions", {})
+                                # AGGRESSIVE MINIFICATION: Only store owned CRDs (name, kind, displayName)
+                                # This drastically reduces snapshot size as full CRD definitions are huge.
+                                "customresourcedefinitions": {
+                                    "owned": [
+                                        {
+                                            "name": o.get("name"), 
+                                            "kind": o.get("kind"), 
+                                            "displayName": o.get("displayName")
+                                        } 
+                                        for o in csv.get("spec", {}).get("customresourcedefinitions", {}).get("owned", [])
+                                    ]
+                                }
                             },
                             "status": {
                                 "phase": csv.get("status", {}).get("phase"),

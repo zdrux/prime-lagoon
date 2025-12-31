@@ -230,11 +230,15 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
     compliance_runs = session.exec(select(ComplianceScore.timestamp).where(ComplianceScore.timestamp.in_([ts.strftime("%Y-%m-%d %H:%M:%S") for ts in timestamps]))).all()
     compliance_ts_set = set(compliance_runs)
 
+    from sqlalchemy.orm import defer
+    
     # 3. Fetch all snapshots for these timestamps
+    # CRITICAL OPTIMIZATION: Defer data_json to avoid loading megabytes of data per row
     statement = select(ClusterSnapshot, Cluster.name)\
         .join(Cluster, isouter=True)\
         .where(ClusterSnapshot.timestamp.in_(timestamps))\
-        .order_by(ClusterSnapshot.timestamp.desc())
+        .order_by(ClusterSnapshot.timestamp.desc())\
+        .options(defer(ClusterSnapshot.data_json))
         
     results = session.exec(statement).all()
     
@@ -268,21 +272,6 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
 
     for snap, c_name in results:
         g = get_or_create_group(snap.timestamp)
-        
-        # Check for OLM data (Operator) only if not already detected for this group
-        if "Operator" not in g["collected_components"] and snap.data_json:
-            try:
-                # We only need to check one snapshot in the group usually, as it's a global toggle
-                # but let's be safe and check if 'csvs' OR 'subscriptions' keys exist
-                # To be fast, we don't need full parse if we just want to see if key exists in string
-                # but json.loads is safer.
-                data_sample = json.loads(snap.data_json)
-                if data_sample.get('csvs') or data_sample.get('subscriptions'):
-                    g["collected_components"].append("Operator")
-            except:
-                pass
-
-        # Aggregate logic
         g['total_clusters'] += 1
         g['total_nodes'] += (snap.node_count or 0)
         g['total_vcpu'] += (snap.vcpu_count or 0)
@@ -299,6 +288,28 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
             "node_count": snap.node_count,
             "vcpu_count": snap.vcpu_count
         })
+
+    # After aggregating, check for OLM data efficiently for each group
+    for g in groups:
+        if "Operator" not in g["collected_components"]:
+            try:
+                # Optimized check: Fetch ONE snapshot's data_json partially or fully for this group
+                # Using a separate query to allow the main query to remain light
+                sample_snap = session.exec(
+                    select(ClusterSnapshot.data_json)
+                    .where(ClusterSnapshot.timestamp == g['timestamp'])
+                    .where(ClusterSnapshot.data_json.is_not(None))
+                    .limit(1)
+                ).first()
+                
+                if sample_snap:
+                    # Quick check string properties without parsing full JSON if possible? 
+                    # JSON parsing is safer. Even 50MB for one file is better than 50MB * 100
+                    data_sample = json.loads(sample_snap)
+                    if data_sample.get('csvs') or data_sample.get('subscriptions'):
+                        g["collected_components"].append("Operator")
+            except:
+                pass
         
     return {
         "total_runs": total_runs,

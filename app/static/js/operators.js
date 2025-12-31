@@ -74,9 +74,13 @@ function renderMatrix(data) {
                 td.className = 'cell-installed';
                 const isMatch = install.version === consensus;
                 const pillClass = isMatch ? 'ver-match' : 'ver-mismatch';
+                const matchTitle = isMatch ? 'Matches fleet consensus' : `Differs from fleet consensus (most common: ${consensus})`;
 
-                td.innerHTML = `<span class="ver-pill ${pillClass}">${install.version}</span>`;
-                td.onclick = () => openOpModal(op);
+                td.innerHTML = `
+                    <div class="ver-pill ${pillClass}" title="${matchTitle}">${install.version}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 2px;">${install.channel}</div>
+                `;
+                td.onclick = () => openOpModal(op, c.name);
             } else {
                 td.className = 'cell-missing';
                 td.innerHTML = '-';
@@ -125,38 +129,39 @@ function filterOperators() {
 // Modal Logic
 const modal = document.getElementById('op-modal');
 
-function openOpModal(opData) {
+function openOpModal(opData, clusterName) {
     document.getElementById('op-modal-title').textContent = opData.displayName;
-    document.getElementById('op-modal-provider').textContent = opData.provider;
     document.getElementById('op-modal-name').textContent = opData.name;
 
-    const tbody = document.getElementById('op-modal-table-body');
-    tbody.innerHTML = '';
+    const install = opData.installations[clusterName];
+    if (!install) return;
 
-    // Convert installations map to list for easier sorting
-    const installs = Object.entries(opData.installations).map(([cluster, info]) => ({
-        cluster,
-        ...info
-    }));
+    // Header info
+    document.getElementById('op-modal-cluster').textContent = clusterName;
+    document.getElementById('op-modal-namespace').textContent = install.namespace || 'N/A';
+    document.getElementById('op-modal-approval').textContent = install.approval || 'Automatic';
+    document.getElementById('op-modal-source').textContent = install.source || 'N/A';
+    document.getElementById('op-modal-status-text').textContent = install.status;
+    document.getElementById('op-modal-status-pill').style.background = install.status === 'Succeeded' ? 'var(--success-color)' : 'var(--warning-color)';
+    document.getElementById('op-modal-version').textContent = install.version;
+    document.getElementById('op-modal-channel').textContent = install.channel;
 
-    installs.sort((a, b) => a.cluster.localeCompare(b.cluster));
-
-    installs.forEach(i => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td style="font-weight:500;">${i.cluster}</td>
-            <td>${i.version}</td>
-            <td>
-                <span style="font-size:0.75rem; padding:2px 6px; border-radius:4px; 
-                      background:${i.status === 'Succeeded' ? 'var(--success-color)' : 'var(--warning-color)'}; 
-                      color:#fff; opacity:0.8;">
-                    ${i.status}
-                </span>
-            </td>
-            <td>${i.channel}</td>
-        `;
-        tbody.appendChild(tr);
-    });
+    // Managed CRDs
+    const crdList = document.getElementById('op-modal-crds');
+    crdList.innerHTML = '';
+    if (install.managed_crds && install.managed_crds.length > 0) {
+        install.managed_crds.forEach(crd => {
+            const item = document.createElement('div');
+            item.className = 'crd-item';
+            item.innerHTML = `
+                <div style="font-weight:600; font-size:0.9rem;">${crd.kind}</div>
+                <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${crd.name}</div>
+            `;
+            crdList.appendChild(item);
+        });
+    } else {
+        crdList.innerHTML = '<div style="opacity:0.5; font-style:italic;">No managed resources found.</div>';
+    }
 
     modal.style.display = 'flex';
 }

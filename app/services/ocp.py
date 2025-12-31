@@ -139,7 +139,7 @@ def parse_cpu(cpu_val: Any) -> float:
     except Exception:
         return 0.0
 
-def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None, timeout: int = 60):
+def fetch_resources(cluster: Cluster, api_version: str, kind: str, namespace: Optional[str] = None, timeout: int = 300):
     """
     Generic fetcher with enrichment for specific types.
     """

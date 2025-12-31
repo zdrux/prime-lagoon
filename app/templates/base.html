@@ -155,11 +155,13 @@
                         <i class="fas fa-th-large"></i> All Clusters
                     </a>
                 </li>
+                {% if user.is_admin %}
                 <li class="nav-item">
                     <a href="/operators" class="nav-link {% if page == 'operators' %}active{% endif %}">
                         <i class="fas fa-boxes"></i> Cluster Operators
                     </a>
                 </li>
+                {% endif %}
                 {% if user.is_admin %}
                 <li style="border-bottom: 1px solid var(--border-color); margin-bottom: 0.25rem;"></li>
                 {% else %}

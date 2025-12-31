@@ -91,12 +91,17 @@ def get_operator_matrix(session: Session = Depends(get_session)):
                     provider = "Unknown"
                     phase = "Unknown"
                     
+                    managed_crds = []
                     if installed_csv_name and installed_csv_name in csv_map:
                         csv_obj = csv_map[installed_csv_name]
                         version = csv_obj.get("spec", {}).get("version", "Unknown")
                         display_name = csv_obj.get("spec", {}).get("displayName", pkg_name)
                         provider = csv_obj.get("spec", {}).get("provider", {}).get("name", "Unknown") if isinstance(csv_obj.get("spec", {}).get("provider"), dict) else csv_obj.get("spec", {}).get("provider", "Unknown")
                         phase = csv_obj.get("status", {}).get("phase", "Unknown")
+                        
+                        # Extract owned CRDs
+                        owned = csv_obj.get("spec", {}).get("customresourcedefinitions", {}).get("owned", [])
+                        managed_crds = [{"name": o.get("name"), "kind": o.get("kind"), "displayName": o.get("displayName")} for o in owned]
                     else:
                         # Fallback if we have currentCSV but no CSV object (maybe pending install)
                         version = status.get("currentCSV", "Pending")
@@ -116,7 +121,11 @@ def get_operator_matrix(session: Session = Depends(get_session)):
                         "version": version,
                         "channel": channel,
                         "status": phase,
-                        "subscription_name": meta.get("name")
+                        "subscription_name": meta.get("name"),
+                        "namespace": meta.get("namespace"),
+                        "approval": spec.get("installPlanApproval", "Automatic"),
+                        "source": spec.get("source"),
+                        "managed_crds": managed_crds
                     }
                     
                     # Update display name if it was just the package name before

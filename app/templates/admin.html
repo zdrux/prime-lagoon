@@ -908,15 +908,18 @@
 
         eventSource.onerror = function (err) {
             console.error("SSE Error:", err);
-            eventSource.close();
 
-            // Only show error if we didn't finish successfully
-            if (document.getElementById('run-step-loading').style.display !== 'none') {
-                document.getElementById('run-step-loading').style.display = 'none';
-                document.getElementById('run-step-error').style.display = 'block';
-                document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still be running.";
-                document.getElementById('run-modal-close').style.display = 'block';
-            }
+            // Wait slightly before showing error - sometimes it's a momentary blip
+            // or the server is just closing the stream after finishing but before 'done' sent
+            setTimeout(() => {
+                if (document.getElementById('run-step-loading').style.display !== 'none') {
+                    eventSource.close();
+                    document.getElementById('run-step-loading').style.display = 'none';
+                    document.getElementById('run-step-error').style.display = 'block';
+                    document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still be running.";
+                    document.getElementById('run-modal-close').style.display = 'block';
+                }
+            }, 15000);
         };
     }
 

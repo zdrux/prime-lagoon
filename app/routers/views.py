@@ -110,10 +110,9 @@ def dashboard_view(request: Request, session: Session = Depends(get_session), us
     })
     
 @router.get("/operators", response_class=HTMLResponse)
-def operators_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
-    if is_ldap_enabled(session) and not user:
-        return RedirectResponse(url="/login")
-        
+def operators_view(request: Request, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    # if is_ldap_enabled and not user, admin_required will already have handled auth via get_current_user
+    
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters(clusters)
     

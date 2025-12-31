@@ -107,7 +107,8 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
                         "resource_total": len(res_keys)
                     })
                 
-                items = fetch_resources(cluster, meta["api_version"], meta["kind"])
+                timeout = 300 if key in ["csvs", "subscriptions"] else 60
+                items = fetch_resources(cluster, meta["api_version"], meta["kind"], timeout=timeout)
                 # Convert K8s objects to pure dicts for JSON serialization
                 # Use .to_dict() if available for recursive serialization, otherwise use dict()
                 resource_list = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
@@ -125,7 +126,8 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
                             "spec": {
                                 "version": csv.get("spec", {}).get("version"),
                                 "displayName": csv.get("spec", {}).get("displayName"),
-                                "provider": csv.get("spec", {}).get("provider")
+                                "provider": csv.get("spec", {}).get("provider"),
+                                "customresourcedefinitions": csv.get("spec", {}).get("customresourcedefinitions", {})
                             },
                             "status": {
                                 "phase": csv.get("status", {}).get("phase"),

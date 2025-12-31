@@ -85,7 +85,7 @@
                 </li>
                 <li class="nav-item">
                     <a href="#"
-                        class="nav-link submenu-toggle {% if page == 'admin' and active_tab in ['schedulers', 'snapshots'] %}active{% endif %}"
+                        class="nav-link submenu-toggle {% if (page == 'admin' and active_tab in ['schedulers', 'snapshots']) or page == 'settings_db_stats' %}active{% endif %}"
                         data-target="submenu-snapshots"
                         onclick="event.preventDefault(); toggleSubmenu('submenu-snapshots', this)">
                         <i class="fas fa-camera"></i> Snapshots
@@ -125,27 +125,25 @@
                         </a>
                     </div>
                 </li>
-                <li class="nav-item">
-                    <a href="#"
-                        class="nav-link submenu-toggle {% if page and page.startswith('settings_') %}active{% endif %}"
-                        data-target="submenu-app-config"
-                        onclick="event.preventDefault(); toggleSubmenu('submenu-app-config', this)">
-                        <i class="fas fa-cog"></i> App Config
-                        <i class="fas fa-chevron-down arrow"></i>
+                <a href="#"
+                    class="nav-link submenu-toggle {% if page and page.startswith('settings_') and page != 'settings_db_stats' %}active{% endif %}"
+                    data-target="submenu-app-config"
+                    onclick="event.preventDefault(); toggleSubmenu('submenu-app-config', this)">
+                    <i class="fas fa-cog"></i> App Config
+                    <i class="fas fa-chevron-down arrow"></i>
+                </a>
+                <div class="resource-submenu {% if page in ['settings_users', 'settings_ldap', 'settings_license'] %}open{% endif %}"
+                    id="submenu-app-config">
+                    <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}">
+                        <i class="fas fa-users" style="width:16px;"></i> Users
                     </a>
-                    <div class="resource-submenu {% if page in ['settings_users', 'settings_ldap', 'settings_license'] %}open{% endif %}"
-                        id="submenu-app-config">
-                        <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}">
-                            <i class="fas fa-users" style="width:16px;"></i> Users
-                        </a>
-                        <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
-                            <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
-                        </a>
-                        <a href="/settings/license"
-                            class="sub-link {% if page == 'settings_license' %}active{% endif %}">
-                            <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Cluster License Config
-                        </a>
-                    </div>
+                    <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
+                        <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
+                    </a>
+                    <a href="/settings/license" class="sub-link {% if page == 'settings_license' %}active{% endif %}">
+                        <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Cluster License Config
+                    </a>
+                </div>
                 </li>
                 {% endif %}
 

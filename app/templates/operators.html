@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="padding: 1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;">
+        <div>
+            <h2 style="margin:0; font-weight:300;">Cluster <span style="font-weight:700;">Operators</span></h2>
+            <p style="margin:0.5rem 0 0 0; color:var(--text-secondary); font-size:0.9rem;">
+                Track installed market operators and version consistency across the fleet.
+            </p>
+        </div>
+        <div>
+            <div class="input-group" style="width: 300px;">
+                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                <input type="text" id="operator-search" class="form-control" placeholder="Filter operators..."
+                    onkeyup="filterOperators()">
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-matrix" style="text-align:center; padding: 4rem;">
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--accent-color);"></i>
+        <p style="margin-top:1rem; opacity:0.7;">Loading Operator Matrix...</p>
+    </div>
+
+    <div id="matrix-container"
+        style="display:none; overflow-x: auto; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+        <table class="table" style="margin:0; min-width: 100%;">
+            <thead>
+                <tr id="matrix-header-row">
+                    <!-- JS will inject headers -->
+                </tr>
+            </thead>
+            <tbody id="matrix-body">
+                <!-- JS will inject rows -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Operator Details Modal -->
+<div id="op-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h3>Operator Details: <span id="op-modal-title" style="color:var(--accent-color);"></span></h3>
+            <span class="close-btn" onclick="closeOpModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="detail-card">
+                    <label>Provider</label>
+                    <div id="op-modal-provider" class="detail-value">-</div>
+                </div>
+                <div class="detail-card">
+                    <label>Internal Name</label>
+                    <div id="op-modal-name" class="detail-value">-</div>
+                </div>
+            </div>
+
+            <h5 style="margin-bottom:0.5rem; opacity:0.8;">Installation Status</h5>
+            <div style="max-height: 400px; overflow-y:auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                <table class="table data-table" style="font-size:0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>Version</th>
+                            <th>Status</th>
+                            <th>Channel</th>
+                        </tr>
+                    </thead>
+                    <tbody id="op-modal-table-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeOpModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Scoped styles for matrix */
+    #matrix-container th,
+    #matrix-container td {
+        padding: 1rem;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    #matrix-container th.op-name-col {
+        position: sticky;
+        left: 0;
+        z-index: 10;
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
+        width: 250px;
+        min-width: 250px;
+        max-width: 250px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Rotate Cluster Headers */
+    .cluster-header {
+        height: 140px;
+        white-space: nowrap;
+        position: relative;
+    }
+
+    .cluster-header>div {
+        transform: translate(0px, 50px) rotate(-45deg);
+        width: 30px;
+        transform-origin: center bottom;
+    }
+
+    .cluster-header span {
+        border-bottom: 1px solid var(--border-color);
+        padding: 5px 10px;
+    }
+
+    /* Grid Cell Styles */
+    .cell-missing {
+        background-color: rgba(255, 255, 255, 0.02);
+        color: var(--text-muted);
+        text-align: center;
+    }
+
+    .cell-installed {
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .cell-installed:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .ver-pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .ver-match {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .ver-mismatch {
+        background: rgba(234, 179, 8, 0.1);
+        color: #eab308;
+        border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+
+    /* Search Box Styles matching Bootstrap-ish feel but custom */
+    .input-group {
+        display: flex;
+        align-items: stretch;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .input-group-text {
+        display: flex;
+        align-items: center;
+        padding: 0 0.75rem;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-secondary);
+        border-right: 1px solid var(--border-color);
+    }
+
+    .form-control {
+        display: block;
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+        background: transparent;
+        border: none;
+        outline: none;
+    }
+
+    .form-control::placeholder {
+        color: var(--text-secondary);
+        opacity: 0.7;
+    }
+</style>
+<script src="/static/js/operators.js"></script>
+{% endblock %}

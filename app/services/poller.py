@@ -19,6 +19,8 @@ POLL_RESOURCES = {
     "clusteroperators": {"api_version": "config.openshift.io/v1", "kind": "ClusterOperator"},
     "infrastructures": {"api_version": "config.openshift.io/v1", "kind": "Infrastructure"},
     "clusterversions": {"api_version": "config.openshift.io/v1", "kind": "ClusterVersion"},
+    "subscriptions": {"api_version": "operators.coreos.com/v1alpha1", "kind": "Subscription"},
+    "csvs": {"api_version": "operators.coreos.com/v1alpha1", "kind": "ClusterServiceVersion"},
 }
 
 def poll_all_clusters(progress_callback=None):
@@ -108,7 +110,31 @@ def poll_cluster(cluster_id: int, rules: list, progress_callback=None, run_times
                 items = fetch_resources(cluster, meta["api_version"], meta["kind"])
                 # Convert K8s objects to pure dicts for JSON serialization
                 # Use .to_dict() if available for recursive serialization, otherwise use dict()
-                snapshot_data[key] = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
+                resource_list = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
+                
+                # SPECIAL HANDLING: Minify CSVs to save space
+                if key == "csvs":
+                    minified_csvs = []
+                    for csv in resource_list:
+                        minified_csvs.append({
+                            "metadata": {
+                                "name": csv.get("metadata", {}).get("name"),
+                                "namespace": csv.get("metadata", {}).get("namespace"),
+                                "creationTimestamp": csv.get("metadata", {}).get("creationTimestamp")
+                            },
+                            "spec": {
+                                "version": csv.get("spec", {}).get("version"),
+                                "displayName": csv.get("spec", {}).get("displayName"),
+                                "provider": csv.get("spec", {}).get("provider")
+                            },
+                            "status": {
+                                "phase": csv.get("status", {}).get("phase"),
+                                "reason": csv.get("status", {}).get("reason")
+                            }
+                        })
+                    snapshot_data[key] = minified_csvs
+                else:
+                    snapshot_data[key] = resource_list
             except Exception as e:
                 logger.error(f"Error fetching {key} for {cluster.name}: {e}")
                 snapshot_data[key] = []

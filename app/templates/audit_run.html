@@ -481,6 +481,9 @@
                     </div>
                 </td>
                 <td>
+                    <button class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem; margin-right:0.5rem;" onclick="openHistoryModal(${c.id}, '${c.name}')">
+                        <i class="fas fa-chart-line"></i> History
+                    </button>
                     <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="openAuditModal(${c.id}, '${c.name}')">
                         <i class="fas fa-play"></i> Run Audit
                     </button>
@@ -913,6 +916,178 @@
         }
 
         document.getElementById('snapshot-modal').classList.add('open');
+    }
+</script>
+<!-- History Modal -->
+<div id="history-modal" class="modal">
+    <div class="modal-content" style="width:900px; max-width:95vw; background:var(--bg-secondary);">
+        <div class="modal-header">
+            <h3 id="history-modal-title">Compliance History</h3>
+            <button onclick="closeHistoryModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:1.5rem;">
+            <!-- Chart Container -->
+            <div
+                style="background:var(--bg-primary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); margin-bottom:1.5rem; height:300px;">
+                <canvas id="history-chart"></canvas>
+            </div>
+
+            <!-- Details Section -->
+            <div id="history-details-container" style="display:none;">
+                <h4 id="history-details-title"
+                    style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+                    Scan Details
+                </h4>
+                <div id="history-details-list" style="max-height:300px; overflow-y:auto; font-size:0.9rem;">
+                    <!-- Populated on chart click -->
+                </div>
+            </div>
+
+            <div id="history-loading" style="display:none; text-align:center; padding:2rem;">
+                <i class="fas fa-circle-notch fa-spin fa-2x"></i>
+            </div>
+
+            <div id="history-empty" style="display:none; text-align:center; padding:2rem; opacity:0.6;">
+                No historical data available for this cluster.
+            </div>
+        </div>
+        <div style="padding:1rem; border-top:1px solid var(--border-color); text-align:right;">
+            <button class="btn btn-secondary" onclick="closeHistoryModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let historyChart = null;
+
+    async function openHistoryModal(clusterId, clusterName) {
+        document.getElementById('history-modal-title').innerText = `Compliance History: ${clusterName}`;
+        document.getElementById('history-modal').classList.add('open');
+        document.getElementById('history-details-container').style.display = 'none';
+        document.getElementById('history-empty').style.display = 'none';
+
+        // Show loading if needed, or just clear chart
+        if (historyChart) {
+            historyChart.destroy();
+            historyChart = null;
+        }
+
+        try {
+            const res = await fetch(`/api/audit/history/${clusterId}`);
+            const data = await res.json();
+
+            if (!data || data.length === 0) {
+                document.getElementById('history-empty').style.display = 'block';
+                return;
+            }
+
+            // Prepare Chart Data
+            const labels = data.map(d => new Date(d.timestamp).toLocaleString());
+            const scores = data.map(d => d.score);
+            const ids = data.map(d => d.id); // Store IDs for click handler
+
+            const ctx = document.getElementById('history-chart').getContext('2d');
+            historyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Compliance Score (%)',
+                        data: scores,
+                        borderColor: '#3a86ff',
+                        backgroundColor: 'rgba(58, 134, 255, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: scores.map(s => s === 100 ? '#10b981' : (s >= 80 ? '#fbbf24' : '#ef4444')),
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255, 255, 255, 0.5)', maxTicksLimit: 10 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return `Score: ${context.raw}%`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (e, activeEls) => {
+                        if (activeEls.length > 0) {
+                            const index = activeEls[0].index;
+                            const scoreId = ids[index];
+                            const timestamp = labels[index];
+                            loadScoreDetails(scoreId, timestamp);
+                        }
+                    }
+                }
+            });
+
+        } catch (e) {
+            console.error("Failed to load history:", e);
+            document.getElementById('history-empty').innerText = "Error loading history.";
+            document.getElementById('history-empty').style.display = 'block';
+        }
+    }
+
+    function closeHistoryModal() {
+        document.getElementById('history-modal').classList.remove('open');
+    }
+
+    async function loadScoreDetails(scoreId, timestamp) {
+        document.getElementById('history-details-container').style.display = 'block';
+        const list = document.getElementById('history-details-list');
+        list.innerHTML = '<div style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading details...</div>';
+        document.getElementById('history-details-title').innerText = `Scan Details: ${timestamp}`;
+
+        try {
+            const res = await fetch(`/api/audit/scores/${scoreId}`);
+            const data = await res.json();
+
+            if (!data.results || data.results.length === 0) {
+                list.innerHTML = '<div style="padding:1rem; opacity:0.6;">No detailed rule results stored for this run.</div>';
+                return;
+            }
+
+            // Render simple list as requested
+            let html = '<table class="data-table" style="width:100%;">';
+            html += '<thead><tr><th>Rule</th><th style="width:100px;">Status</th><th>Message</th></tr></thead><tbody>';
+
+            data.results.forEach(r => {
+                const color = r.status === 'PASS' ? 'var(--success-color)' : (r.status === 'FAIL' ? 'var(--danger-color)' : 'var(--warning-color)');
+                html += `
+                    <tr>
+                        <td style="font-weight:500;">${r.rule_name}</td>
+                        <td><span class="badge" style="background:${color}20; color:${color}; border:1.5px solid ${color};">${r.status}</span></td>
+                        <td style="opacity:0.8; font-size:0.85rem;">${r.message || '-'}</td>
+                    </tr>
+                `;
+            });
+            html += '</tbody></table>';
+            list.innerHTML = html;
+            // Scroll to details
+            list.scrollIntoView({ behavior: 'smooth' });
+
+        } catch (e) {
+            list.innerHTML = `<div style="color:var(--danger-color);">Error loading details: ${e.message}</div>`;
+        }
     }
 </script>
 {% endblock %}

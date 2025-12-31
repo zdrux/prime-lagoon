@@ -58,11 +58,14 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
         query = select(ClusterSnapshot).where(ClusterSnapshot.cluster_id == cluster.id)
         
         if target_ts:
-            # Fuzzy match (within 1 second) to handle microsecond differences
-            # and potentialtimezone offsets if any (though we assume UTC)
+            # Match logic from dashboard.py: 
+            # Allow up to 10 minutes (600s) delay (grace period) and pick the latest one in that window
+            # This handles cases where poller finishes slightly after the group run timestamp
             from datetime import timedelta
-            query = query.where(ClusterSnapshot.timestamp >= target_ts - timedelta(seconds=1))
-            query = query.where(ClusterSnapshot.timestamp <= target_ts + timedelta(seconds=1))
+            grace_target = target_ts + timedelta(seconds=600)
+            query = query.where(ClusterSnapshot.timestamp <= grace_target)
+            query = query.where(ClusterSnapshot.status == "Success")
+            query = query.order_by(ClusterSnapshot.timestamp.desc())
         else:
             query = query.where(ClusterSnapshot.status == "Success").order_by(ClusterSnapshot.timestamp.desc())
         

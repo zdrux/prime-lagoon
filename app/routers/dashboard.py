@@ -30,7 +30,7 @@ RESOURCE_MAP = {
 def get_snapshot_for_cluster(session: Session, cluster_id: int, target_time: datetime) -> Optional[ClusterSnapshot]:
     """Finds the closest successful snapshot ON or BEFORE the target time (with 5m grace)."""
     # Adding a grace period to target_time to account for multi-cluster polling delays
-    grace_target = target_time + timedelta(seconds=300)
+    grace_target = target_time + timedelta(seconds=600)
     statement = select(ClusterSnapshot).where(
         ClusterSnapshot.cluster_id == cluster_id,
         ClusterSnapshot.timestamp <= grace_target,

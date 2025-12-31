@@ -503,3 +503,52 @@ def run_audit(
     return results
                 
 
+@router.get("/history/{cluster_id}")
+def get_audit_history(cluster_id: int, session: Session = Depends(get_session)):
+    """Returns compact history of compliance scores for a cluster for graphing."""
+    scores = session.exec(
+        select(ComplianceScore)
+        .where(ComplianceScore.cluster_id == cluster_id)
+        .order_by(ComplianceScore.timestamp.asc())
+    ).all()
+    
+    return [
+        {
+            "id": s.id,
+            "timestamp": s.timestamp,
+            "score": s.score,
+            "passed": s.passed_count,
+            "total": s.total_count
+        }
+        for s in scores
+    ]
+
+@router.get("/scores/{score_id}")
+def get_score_details(score_id: int, session: Session = Depends(get_session)):
+    """Returns the details (rule statuses) for a specific historical run."""
+    score = session.get(ComplianceScore, score_id)
+    if not score:
+        raise HTTPException(status_code=404, detail="Score not found")
+    
+    # Parse the stored JSON
+    details = []
+    if score.results_json:
+        try:
+            raw_details = json.loads(score.results_json)
+            # The user asked for "Simple history... just include rule names that succeeded or failed"
+            # We filter the full details to be lightweight
+            for r in raw_details:
+                details.append({
+                    "rule_name": r.get("rule_name", "Unknown"),
+                    "status": r.get("status", "UNKNOWN"),
+                    "message": r.get("detail", "")
+                })
+        except:
+            details = []
+            
+    return {
+        "id": score.id,
+        "timestamp": score.timestamp,
+        "score": score.score,
+        "results": details
+    }

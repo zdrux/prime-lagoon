@@ -159,7 +159,7 @@ const modal = document.getElementById('op-modal');
 // Global filters state
 let activeTags = new Set();
 
-function toggleFilter(btn, filter) {
+function toggleOperatorFilter(btn, filter) {
     btn.classList.toggle('active');
     if (activeTags.has(filter)) {
         activeTags.delete(filter);

@@ -11,22 +11,7 @@
                 </p>
             </div>
 
-            <!-- Legend (Moved here) -->
-            <div
-                style="display:flex; gap: 1rem; font-size: 0.75rem; padding: 0.5rem 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color); height: fit-content;">
-                <div style="display:flex; align-items:center; gap: 0.4rem;">
-                    <span class="ver-pill ver-match" style="cursor:default; font-size:0.7rem;">Version</span>
-                    <span style="color:var(--text-secondary);">Consensus</span>
-                </div>
-                <div style="display:flex; align-items:center; gap: 0.4rem;">
-                    <span class="ver-pill ver-mismatch" style="cursor:default; font-size:0.7rem;">Version</span>
-                    <span style="color:var(--text-secondary);">Variance</span>
-                </div>
-                <div style="display:flex; align-items:center; gap: 0.4rem;">
-                    <b style="color:var(--text-secondary);">-</b>
-                    <span style="color:var(--text-secondary); font-style: italic;">Not Installed</span>
-                </div>
-            </div>
+
         </div>
         <div>
             <div class="input-group" style="width: 300px;">
@@ -37,19 +22,36 @@
         </div>
     </div>
 
-    <!-- Filter Buttons -->
-    <div style="margin-bottom: 1.5rem; display:flex; gap:0.5rem;">
-        <button class="filter-btn" onclick="toggleFilter(this, 'DEV')"
+    <!-- Filter Buttons & Legend -->
+    <div style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:0.5rem;">
+        <button class="filter-btn" onclick="toggleOperatorFilter(this, 'DEV')"
             style="font-size:0.8rem; padding:0.4rem 0.8rem;">DEV</button>
-        <button class="filter-btn" onclick="toggleFilter(this, 'UAT')"
+        <button class="filter-btn" onclick="toggleOperatorFilter(this, 'UAT')"
             style="font-size:0.8rem; padding:0.4rem 0.8rem;">UAT</button>
-        <button class="filter-btn" onclick="toggleFilter(this, 'PROD')"
+        <button class="filter-btn" onclick="toggleOperatorFilter(this, 'PROD')"
             style="font-size:0.8rem; padding:0.4rem 0.8rem;">PROD</button>
-        <div style="width:1px; background:var(--border-color); margin:0 0.25rem;"></div>
-        <button class="filter-btn" onclick="toggleFilter(this, 'AZURE')"
+        <div style="width:1px; background:var(--border-color); margin:0 0.25rem; height:20px;"></div>
+        <button class="filter-btn" onclick="toggleOperatorFilter(this, 'AZURE')"
             style="font-size:0.8rem; padding:0.4rem 0.8rem;">AZURE</button>
-        <button class="filter-btn" onclick="toggleFilter(this, 'HCI')"
+        <button class="filter-btn" onclick="toggleOperatorFilter(this, 'HCI')"
             style="font-size:0.8rem; padding:0.4rem 0.8rem;">HCI</button>
+
+        <!-- Legend (Aligned Right) -->
+        <div
+            style="margin-left:auto; display:flex; gap: 1rem; font-size: 0.75rem; padding: 0.4rem 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color); height: fit-content;">
+            <div style="display:flex; align-items:center; gap: 0.4rem;">
+                <span class="ver-pill ver-match" style="cursor:default; font-size:0.7rem;">Version</span>
+                <span style="color:var(--text-secondary);">Consensus</span>
+            </div>
+            <div style="display:flex; align-items:center; gap: 0.4rem;">
+                <span class="ver-pill ver-mismatch" style="cursor:default; font-size:0.7rem;">Version</span>
+                <span style="color:var(--text-secondary);">Variance</span>
+            </div>
+            <div style="display:flex; align-items:center; gap: 0.4rem;">
+                <b style="color:var(--text-secondary);">-</b>
+                <span style="color:var(--text-secondary); font-style: italic;">Not Installed</span>
+            </div>
+        </div>
     </div>
 
     <div id="loading-matrix" style="text-align:center; padding: 4rem;">

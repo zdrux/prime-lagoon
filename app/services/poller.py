@@ -256,13 +256,12 @@ def poll_cluster(
         session.add(snapshot)
         
         session.commit()
-        session.commit()
         logger.info(f"Snapshot saved for {cluster.name}")
 
         # 5. Run Compliance checks (if enabled)
         if run_compliance and audit_rules:
             from app.services.compliance import evaluate_cluster_compliance
             try:
-                evaluate_cluster_compliance(session, cluster, audit_rules, audit_bundles)
+                evaluate_cluster_compliance(session, cluster, audit_rules, audit_bundles, run_timestamp=run_timestamp)
             except Exception as e:
                 logger.error(f"Failed to run compliance for {cluster.name}: {e}")

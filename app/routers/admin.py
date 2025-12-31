@@ -290,29 +290,22 @@ class BulkDeleteRequest(BaseModel):
 @router.post("/snapshots/bulk-delete")
 def bulk_delete_snapshots(request: BulkDeleteRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Deletes all snapshots belonging to multiple runs."""
-    from datetime import datetime
+    from sqlalchemy import text, func
     
     deleted_count = 0
     for ts_str in request.group_ids:
-        try:
-            ts = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
-            # Delete Related Data
-            from app.models import LicenseUsage, ComplianceScore
-            session.execute(select(LicenseUsage).where(LicenseUsage.timestamp == ts_str)) # LicenseUsage uses string timestamp
-            
-            # Snapshots
-            statement = select(ClusterSnapshot).where(ClusterSnapshot.timestamp == ts)
-            snaps = session.exec(statement).all()
-            for s in snaps:
-                # Delete related LicenseUsage for this cluster/timestamp
-                session.execute(text("DELETE FROM licenseusage WHERE cluster_id = :cid AND timestamp = :ts"), {"cid": s.cluster_id, "ts": ts_str})
-                # Delete related ComplianceScore
-                session.execute(text("DELETE FROM compliancescore WHERE cluster_id = :cid AND timestamp = :ts"), {"cid": s.cluster_id, "ts": ts_str})
-                
-                session.delete(s)
-                deleted_count += 1
-        except Exception as e:
-            print(f"Error deleting group {ts_str}: {e}")
+        # 1. Delete associated data using exact string match for timestamp
+        # LicenseUsage and ComplianceScore use string timestamps saved with %Y-%m-%d %H:%M:%S
+        session.execute(text("DELETE FROM licenseusage WHERE timestamp = :ts"), {"ts": ts_str})
+        session.execute(text("DELETE FROM compliancescore WHERE timestamp = :ts"), {"ts": ts_str})
+        
+        # 2. Find and delete ClusterSnapshots
+        # We use strftime to match the string timestamp from UI (SQLite specific)
+        statement = select(ClusterSnapshot).where(func.strftime("%Y-%m-%d %H:%M:%S", ClusterSnapshot.timestamp) == ts_str)
+        snaps = session.exec(statement).all()
+        for s in snaps:
+            session.delete(s)
+            deleted_count += 1
             
     session.commit()
     return {"status": "success", "deleted_count": deleted_count}

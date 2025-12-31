@@ -704,6 +704,12 @@
             }
         } catch (e) {
             alert("Error: " + e.message);
+        } finally {
+            const btn = document.getElementById('bulk-delete-btn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-trash"></i> Delete Selected (<span id="selected-count">${document.querySelectorAll('.snapshot-row-check:checked').length}</span>)`;
+            }
         }
     }
 
@@ -768,11 +774,14 @@
             } else {
                 alert("Failed to perform mass deletion.");
             }
-
-            btn.disabled = false;
-            btn.innerHTML = originalText;
         } catch (e) {
             alert("Error: " + e.message);
+        } finally {
+            const btn = document.querySelector('button[onclick="massDeleteSnapshots()"]');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-trash-sweep"></i> Mass Delete`;
+            }
         }
     }
 

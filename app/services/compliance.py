@@ -59,7 +59,7 @@ def check_scope_match(scope_val: Optional[str], cluster_val: Optional[str]) -> b
 def get_nested_value(data: dict, path: str):
     return get_val(data, path, case_insensitive=True)
 
-def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[AuditRule], bundles: List[AuditBundle]) -> Optional[ComplianceScore]:
+def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[AuditRule], bundles: List[AuditBundle], run_timestamp: Optional[datetime] = None) -> Optional[ComplianceScore]:
     """
     Evaluates all applicable rules for a single cluster and saves a ComplianceScore.
     """
@@ -254,9 +254,11 @@ def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[
         for r in results
     ]
 
+    ts_str = run_timestamp.strftime("%Y-%m-%d %H:%M:%S") if run_timestamp else datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    
     db_score = ComplianceScore(
         cluster_id=cluster.id,
-        timestamp=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        timestamp=ts_str,
         passed_count=passed,
         total_count=total,
         score=round(score_val, 1),

@@ -106,7 +106,8 @@ def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[
             
             # Filter resources by name if specified
             if rule.match_resource_name:
-                if rule.operator == "contains":
+                op_name = rule.operator.lower() if rule.operator else "equals"
+                if op_name == "contains":
                     resources = [r for r in resources if rule.match_resource_name in (get_val(r, 'metadata.name') or "")]
                 else:
                     resources = [r for r in resources if get_val(r, 'metadata.name') == rule.match_resource_name]
@@ -137,7 +138,7 @@ def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[
                 cond_results = []
                 for cond in conditions:
                     actual = get_nested_value(item_data, cond["path"])
-                    op = cond["op"]
+                    op = cond["op"].lower() if cond["op"] else "equals"
                     exp = cond["val"]
                     
                     m = False
@@ -230,7 +231,8 @@ def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[
                 status="ERROR",
                 detail=str(e),
                 resource_kind=rule.resource_kind,
-                namespace=rule.namespace
+                namespace=rule.namespace,
+                bundle_name=bundle_name
             ))
 
     # Save Score

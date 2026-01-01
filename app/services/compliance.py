@@ -118,7 +118,7 @@ def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[
             failed_snapshots = []
             
             conditions = []
-            if rule.field_path:
+            if rule.field_path and rule.check_type == "VALIDATION":
                 conditions.append({"path": rule.field_path, "op": rule.operator, "val": rule.expected_value})
             
             if rule.extra_conditions:

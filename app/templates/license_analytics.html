@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">License Analytics</h1>
+    <div style="display:flex; gap:1rem; align-items:center;">
+        <select id="analytics-range" class="form-input" onchange="loadLicenseAnalytics()" style="width:150px;">
+            <option value="7">Last 7 Days</option>
+            <option value="30" selected>Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadLicenseAnalytics()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Global Trends Section -->
+<div class="card fade-in" style="margin-bottom: 1.5rem;">
+    <h2
+        style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+        Global MAPID Output Trends
+    </h2>
+    <div style="position: relative; height: 300px; width: 100%;">
+        <canvas id="global-mapid-chart"></canvas>
+    </div>
+</div>
+
+<!-- Unmapped Nodes Alert Section -->
+<div id="unmapped-nodes-section" class="card fade-in"
+    style="margin-bottom: 1.5rem; display: none; border-left: 4px solid var(--warning-color);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+        <h2 style="font-size: 1.1rem; color: var(--warning-color); display:flex; align-items:center; gap:0.5rem;">
+            <i class="fas fa-exclamation-triangle"></i> Unmapped Nodes Detected
+        </h2>
+        <span class="badge badge-yellow" id="unmapped-count-badge">0 Nodes</span>
+    </div>
+    <p style="font-size:0.9rem; opacity:0.8; margin-bottom:1rem;">
+        The following licensed nodes do not have a valid <code>mapid</code> label.
+        Please ensure these nodes are tagged correctly to track usage.
+    </p>
+    <div style="max-height: 200px; overflow-y: auto;">
+        <table class="data-table" style="font-size:0.85rem;">
+            <thead>
+                <tr>
+                    <th>Cluster</th>
+                    <th>Node Name</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody id="unmapped-nodes-body">
+                <!-- Populated by JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Cluster Breakdown Section -->
+<div class="card fade-in">
+    <h2
+        style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display:flex; justify-content:space-between; align-items:center;">
+        <span>Cluster Breakdown (Latest Snapshot)</span>
+        <input type="text" id="breakdown-search" placeholder="Filter clusters..." class="form-input"
+            style="font-size:0.8rem; padding:0.3rem; width:200px;" onkeyup="filterBreakdownTable()">
+    </h2>
+    <div class="table-container">
+        <table class="data-table" id="breakdown-table">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('breakdown-table', 0)" style="cursor:pointer;">Cluster <i class="fas fa-sort"
+                            style="opacity:0.3;"></i></th>
+                    <th>Top MAPID</th>
+                    <th onclick="sortTable('breakdown-table', 2)" style="cursor:pointer;">Total Licenses <i
+                            class="fas fa-sort" style="opacity:0.3;"></i></th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="breakdown-body">
+                <!-- Populated by JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Hidden Template for Child Rows -->
+<template id="breakdown-row-template">
+    <tr class="breakdown-parent-row">
+        <td class="cluster-name" style="font-weight:600;"></td>
+        <td class="top-mapid"></td>
+        <td class="total-licenses" style="font-family:monospace;"></td>
+        <td>
+            <button class="btn btn-secondary btn-sm toggle-details-btn">
+                <i class="fas fa-chevron-down"></i> Breakdown
+            </button>
+        </td>
+    </tr>
+    <tr class="breakdown-child-row" style="display:none; background:rgba(0,0,0,0.02);">
+        <td colspan="4" style="padding:0;">
+            <div style="padding:1rem;">
+                <table class="data-table" style="font-size:0.8rem; background:var(--bg-primary);">
+                    <thead>
+                        <tr>
+                            <th>MAPID</th>
+                            <th>LOB</th>
+                            <th>Node Count</th>
+                            <th>vCPUs</th>
+                            <th>Licenses</th>
+                        </tr>
+                    </thead>
+                    <tbody class="child-tbody"></tbody>
+                </table>
+            </div>
+        </td>
+    </tr>
+</template>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof loadLicenseAnalytics === 'function') {
+            loadLicenseAnalytics();
+        }
+    });
+</script>
+{% endblock %}

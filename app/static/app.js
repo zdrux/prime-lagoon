@@ -664,6 +664,198 @@ async function loadResource(clusterId, resourceType, clusterName) {
     }
 }
 
+
+/* License Analytics */
+let licenseChartInstance = null;
+
+async function loadLicenseAnalytics() {
+    const days = document.getElementById('analytics-range').value || 30;
+
+    // 1. Load Trends
+    try {
+        const res = await fetch(`/api/dashboard/mapid/global-trends?days=${days}`);
+        if (res.ok) {
+            const data = await res.json();
+            renderGlobalMapidChart(data);
+        }
+    } catch (e) {
+        console.error("Failed to load trends", e);
+    }
+
+    // 2. Load Unmapped Nodes
+    try {
+        const res = await fetch(`/api/dashboard/mapid/unmapped-nodes`);
+        if (res.ok) {
+            const data = await res.json();
+            renderUnmappedNodes(data);
+        }
+    } catch (e) {
+        console.error("Failed to load unmapped nodes", e);
+    }
+
+    // 3. Load Cluster Breakdown
+    try {
+        const res = await fetch(`/api/dashboard/mapid/cluster-breakdown`);
+        if (res.ok) {
+            const data = await res.json();
+            renderBreakdownTable(data);
+        }
+    } catch (e) {
+        console.error("Failed to load breakdown", e);
+    }
+}
+
+function renderGlobalMapidChart(data) {
+    const ctx = document.getElementById('global-mapid-chart');
+    if (!ctx) return;
+
+    if (licenseChartInstance) {
+        licenseChartInstance.destroy();
+    }
+
+    // Assign colors dynamically
+    const colors = [
+        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+        '#ec4899', '#6366f1', '#14b8a6', '#f97316', '#a855f7'
+    ];
+
+    const datasets = data.datasets.map((d, i) => ({
+        label: d.label,
+        data: d.data,
+        borderColor: colors[i % colors.length],
+        backgroundColor: colors[i % colors.length] + '20', // Transparent fill
+        borderWidth: 2,
+        tension: 0.3,
+        fill: false
+    }));
+
+    licenseChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 10, usePointStyle: true }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Total Licenses' }
+                },
+                x: {
+                    grid: { display: false }
+                }
+            }
+        }
+    });
+}
+
+function renderUnmappedNodes(data) {
+    const section = document.getElementById('unmapped-nodes-section');
+    const tbody = document.getElementById('unmapped-nodes-body');
+    const badge = document.getElementById('unmapped-count-badge');
+
+    if (!data || data.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    badge.innerText = `${data.length} Nodes`;
+
+    tbody.innerHTML = data.map(n => `
+        <tr>
+            <td style="font-weight:600;">${n.cluster_name}</td>
+            <td style="font-family:monospace;">${n.node_name}</td>
+            <td style="color:var(--danger-color);">${n.reason}</td>
+        </tr>
+    `).join('');
+}
+
+function renderBreakdownTable(data) {
+    const tbody = document.getElementById('breakdown-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const template = document.getElementById('breakdown-row-template');
+
+    data.forEach(cluster => {
+        // Calculate Top MAPID
+        const sortedMapids = [...cluster.mapids].sort((a, b) => b.license_count - a.license_count);
+        const topMapid = sortedMapids.length > 0 ? sortedMapids[0].mapid : '-';
+        const totalLic = cluster.mapids.reduce((sum, m) => sum + m.license_count, 0);
+
+        const clone = template.content.cloneNode(true);
+        const parentRow = clone.querySelector('.breakdown-parent-row');
+        const childRow = clone.querySelector('.breakdown-child-row');
+
+        parentRow.querySelector('.cluster-name').innerText = cluster.cluster_name;
+        parentRow.querySelector('.top-mapid').innerText = topMapid;
+        parentRow.querySelector('.total-licenses').innerText = totalLic;
+
+        // Child Table
+        const childBody = childRow.querySelector('.child-tbody');
+        if (cluster.mapids.length === 0) {
+            childBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.6;">No mapped usage</td></tr>';
+        } else {
+            childBody.innerHTML = sortedMapids.map(m => `
+                <tr>
+                    <td style="font-weight:600; color:var(--accent-color);">${m.mapid}</td>
+                    <td style="opacity:0.8;">${m.lob || '-'}</td>
+                    <td>${m.node_count}</td>
+                    <td>${m.vcpu.toFixed(1)}</td>
+                    <td style="font-weight:bold;">${m.license_count}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Toggle Logic
+        const btn = parentRow.querySelector('.toggle-details-btn');
+        btn.onclick = () => {
+            const isHidden = childRow.style.display === 'none';
+            childRow.style.display = isHidden ? 'table-row' : 'none';
+            btn.innerHTML = isHidden ? '<i class="fas fa-chevron-up"></i> Hide' : '<i class="fas fa-chevron-down"></i> Breakdown';
+        };
+
+        tbody.appendChild(clone);
+    });
+
+    window._breakdownData = data; // Store for sorting/filtering if needed later
+}
+
+function filterBreakdownTable() {
+    const q = document.getElementById('breakdown-search').value.toLowerCase();
+    const rows = document.querySelectorAll('.breakdown-parent-row');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        // Also check child row? No, assume user searches cluster name mostly.
+        const child = row.nextElementSibling; // The hidden row
+
+        if (text.includes(q)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+            child.style.display = 'none'; // Hide child too if parent hidden
+        }
+    });
+}
+
+
 function renderTable(resourceType, data) {
     const contentDiv = document.getElementById('dashboard-content');
 

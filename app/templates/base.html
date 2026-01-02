@@ -153,6 +153,11 @@
                         <i class="fas fa-th-large"></i> All Clusters
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="/license-analytics" class="nav-link {% if page == 'license_analytics' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i> License Analytics
+                    </a>
+                </li>
                 {% if user.is_admin %}
                 <li class="nav-item">
                     <a href="/operators" class="nav-link {% if page == 'operators' %}active{% endif %}">

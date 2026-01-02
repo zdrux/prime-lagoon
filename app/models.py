@@ -92,6 +92,17 @@ class LicenseUsage(SQLModel, table=True):
     license_count: int
     details_json: Optional[str] = None # Detailed breakdown for audit
 
+class MapidLicenseUsage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cluster_id: int = Field(index=True)
+    timestamp: str = Field(index=True)
+    mapid: str = Field(index=True)
+    lob: Optional[str] = None
+    node_count: int
+    total_vcpu: float
+    license_count: int
+
+
 class LicenseRule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str

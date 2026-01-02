@@ -3,9 +3,9 @@ import logging
 from datetime import datetime
 from sqlmodel import Session, select
 from app.database import engine
-from app.models import Cluster, ClusterSnapshot, LicenseUsage, LicenseRule
+from app.models import Cluster, ClusterSnapshot, LicenseUsage, LicenseRule, MapidLicenseUsage
 from app.services.ocp import fetch_resources, parse_cpu, get_val
-from app.services.license import calculate_licenses
+from app.services.license import calculate_licenses, calculate_mapid_usage
 
 logger = logging.getLogger(__name__)
 
@@ -85,10 +85,11 @@ def cleanup_old_snapshots(session: Session):
     cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
     
     from sqlalchemy import text
-    from app.models import LicenseUsage, ComplianceScore
+    from app.models import LicenseUsage, ComplianceScore, MapidLicenseUsage
 
     # 1. Delete associated data
     session.execute(text("DELETE FROM licenseusage WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
+    session.execute(text("DELETE FROM mapidlicenseusage WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
     session.execute(text("DELETE FROM compliancescore WHERE timestamp < :cutoff"), {"cutoff": cutoff_str})
 
     # 2. Snapshots
@@ -298,6 +299,20 @@ def poll_cluster(
             details_json=json.dumps(lic_data["details"])
         )
         session.add(usage)
+
+        # 3b. Calculate and Save MAPID Usage
+        mapid_data_list = calculate_mapid_usage(nodes, rules, default_include=default_include)
+        for m_data in mapid_data_list:
+            m_usage = MapidLicenseUsage(
+                cluster_id=cluster.id,
+                timestamp=run_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                mapid=m_data["mapid"],
+                lob=m_data["lob"],
+                node_count=m_data["node_count"],
+                total_vcpu=m_data["total_vcpu"],
+                license_count=m_data["license_count"]
+            )
+            session.add(m_usage)
 
         # 4. Create ClusterSnapshot
         snapshot = ClusterSnapshot(

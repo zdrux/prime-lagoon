@@ -690,6 +690,7 @@ def get_resource_trends(
                 "licensed_nodes": row.licensed_nodes
             })
         return trends
+
     else:
         # Per-cluster license trends (used by global dashboard summary cards)
         statement = select(
@@ -716,3 +717,166 @@ def get_resource_trends(
                 "licenses": row.license_count
             })
         return trends
+
+@router.get("/mapid/global-trends")
+def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(get_session)):
+    """Returns aggregated MAPID license usage trends across all clusters."""
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    from app.models import MapidLicenseUsage
+    
+    # We need to aggregate by timestamp and mapid
+    # Since different clusters poll at slightly different times, we might need to bucket by day or hour?
+    # For now, let's just return raw data and let UI handle it, OR bucket by Day.
+    # Bucketing by Day is safest for global trends.
+    
+    # SQLAlchemy doesn't have a simple "date_trunc" across all DBs easily without func usage that varies.
+    # We'll fetch all and aggregate in python for MVP simplicity (assuming volume isn't massive yet).
+    # Optimization: Filter fields
+    
+    statement = select(
+        MapidLicenseUsage.timestamp,
+        MapidLicenseUsage.mapid,
+        MapidLicenseUsage.license_count
+    ).where(
+        MapidLicenseUsage.timestamp >= cutoff.isoformat() # Approx check assuming ISO string
+    )
+    results = session.exec(statement).all()
+    
+    # Aggregate by Day + MAPID
+    # Structure: { "2023-10-01": { "MAPID1": 10, "MAPID2": 5 } }
+    
+    raw = {} # Date -> MAPID -> Sum
+    
+    for row in results:
+        # timestamp is string "YYYY-MM-DD HH:MM:SS"
+        dt = row.timestamp.split(" ")[0] # Just Date
+        if dt not in raw:
+            raw[dt] = {}
+        
+        m = row.mapid
+        if m not in raw[dt]:
+            raw[dt][m] = 0
+        
+        raw[dt][m] += row.license_count
+        
+    # Convert to Chart.js friendly format
+    # labels: [Date1, Date2]
+    # datasets: [ { label: MAPID1, data: [...] } ]
+    
+    dates = sorted(list(raw.keys()))
+    mapids = set()
+    for d in raw.values():
+        mapids.update(d.keys())
+        
+    datasets = []
+    for m in sorted(list(mapids)):
+        data = []
+        for d in dates:
+            data.append(raw[d].get(m, 0))
+        datasets.append({
+            "label": m,
+            "data": data
+        })
+        
+    return {
+        "labels": dates,
+        "datasets": datasets
+    }
+
+@router.get("/mapid/cluster-breakdown")
+def get_mapid_cluster_breakdown(session: Session = Depends(get_session)):
+    """Returns the latest breakdown of MAPIDs per cluster."""
+    clusters = session.exec(select(Cluster)).all()
+    results = []
+    
+    from app.models import MapidLicenseUsage
+    
+    for c in clusters:
+        # Get latest timestamp for this cluster
+        last_entry = session.exec(select(MapidLicenseUsage).where(MapidLicenseUsage.cluster_id == c.id).order_by(MapidLicenseUsage.timestamp.desc()).limit(1)).first()
+        
+        if not last_entry:
+            continue
+            
+        latest_ts = last_entry.timestamp
+        
+        # Get all records for this TS
+        entries = session.exec(select(MapidLicenseUsage).where(
+            MapidLicenseUsage.cluster_id == c.id,
+            MapidLicenseUsage.timestamp == latest_ts
+        )).all()
+        
+        mapids = []
+        for e in entries:
+            mapids.append({
+                "mapid": e.mapid,
+                "lob": e.lob,
+                "node_count": e.node_count,
+                "license_count": e.license_count,
+                "vcpu": e.total_vcpu
+            })
+            
+        results.append({
+            "cluster_name": c.name,
+            "cluster_id": c.id, # Added for linking
+            "timestamp": latest_ts,
+            "mapids": mapids
+        })
+        
+    return results
+
+@router.get("/mapid/unmapped-nodes")
+def get_unmapped_nodes_details(session: Session = Depends(get_session)):
+    """
+    Returns a list of nodes that are licensed but have 'Unmapped' MAPID.
+    This effectively requires querying the latest snapshot for nodes where label is missing.
+    """
+    clusters = session.exec(select(Cluster)).all()
+    results = []
+    
+    for c in clusters:
+        # Get latest snapshot
+        snap = session.exec(select(ClusterSnapshot).where(
+            ClusterSnapshot.cluster_id == c.id,
+            ClusterSnapshot.status == "Success"
+        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+        
+        if snap and snap.data_json:
+            data = json.loads(snap.data_json)
+            nodes = data.get("nodes", [])
+            
+            # Re-check logic or just check labels?
+            # We want nodes that ARE LICENSED but NO MAPID.
+            # So we need to run license logic again or trust our logic?
+            # Let's run license logic to be sure about "Licensed" status.
+            from app.models import LicenseRule, AppConfig
+            from app.services.license import calculate_licenses
+            
+            rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
+            default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
+            
+            lic_res = calculate_licenses(nodes, rules, default_include)
+            
+            for detail in lic_res["details"]:
+                if detail["status"] == "INCLUDED":
+                    # Check if node has mapid
+                    # We need the node object again to check labels
+                    # Detail has 'name'. Find node by name.
+                    node_obj = next((n for n in nodes if n["metadata"]["name"] == detail["name"]), None)
+                    if node_obj:
+                        labels = node_obj["metadata"].get("labels", {})
+                        if "mapid" not in labels:
+                            results.append({
+                                "cluster_name": c.name,
+                                "node_name": detail["name"],
+                                "reason": "Missing MAPID Label"
+                            })
+                        elif labels["mapid"] == "" or labels["mapid"].lower() == "none" or labels["mapid"].lower() == "unmapped":
+                             results.append({
+                                "cluster_name": c.name,
+                                "node_name": detail["name"],
+                                "reason": f"MAPID is '{labels['mapid']}'"
+                            })
+
+    return results
+

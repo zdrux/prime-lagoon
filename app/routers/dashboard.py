@@ -742,6 +742,61 @@ def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(ge
     )
     results = session.exec(statement).all()
     
+    # BACKFILL: If no results found, try to populate from ClusterSnapshots
+    if not results:
+        # Check if we have snapshots in this period?
+        snap_stmt = select(ClusterSnapshot).where(
+            ClusterSnapshot.timestamp >= cutoff,
+            ClusterSnapshot.status == "Success"
+        )
+        snapshots = session.exec(snap_stmt).all()
+        
+        if snapshots:
+            # We have snapshots but no MapidLicenseUsage. Let's backfill ONCE.
+            # Ideally we should do this async, but for MVP let's do it here (might be slow if tons of data).
+            # Limit to last 5 snapshots per cluster to avoid timeout?
+            # Or just parse them all if count is low (< 100).
+            # Let's try to process them.
+            
+            from app.models import LicenseRule, AppConfig, Cluster
+            from app.services.license import calculate_mapid_usage
+            
+            rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
+            default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
+            
+            new_records = []
+            
+            for snap in snapshots:
+                if not snap.data_json: continue
+                try:
+                    data = json.loads(snap.data_json)
+                    nodes = data.get("nodes", [])
+                    mapid_data_list = calculate_mapid_usage(nodes, rules, default_include=default_include)
+                    
+                    for m_data in mapid_data_list:
+                        m_usage = MapidLicenseUsage(
+                            cluster_id=snap.cluster_id,
+                            timestamp=snap.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                            mapid=m_data["mapid"],
+                            lob=m_data["lob"],
+                            node_count=m_data["node_count"],
+                            total_vcpu=m_data["total_vcpu"],
+                            license_count=m_data["license_count"]
+                        )
+                        session.add(m_usage)
+                        new_records.append(m_usage)
+                except Exception as e:
+                    print(f"Error backfilling snapshot {snap.id}: {e}")
+            
+            session.commit()
+            
+            # Use the newly created records
+            # We can just return them if we filter correctly, or re-query.
+            # Re-query is safer to reuse logic
+            results = session.exec(statement).all()
+
+    # Aggregate by Day + MAPID
+    
     # Aggregate by Day + MAPID
     # Structure: { "2023-10-01": { "MAPID1": 10, "MAPID2": 5 } }
     
@@ -869,13 +924,13 @@ def get_unmapped_nodes_details(session: Session = Depends(get_session)):
                             results.append({
                                 "cluster_name": c.name,
                                 "node_name": detail["name"],
-                                "reason": "Missing MAPID Label"
+                                "reason": f"Missing MAPID Label (Licensed by: {detail['reason']})"
                             })
                         elif labels["mapid"] == "" or labels["mapid"].lower() == "none" or labels["mapid"].lower() == "unmapped":
                              results.append({
                                 "cluster_name": c.name,
                                 "node_name": detail["name"],
-                                "reason": f"MAPID is '{labels['mapid']}'"
+                                "reason": f"MAPID is '{labels['mapid']}' (Licensed by: {detail['reason']})"
                             })
 
     return results

@@ -37,17 +37,25 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
             if r.rule_type == "name_match":
                 import re
                 try:
-                    if re.search(r.match_value, name):
+                    # Strip quotes if user added them
+                    val = r.match_value.strip('"').strip("'")
+                    if re.search(val, name):
                         matched = True
                 except:
                     pass
             elif r.rule_type == "label_match":
-                if "=" in r.match_value:
-                    k, v = r.match_value.split("=", 1)
+                # Strip quotes from the entire string first
+                clean_val = r.match_value.strip('"').strip("'")
+                
+                if "=" in clean_val:
+                    k, v = clean_val.split("=", 1)
+                    # Also strip quotes from key/value if they were inside
+                    k = k.strip('"').strip("'")
+                    v = v.strip('"').strip("'")
                     if node_labels.get(k) == v:
                         matched = True
                 else:
-                    if r.match_value in node_labels:
+                    if clean_val in node_labels:
                         matched = True
             
             if matched:
@@ -124,14 +132,22 @@ def calculate_mapid_usage(nodes: List[Any], rules: List[LicenseRule] = [], defau
             if r.rule_type == "name_match":
                 import re
                 try:
-                    if re.search(r.match_value, name): matched = True
+                    # Strip quotes if user added them
+                    val = r.match_value.strip('"').strip("'")
+                    if re.search(val, name): matched = True
                 except: pass
             elif r.rule_type == "label_match":
-                if "=" in r.match_value:
-                    k, v = r.match_value.split("=", 1)
+                # Strip quotes from the entire string first
+                clean_val = r.match_value.strip('"').strip("'")
+                
+                if "=" in clean_val:
+                    k, v = clean_val.split("=", 1)
+                    # Also strip quotes from key/value if they were inside
+                    k = k.strip('"').strip("'")
+                    v = v.strip('"').strip("'")
                     if labels.get(k) == v: matched = True
                 else:
-                    if r.match_value in labels: matched = True
+                    if clean_val in labels: matched = True
             
             if matched:
                 is_included = (r.action == "INCLUDE")

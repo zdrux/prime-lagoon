@@ -524,15 +524,46 @@ def get_node_details(cluster: Cluster, node_name: str, snapshot_data: Optional[d
             if not node:
                  return {"error": "Node not found in snapshot"}
             
+            # Try to get enriched info if available
+            metrics = node.get('__metrics')
+            capacity_info = node.get('__capacity', {})
+            
+            capacity_cpu = capacity_info.get('cpu') or parse_cpu(node['status'].get('capacity', {}).get('cpu'))
+            capacity_mem = capacity_info.get('memory_gb') or parse_memory_to_gb(node['status'].get('capacity', {}).get('memory'))
+            
+            # Simple role detection from labels
+            labels = node['metadata'].get('labels', {})
+            role = 'worker'
+            if 'node-role.kubernetes.io/master' in labels or 'node-role.kubernetes.io/control-plane' in labels:
+                role = 'master'
+            elif 'node-role.kubernetes.io/infra' in labels:
+                role = 'infra'
+
             return {
                 "name": node_name,
-                "role": "worker", # parse form labels
-                "status": "Ready", # parse from conditions
-                "labels": node['metadata'].get('labels', {}),
-                "capacity": node['status'].get('capacity', {}),
-                "allocatable": node['status'].get('allocatable', {}),
-                "conditions": node['status'].get('conditions', []),
-                "events": [] # Events are not snapshotted usually
+                "role": role,
+                "labels": labels,
+                "annotations": node['metadata'].get('annotations', {}),
+                "capacity": {
+                    "cpu": capacity_cpu,
+                    "memory": capacity_mem
+                },
+                "usage": {
+                    "cpu": metrics.get('cpu_usage', 0) if metrics else 0,
+                    "memory": metrics.get('mem_usage_gb', 0) if metrics else 0,
+                    "cpu_percent": metrics.get('cpu_percent', 0) if metrics else 0,
+                    "mem_percent": metrics.get('mem_percent', 0) if metrics else 0
+                },
+                "requests_limits": {
+                    "cpu_req": 0, # Difficult to calc from snap without all pods
+                    "cpu_lim": 0,
+                    "mem_req": 0,
+                    "mem_lim": 0,
+                    "cpu_req_percent": 0,
+                    "mem_req_percent": 0
+                },
+                "events": [],
+                "conditions": node['status'].get('conditions', [])
             }
         dyn_client = get_dynamic_client(cluster)
         
@@ -613,7 +644,15 @@ def get_node_details(cluster: Cluster, node_name: str, snapshot_data: Optional[d
                 "message": e.message,
                 "lastTimestamp": e.lastTimestamp or e.firstTimestamp,
                 "count": e.count
-            } for e in events]
+            } for e in events],
+            "conditions": [{
+                "type": c.type,
+                "status": c.status,
+                "lastHeartbeatTime": c.lastHeartbeatTime,
+                "lastTransitionTime": c.lastTransitionTime,
+                "reason": c.reason,
+                "message": c.message
+            } for c in (node.status.conditions or [])]
         }
     except Exception as e:
         print(f"Error fetching node details for {node_name} on {cluster.name}: {e}")

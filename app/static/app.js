@@ -1404,6 +1404,43 @@ async function showNodeDetails(clusterId, name) {
                 </div>
             </div>
 
+            <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid #10b981; margin-bottom:1.5rem;">
+                <h4 style="margin-bottom:1rem; color:#10b981;"><i class="fas fa-stethoscope"></i> Node Conditions</h4>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 0.8rem;">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Last Heartbeat</th>
+                                <th>Last Transition</th>
+                                <th>Reason</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.conditions && data.conditions.length > 0
+                ? data.conditions.map(c => `
+                                    <tr>
+                                        <td style="font-weight:600;">${c.type}</td>
+                                        <td>
+                                            <span class="badge ${c.status === 'True' ? (['Ready', 'Available'].includes(c.type) ? 'badge-green' : 'badge-red') : (['Ready', 'Available'].includes(c.type) ? 'badge-red' : 'badge-green')}">
+                                                ${c.status}
+                                            </span>
+                                        </td>
+                                        <td style="white-space:nowrap; font-size:0.75rem;">${c.lastHeartbeatTime ? formatEST(c.lastHeartbeatTime) : '-'}</td>
+                                        <td style="white-space:nowrap; font-size:0.75rem;">${c.lastTransitionTime ? formatEST(c.lastTransitionTime) : '-'}</td>
+                                        <td>${c.reason || '-'}</td>
+                                        <td style="font-size:0.75rem;">${c.message || '-'}</td>
+                                    </tr>
+                                `).join('')
+                : '<tr><td colspan="6" style="text-align:center; opacity:0.5;">No conditions found.</td></tr>'
+            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div style="margin-top:1rem;">
                 <h5 style="margin-bottom:0.5rem; opacity:0.7;">Labels</h5>
                 <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">

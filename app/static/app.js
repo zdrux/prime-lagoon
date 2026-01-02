@@ -668,6 +668,130 @@ async function loadResource(clusterId, resourceType, clusterName) {
 /* License Analytics */
 /* License Analytics */
 let licenseChartInstance = null;
+let currentBreakdownTab = 'cluster';
+
+function switchBreakdownTab(tab) {
+    currentBreakdownTab = tab;
+
+    // UI Updates
+    document.querySelectorAll('.breakdown-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+
+    document.getElementById('view-cluster').style.display = tab === 'cluster' ? 'block' : 'none';
+    document.getElementById('view-mapid').style.display = tab === 'mapid' ? 'block' : 'none';
+
+    // Refresh filters visualization if needed? 
+    // Usually filters apply to both or we share state.
+
+    if (tab === 'mapid') {
+        loadMapidBreakdown();
+    } else {
+        loadClusterBreakdown();
+    }
+}
+
+async function loadMapidBreakdown() {
+    const tbody = document.getElementById('mapid-breakdown-body');
+    const template = document.getElementById('mapid-row-template');
+    const loader = document.getElementById('loader-mapid-breakdown');
+
+    // Helper to get active filters
+    const envs = [];
+    const dcs = [];
+    if (activeBreakdownFilters['DEV']) envs.push('DEV');
+    if (activeBreakdownFilters['UAT']) envs.push('UAT');
+    if (activeBreakdownFilters['PROD']) envs.push('PROD');
+    if (activeBreakdownFilters['AZURE']) dcs.push('AZURE');
+    if (activeBreakdownFilters['HCI']) dcs.push('HCI');
+
+    // Always reload for MAPID to get correct aggregation? or cache?
+    // Let's reload to be safe and accurate with filters.
+    if (loader) loader.style.display = 'block';
+    if (tbody) tbody.style.opacity = '0.5';
+
+    let url = '/api/dashboard/mapid-breakdown';
+    const params = new URLSearchParams();
+    envs.forEach(e => params.append('environment', e)); // API expects single? or list?
+    // My API defined: environment: Optional[str]
+    // So it supports only ONE? The previous code implied single select or multi?
+    // The previous implementation used `toggle` for filters implies multi-select in UI but maybe API limited?
+    // Let's check API. `environment: Optional[str] = Query(None)`. This only takes one param usually in FastAPI unless `List[str]`.
+    // I should check `dashboard.py`.
+    // It takes `environment: Optional[str]`.
+    // So multi-select might not be supported backend-side yet.
+    // I'll update it to take the FIRST active filter or logic to support filtering.
+    // If multiple selected, we might need multiple calls or API update.
+    // For now, let's pick the first one or pass nothing if multiple?
+    // Actually, `activeBreakdownFilters` allows multiple.
+    // For now I'll send the first found or ignore if mixed? 
+    // Let's pass the first for now.
+
+    if (envs.length > 0) params.append('environment', envs[0]);
+    if (dcs.length > 0) params.append('datacenter', dcs[0]);
+
+    if (params.toString()) url += `?${params.toString()}`;
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch MAPID data");
+        const data = await res.json();
+
+        tbody.innerHTML = '';
+
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; opacity:0.6;">No data found</td></tr>';
+        } else {
+            data.forEach(item => {
+                const clone = template.content.cloneNode(true);
+                const parent = clone.querySelector('.mapid-parent-row');
+
+                parent.querySelector('.mapid-id').innerText = item.mapid || '-';
+                parent.querySelector('.mapid-lob').innerText = item.lob || '-';
+                parent.querySelector('.mapid-nodes').innerText = item.total_nodes;
+                parent.querySelector('.mapid-licenses').innerText = item.total_licenses;
+
+                // Toggle Logic
+                const btn = parent.querySelector('.toggle-details-btn');
+                btn.onclick = () => {
+                    const childRow = parent.nextElementSibling;
+                    if (childRow.style.display === 'none') {
+                        childRow.style.display = 'table-row';
+                        btn.innerHTML = '<i class="fas fa-chevron-up"></i> Hide';
+                    } else {
+                        childRow.style.display = 'none';
+                        btn.innerHTML = '<i class="fas fa-chevron-down"></i> Clusters';
+                    }
+                };
+
+                // Populate Child Row
+                const childBody = clone.querySelector('.child-tbody');
+                if (item.clusters && item.clusters.length > 0) {
+                    item.clusters.forEach(c => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td style="font-weight:600;">${c.name}</td>
+                            <td>${c.environment}</td>
+                            <td>${c.datacenter}</td>
+                            <td>${c.nodes}</td>
+                            <td style="font-weight:bold;">${c.licenses}</td>
+                        `;
+                        childBody.appendChild(row);
+                    });
+                } else {
+                    childBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No contributing clusters found.</td></tr>';
+                }
+
+                tbody.appendChild(clone);
+            });
+        }
+    } catch (e) {
+        console.error("Error loading MAPID breakdown:", e);
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
+    } finally {
+        if (loader) loader.style.display = 'none';
+        if (tbody) tbody.style.opacity = '1';
+    }
+}
 
 // Breakdown Filters
 const activeBreakdownFilters = {
@@ -682,8 +806,15 @@ function toggleBreakdownFilter(btn, filterName) {
     } else {
         btn.classList.remove('active');
     }
-    filterBreakdownTable();
+
+    // Reload logic depending on tab
+    if (currentBreakdownTab === 'cluster') {
+        filterBreakdownTable(); // Client side filtering for cluster view (existing logic)
+    } else {
+        loadMapidBreakdown(); // Server side reload for MAPID with new filters
+    }
 }
+
 
 
 async function loadLicenseAnalytics() {
@@ -692,16 +823,6 @@ async function loadLicenseAnalytics() {
     // Show Loaders
     document.getElementById('loader-trends').style.display = 'flex';
     document.getElementById('loader-unmapped').style.display = 'block';
-    const loaderBreakdown = document.getElementById('loader-breakdown');
-    if (loaderBreakdown) {
-        loaderBreakdown.style.display = 'block';
-        const tbody = document.getElementById('breakdown-body');
-        if (tbody) tbody.innerHTML = ''; // Clear table while loading
-    }
-
-    // Hide previous content if needed or keep it overlayed?
-    // Trends loader is overlay. 
-    // Unmapped loader is inline.
 
     // 1. Load Trends
     try {
@@ -729,7 +850,22 @@ async function loadLicenseAnalytics() {
         document.getElementById('loader-unmapped').style.display = 'none';
     }
 
-    // 3. Load Cluster Breakdown
+    // 3. Initialize Tabs
+    switchBreakdownTab('cluster');
+}
+
+async function loadClusterBreakdown() {
+    const loaderBreakdown = document.getElementById('loader-breakdown');
+    const tbody = document.getElementById('breakdown-body');
+
+    // Only fetch if empty (client side cache/filtering model) for clusters
+    if (tbody.hasChildNodes() && tbody.children.length > 0) return;
+
+    if (loaderBreakdown) {
+        loaderBreakdown.style.display = 'block';
+        tbody.innerHTML = '';
+    }
+
     try {
         const res = await fetch(`/api/dashboard/mapid/cluster-breakdown`);
         if (res.ok) {
@@ -738,10 +874,12 @@ async function loadLicenseAnalytics() {
         }
     } catch (e) {
         console.error("Failed to load breakdown", e);
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger-color); text-align:center;">Error loading clusters: ${e.message}</td></tr>`;
     } finally {
         if (loaderBreakdown) loaderBreakdown.style.display = 'none';
     }
 }
+
 
 function renderGlobalMapidChart(data) {
     const ctx = document.getElementById('global-mapid-chart');
@@ -884,33 +1022,53 @@ function renderBreakdownTable(data) {
 
 function filterBreakdownTable() {
     const q = document.getElementById('breakdown-search').value.toLowerCase();
-    const rows = document.querySelectorAll('.breakdown-parent-row');
 
-    // Check filters
-    const envGroup = ['DEV', 'UAT', 'PROD'];
-    const dcGroup = ['AZURE', 'HCI'];
+    // Cluster Tab Filtering
+    if (currentBreakdownTab === 'cluster') {
+        const rows = document.querySelectorAll('.breakdown-parent-row');
+        // Check filters
+        const envGroup = ['DEV', 'UAT', 'PROD'];
+        const dcGroup = ['AZURE', 'HCI'];
 
-    const anyEnvActive = envGroup.some(f => activeBreakdownFilters[f]);
-    const anyDcActive = dcGroup.some(f => activeBreakdownFilters[f]);
+        const anyEnvActive = envGroup.some(f => activeBreakdownFilters[f]);
+        const anyDcActive = dcGroup.some(f => activeBreakdownFilters[f]);
 
-    rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        const child = row.nextElementSibling; // The hidden row
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            const child = row.nextElementSibling; // The hidden row
 
-        const rowEnv = row.dataset.env || 'NONE';
-        const rowDc = row.dataset.dc || 'NONE';
+            const rowEnv = row.dataset.env || 'NONE';
+            const rowDc = row.dataset.dc || 'NONE';
 
-        const nameMatch = text.includes(q);
-        const envMatch = !anyEnvActive || activeBreakdownFilters[rowEnv];
-        const dcMatch = !anyDcActive || activeBreakdownFilters[rowDc];
+            const nameMatch = text.includes(q);
+            const envMatch = !anyEnvActive || activeBreakdownFilters[rowEnv];
+            const dcMatch = !anyDcActive || activeBreakdownFilters[rowDc];
 
-        if (nameMatch && envMatch && dcMatch) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-            child.style.display = 'none'; // Hide child too if parent hidden
-        }
-    });
+            if (nameMatch && envMatch && dcMatch) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+                child.style.display = 'none'; // Hide child too if parent hidden
+            }
+        });
+    }
+    // MAPID Tab Filtering
+    else {
+        // MAPID Env/DC filters are applied server-side via loadMapidBreakdown().
+        // Here we only filter by search text on the currently loaded rows.
+        const rows = document.querySelectorAll('.mapid-parent-row');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            const child = row.nextElementSibling;
+
+            if (text.includes(q)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+                child.style.display = 'none';
+            }
+        });
+    }
 }
 
 

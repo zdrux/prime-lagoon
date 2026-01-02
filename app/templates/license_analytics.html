@@ -1,5 +1,24 @@
 {% extends "base.html" %}
 
+<style>
+    .breakdown-tab {
+        cursor: pointer;
+        opacity: 0.5;
+        font-weight: 500;
+        transition: opacity 0.2s;
+    }
+
+    .breakdown-tab:hover {
+        opacity: 0.8;
+    }
+
+    .breakdown-tab.active {
+        opacity: 1;
+        font-weight: 700;
+        color: var(--accent-light);
+        border-bottom: 2px solid var(--accent-light);
+    }
+</style>
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">License Analytics (MAPID)</h1>
@@ -69,10 +88,16 @@
 </div>
 
 <!-- Cluster Breakdown Section -->
+<!-- Breakdown Section -->
 <div class="card fade-in">
     <h2
         style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display:flex; justify-content:space-between; align-items:center;">
-        <span>Cluster Breakdown (Latest Snapshot)</span>
+        <div style="display:flex; gap:1rem; align-items:center;">
+            <span id="tab-cluster" class="breakdown-tab active" onclick="switchBreakdownTab('cluster')">Cluster
+                Breakdown</span>
+            <span style="opacity:0.3;">|</span>
+            <span id="tab-mapid" class="breakdown-tab" onclick="switchBreakdownTab('mapid')">MAPID Breakdown</span>
+        </div>
         <div style="display:flex; gap:0.5rem; align-items:center;">
             <div style="display: flex; gap: 0.25rem;">
                 <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'DEV')"
@@ -87,11 +112,13 @@
                 <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'HCI')"
                     data-filter="HCI" style="font-size:0.7rem; padding:0.25rem 0.5rem;">HCI</button>
             </div>
-            <input type="text" id="breakdown-search" placeholder="Filter clusters..." class="form-input"
+            <input type="text" id="breakdown-search" placeholder="Filter..." class="form-input"
                 style="font-size:0.8rem; padding:0.3rem; width:180px;" onkeyup="filterBreakdownTable()">
         </div>
     </h2>
-    <div class="table-container">
+
+    <!-- Cluster Table Container -->
+    <div id="view-cluster" class="table-container">
         <table class="data-table" id="breakdown-table">
             <thead>
                 <tr>
@@ -109,6 +136,29 @@
         </table>
         <div id="loader-breakdown" style="text-align:center; padding:2rem; display:none;">
             <i class="fas fa-circle-notch fa-spin"></i> Loading Clusters...
+        </div>
+    </div>
+
+    <!-- MAPID Table Container -->
+    <div id="view-mapid" class="table-container" style="display:none;">
+        <table class="data-table" id="mapid-breakdown-table">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('mapid-breakdown-table', 0)" style="cursor:pointer;">MAPID <i
+                            class="fas fa-sort" style="opacity:0.3;"></i></th>
+                    <th onclick="sortTable('mapid-breakdown-table', 1)" style="cursor:pointer;">LOB <i
+                            class="fas fa-sort" style="opacity:0.3;"></i></th>
+                    <th onclick="sortTable('mapid-breakdown-table', 2)" style="cursor:pointer;">Total Nodes <i
+                            class="fas fa-sort" style="opacity:0.3;"></i></th>
+                    <th onclick="sortTable('mapid-breakdown-table', 3)" style="cursor:pointer;">Total Licenses <i
+                            class="fas fa-sort" style="opacity:0.3;"></i></th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody id="mapid-breakdown-body"></tbody>
+        </table>
+        <div id="loader-mapid-breakdown" style="text-align:center; padding:2rem; display:none;">
+            <i class="fas fa-circle-notch fa-spin"></i> Loading MAPID Data...
         </div>
     </div>
 </div>
@@ -135,6 +185,38 @@
                             <th>LOB</th>
                             <th>Node Count</th>
                             <th>vCPUs</th>
+                            <th>Licenses</th>
+                        </tr>
+                    </thead>
+                    <tbody class="child-tbody"></tbody>
+                </table>
+            </div>
+        </td>
+    </tr>
+</template>
+
+<template id="mapid-row-template">
+    <tr class="mapid-parent-row">
+        <td class="mapid-id" style="font-weight:600; font-family:monospace;"></td>
+        <td class="mapid-lob"></td>
+        <td class="mapid-nodes"></td>
+        <td class="mapid-licenses" style="font-weight:bold;"></td>
+        <td>
+            <button class="btn btn-secondary btn-sm toggle-details-btn">
+                <i class="fas fa-chevron-down"></i> Clusters
+            </button>
+        </td>
+    </tr>
+    <tr class="mapid-child-row" style="display:none; background:rgba(0,0,0,0.02);">
+        <td colspan="5" style="padding:0;">
+            <div style="padding:1rem;">
+                <table class="data-table" style="font-size:0.8rem; background:var(--bg-primary);">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>Environment</th>
+                            <th>Datacenter</th>
+                            <th>Nodes</th>
                             <th>Licenses</th>
                         </tr>
                     </thead>

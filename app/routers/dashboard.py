@@ -838,6 +838,116 @@ def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(ge
         "datasets": datasets
     }
 
+@router.get("/mapid-breakdown")
+def get_mapid_breakdown(
+    environment: Optional[str] = Query(None),
+    datacenter: Optional[str] = Query(None),
+    session: Session = Depends(get_session)
+):
+    """
+    Returns the latest MAPID usage aggregated by MAPID.
+    Structure:
+    [
+      {
+        "mapid": "12345",
+        "lob": "Retail",
+        "total_licenses": 50,
+        "total_nodes": 10,
+        "clusters": [
+           { "name": "Cluster A", "environment": "PROD", "licenses": 20, "nodes": 4 },
+           ...
+        ]
+      },
+      ...
+    ]
+    """
+    # 1. Identify Target Clusters
+    query = select(Cluster)
+    if environment:
+        query = query.where(Cluster.environment == environment)
+    if datacenter:
+        query = query.where(Cluster.datacenter == datacenter)
+    
+    target_clusters = session.exec(query).all()
+    cluster_map = {c.id: c for c in target_clusters}
+    target_ids = list(cluster_map.keys())
+
+    if not target_ids:
+        return []
+
+    from app.models import MapidLicenseUsage
+
+    # 2. Fetch Latest Usage for EACH Cluster
+    # Since we can't easily doing a "Greatest-N-per-Group" in basic SQLModel/SQLAlchemy without complex subqueries,
+    # and the number of clusters is manageable (dozens to hundreds, not millions),
+    # we can fetch recent records and filter in Python or iterate.
+    # Efficient approach: Fetch all MapidLicenseUsage records for these clusters from the last 7 days (or 24h),
+    # then for each cluster, pick the latest timestamp, and use only those records.
+    
+    cutoff = datetime.utcnow() - timedelta(days=7) # generous window to catch stale clusters too
+    
+    # We need to grab data. 
+    # Let's fetch all records for target clusters > cutoff
+    stmt = select(MapidLicenseUsage).where(
+        MapidLicenseUsage.cluster_id.in_(target_ids),
+        MapidLicenseUsage.timestamp >= cutoff.isoformat()
+    )
+    records = session.exec(stmt).all()
+
+    # 3. Filter for Latest per Cluster
+    # Map: cluster_id -> max_timestamp
+    latest_ts_map = {}
+    for r in records:
+        if r.cluster_id not in latest_ts_map:
+            latest_ts_map[r.cluster_id] = r.timestamp
+        else:
+            if r.timestamp > latest_ts_map[r.cluster_id]:
+                latest_ts_map[r.cluster_id] = r.timestamp
+
+    # 4. Aggregate
+    mapid_stats = {} # mapid -> { details... }
+
+    for r in records:
+        # Must be the latest snapshot for that cluster
+        if r.timestamp != latest_ts_map[r.cluster_id]:
+            continue
+            
+        mid = r.mapid
+        if mid not in mapid_stats:
+            mapid_stats[mid] = {
+                "mapid": mid,
+                "lob": r.lob or "-",
+                "total_licenses": 0,
+                "total_nodes": 0,
+                "total_vcpu": 0.0,
+                "clusters": []
+            }
+        
+        c = cluster_map[r.cluster_id]
+        
+        mapid_stats[mid]["total_licenses"] += r.license_count
+        mapid_stats[mid]["total_nodes"] += r.node_count
+        mapid_stats[mid]["total_vcpu"] += r.total_vcpu
+        
+        mapid_stats[mid]["clusters"].append({
+            "name": c.name,
+            "environment": c.environment or "-",
+            "datacenter": c.datacenter or "-",
+            "licenses": r.license_count,
+            "nodes": r.node_count,
+            "vcpu": r.total_vcpu
+        })
+
+    # Convert to list
+    results = list(mapid_stats.values())
+    
+    # Sort by total licenses desc
+    results.sort(key=lambda x: x["total_licenses"], reverse=True)
+    
+    return results
+            
+
+
 @router.get("/mapid/cluster-breakdown")
 def get_mapid_cluster_breakdown(session: Session = Depends(get_session)):
     """Returns the latest breakdown of MAPIDs per cluster."""

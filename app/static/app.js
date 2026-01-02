@@ -2123,6 +2123,7 @@ async function previewReport() {
 async function generateReport() {
     document.getElementById('report-main-view').style.display = 'none';
     document.getElementById('report-loading').style.display = 'block';
+    document.getElementById('report-gen-btn').style.display = 'none'; // Hide button
 
     const envs = [];
     const dcs = [];
@@ -2165,5 +2166,6 @@ async function generateReport() {
     } finally {
         document.getElementById('report-loading').style.display = 'none';
         document.getElementById('report-main-view').style.display = 'block';
+        document.getElementById('report-gen-btn').style.display = 'block'; // Restore button
     }
 }

@@ -1996,3 +1996,201 @@ function renderTrendsChart(data) {
         }
     });
 }
+
+/* Report Generation Logic */
+let reportStep = 1;
+const reportFilters = {
+    env: ['DEV', 'UAT', 'PROD'], // Default All
+    dc: ['AZURE', 'HCI']
+};
+
+// Default Columns
+let reportColumns = [
+    { name: "Cluster Name", included: true },
+    { name: "Environment", included: true },
+    { name: "Datacenter", included: true },
+    { name: "Node Name", included: true },
+    { name: "Node vCPU", included: true },
+    { name: "Node Memory (GB)", included: true },
+    { name: "Node MAPID", included: true },
+    { name: "LOB", included: true },
+    { name: "Licenses Consumed", included: true },
+    { name: "License Status", included: true }
+];
+
+function openReportModal() {
+    reportStep = 1;
+    document.querySelectorAll('.report-filter').forEach(btn => btn.classList.remove('active'));
+    updateReportModalUI();
+    document.getElementById('report-modal').classList.add('open');
+}
+
+function closeReportModal() {
+    document.getElementById('report-modal').classList.remove('open');
+}
+
+function toggleReportFilter(btn) {
+    btn.classList.toggle('active');
+}
+
+function updateReportModalUI() {
+    [1, 2, 3].forEach(s => document.getElementById(`report-step-${s}`).style.display = 'none');
+    document.getElementById('report-loading').style.display = 'none';
+
+    document.getElementById(`report-step-${reportStep}`).style.display = 'block';
+
+    const prevBtn = document.getElementById('report-prev-btn');
+    const nextBtn = document.getElementById('report-next-btn');
+    const genBtn = document.getElementById('report-gen-btn');
+
+    prevBtn.style.display = reportStep > 1 ? 'inline-block' : 'none';
+    nextBtn.style.display = reportStep < 3 ? 'inline-block' : 'none';
+    genBtn.style.display = reportStep === 3 ? 'inline-block' : 'none';
+
+    if (reportStep === 2) {
+        renderReportColumns();
+    }
+}
+
+function nextReportStep() {
+    if (reportStep === 3) return;
+
+    if (reportStep === 2) {
+        previewReport();
+    }
+
+    reportStep++;
+    updateReportModalUI();
+}
+
+function prevReportStep() {
+    if (reportStep === 1) return;
+    reportStep--;
+    updateReportModalUI();
+}
+
+function renderReportColumns() {
+    const list = document.getElementById('column-list');
+    list.innerHTML = '';
+
+    reportColumns.forEach((col, idx) => {
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.alignItems = 'center';
+        div.style.padding = '0.5rem';
+        div.style.borderBottom = '1px solid var(--border-color)';
+        div.style.background = col.included ? 'rgba(255,255,255,0.05)' : 'transparent';
+
+        div.innerHTML = `
+            <input type="checkbox" ${col.included ? 'checked' : ''} onchange="toggleReportColumn(${idx})" style="margin-right:0.5rem; cursor:pointer;">
+            <span style="flex:1; opacity:${col.included ? 1 : 0.6}; font-size:0.9rem;">${col.name}</span>
+            <div style="display:flex; gap:0.25rem;">
+                <button class="btn btn-sm btn-secondary" onclick="moveReportColumn(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} style="padding:0.1rem 0.4rem; font-size:0.7rem;"><i class="fas fa-arrow-up"></i></button>
+                <button class="btn btn-sm btn-secondary" onclick="moveReportColumn(${idx}, 1)" ${idx === reportColumns.length - 1 ? 'disabled' : ''} style="padding:0.1rem 0.4rem; font-size:0.7rem;"><i class="fas fa-arrow-down"></i></button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function toggleReportColumn(idx) {
+    reportColumns[idx].included = !reportColumns[idx].included;
+    renderReportColumns();
+}
+
+function moveReportColumn(idx, dir) {
+    if (idx + dir < 0 || idx + dir >= reportColumns.length) return;
+
+    const temp = reportColumns[idx];
+    reportColumns[idx] = reportColumns[idx + dir];
+    reportColumns[idx + dir] = temp;
+
+    renderReportColumns();
+}
+
+async function previewReport() {
+    const list = document.getElementById('preview-cluster-list');
+    const count = document.getElementById('preview-count');
+    list.innerHTML = '<div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading...</div>';
+
+    const envs = [];
+    const dcs = [];
+    document.querySelectorAll('.report-filter.active').forEach(btn => {
+        if (btn.dataset.type === 'env') envs.push(btn.dataset.val);
+        if (btn.dataset.type === 'dc') dcs.push(btn.dataset.val);
+    });
+
+    try {
+        const res = await fetch('/api/reports/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ environments: envs, datacenters: dcs })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            count.innerText = data.length;
+
+            if (data.length === 0) {
+                list.innerHTML = '<div style="padding:1rem; text-align:center;">No clusters found matching selection.</div>';
+            } else {
+                list.innerHTML = data.map(c => `
+                    <div style="padding:0.2rem 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between;">
+                        <span style="color:var(--accent-color);">${c.name}</span> 
+                        <span style="opacity:0.5; font-size:0.75rem; font-family:sans-serif;">${c.environment} / ${c.datacenter}</span>
+                    </div>
+                `).join('');
+            }
+        }
+    } catch (e) {
+        list.innerHTML = `<div style="color:var(--danger-color);">Error loading preview: ${e.message}</div>`;
+    }
+}
+
+async function generateReport() {
+    document.getElementById('report-step-3').style.display = 'none';
+    document.getElementById('report-loading').style.display = 'block';
+
+    const envs = [];
+    const dcs = [];
+    document.querySelectorAll('.report-filter.active').forEach(btn => {
+        if (btn.dataset.type === 'env') envs.push(btn.dataset.val);
+        if (btn.dataset.type === 'dc') dcs.push(btn.dataset.val);
+    });
+
+    try {
+        const res = await fetch('/api/reports/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ environments: envs, datacenters: dcs })
+        });
+
+        if (res.ok) {
+            const rowData = await res.json();
+
+            const finalCols = reportColumns.filter(c => c.included);
+
+            const excelData = rowData.map(row => {
+                const newRow = {};
+                finalCols.forEach(col => {
+                    newRow[col.name] = row[col.name];
+                });
+                return newRow;
+            });
+
+            const ws = XLSX.utils.json_to_sheet(excelData, { header: finalCols.map(c => c.name) });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "License_Report");
+            XLSX.writeFile(wb, `OCP_License_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+            closeReportModal();
+        } else {
+            alert("Failed to generate report data.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Error generating report: " + e.message);
+    } finally {
+        updateReportModalUI();
+    }
+}

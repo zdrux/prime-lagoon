@@ -666,10 +666,42 @@ async function loadResource(clusterId, resourceType, clusterName) {
 
 
 /* License Analytics */
+/* License Analytics */
 let licenseChartInstance = null;
+
+// Breakdown Filters
+const activeBreakdownFilters = {
+    DEV: false, UAT: false, PROD: false,
+    AZURE: false, HCI: false
+};
+
+function toggleBreakdownFilter(btn, filterName) {
+    activeBreakdownFilters[filterName] = !activeBreakdownFilters[filterName];
+    if (activeBreakdownFilters[filterName]) {
+        btn.classList.add('active');
+    } else {
+        btn.classList.remove('active');
+    }
+    filterBreakdownTable();
+}
+
 
 async function loadLicenseAnalytics() {
     const days = document.getElementById('analytics-range').value || 30;
+
+    // Show Loaders
+    document.getElementById('loader-trends').style.display = 'flex';
+    document.getElementById('loader-unmapped').style.display = 'block';
+    const loaderBreakdown = document.getElementById('loader-breakdown');
+    if (loaderBreakdown) {
+        loaderBreakdown.style.display = 'block';
+        const tbody = document.getElementById('breakdown-body');
+        if (tbody) tbody.innerHTML = ''; // Clear table while loading
+    }
+
+    // Hide previous content if needed or keep it overlayed?
+    // Trends loader is overlay. 
+    // Unmapped loader is inline.
 
     // 1. Load Trends
     try {
@@ -680,6 +712,8 @@ async function loadLicenseAnalytics() {
         }
     } catch (e) {
         console.error("Failed to load trends", e);
+    } finally {
+        document.getElementById('loader-trends').style.display = 'none';
     }
 
     // 2. Load Unmapped Nodes
@@ -691,6 +725,8 @@ async function loadLicenseAnalytics() {
         }
     } catch (e) {
         console.error("Failed to load unmapped nodes", e);
+    } finally {
+        document.getElementById('loader-unmapped').style.display = 'none';
     }
 
     // 3. Load Cluster Breakdown
@@ -702,6 +738,8 @@ async function loadLicenseAnalytics() {
         }
     } catch (e) {
         console.error("Failed to load breakdown", e);
+    } finally {
+        if (loaderBreakdown) loaderBreakdown.style.display = 'none';
     }
 }
 
@@ -805,6 +843,11 @@ function renderBreakdownTable(data) {
         const parentRow = clone.querySelector('.breakdown-parent-row');
         const childRow = clone.querySelector('.breakdown-child-row');
 
+        // Add metadata for filtering
+        parentRow.dataset.name = cluster.cluster_name ? cluster.cluster_name.toLowerCase() : '';
+        parentRow.dataset.env = cluster.environment ? cluster.environment.toUpperCase() : 'NONE';
+        parentRow.dataset.dc = cluster.datacenter ? cluster.datacenter.toUpperCase() : 'NONE';
+
         parentRow.querySelector('.cluster-name').innerText = cluster.cluster_name;
         parentRow.querySelector('.top-mapid').innerText = topMapid;
         parentRow.querySelector('.total-licenses').innerText = totalLic;
@@ -842,12 +885,26 @@ function renderBreakdownTable(data) {
 function filterBreakdownTable() {
     const q = document.getElementById('breakdown-search').value.toLowerCase();
     const rows = document.querySelectorAll('.breakdown-parent-row');
+
+    // Check filters
+    const envGroup = ['DEV', 'UAT', 'PROD'];
+    const dcGroup = ['AZURE', 'HCI'];
+
+    const anyEnvActive = envGroup.some(f => activeBreakdownFilters[f]);
+    const anyDcActive = dcGroup.some(f => activeBreakdownFilters[f]);
+
     rows.forEach(row => {
         const text = row.innerText.toLowerCase();
-        // Also check child row? No, assume user searches cluster name mostly.
         const child = row.nextElementSibling; // The hidden row
 
-        if (text.includes(q)) {
+        const rowEnv = row.dataset.env || 'NONE';
+        const rowDc = row.dataset.dc || 'NONE';
+
+        const nameMatch = text.includes(q);
+        const envMatch = !anyEnvActive || activeBreakdownFilters[rowEnv];
+        const dcMatch = !anyDcActive || activeBreakdownFilters[rowDc];
+
+        if (nameMatch && envMatch && dcMatch) {
             row.style.display = '';
         } else {
             row.style.display = 'none';

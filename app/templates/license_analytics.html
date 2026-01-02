@@ -22,6 +22,13 @@
         Global MAPID Output Trends
     </h2>
     <div style="position: relative; height: 300px; width: 100%;">
+        <div id="loader-trends"
+            style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; background:rgba(0,0,0,0.2); z-index:10;">
+            <div style="text-align:center; color:var(--text-primary);">
+                <i class="fas fa-circle-notch fa-spin fa-2x"></i><br>
+                <span style="font-size:0.9rem; margin-top:0.5rem; display:block;">Loading Data...</span>
+            </div>
+        </div>
         <canvas id="global-mapid-chart"></canvas>
     </div>
 </div>
@@ -52,6 +59,9 @@
                 <!-- Populated by JS -->
             </tbody>
         </table>
+        <div id="loader-unmapped" style="text-align:center; padding:1rem; display:none;">
+            <i class="fas fa-circle-notch fa-spin"></i> Checking nodes...
+        </div>
     </div>
 </div>
 
@@ -60,8 +70,23 @@
     <h2
         style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; display:flex; justify-content:space-between; align-items:center;">
         <span>Cluster Breakdown (Latest Snapshot)</span>
-        <input type="text" id="breakdown-search" placeholder="Filter clusters..." class="form-input"
-            style="font-size:0.8rem; padding:0.3rem; width:200px;" onkeyup="filterBreakdownTable()">
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            <div style="display: flex; gap: 0.25rem;">
+                <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'DEV')"
+                    data-filter="DEV" style="font-size:0.7rem; padding:0.25rem 0.5rem;">DEV</button>
+                <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'UAT')"
+                    data-filter="UAT" style="font-size:0.7rem; padding:0.25rem 0.5rem;">UAT</button>
+                <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'PROD')"
+                    data-filter="PROD" style="font-size:0.7rem; padding:0.25rem 0.5rem;">PROD</button>
+                <div style="width:1px; background:var(--border-color); margin:0 0.25rem;"></div>
+                <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'AZURE')"
+                    data-filter="AZURE" style="font-size:0.7rem; padding:0.25rem 0.5rem;">AZURE</button>
+                <button class="filter-btn filter-breakdown" onclick="toggleBreakdownFilter(this, 'HCI')"
+                    data-filter="HCI" style="font-size:0.7rem; padding:0.25rem 0.5rem;">HCI</button>
+            </div>
+            <input type="text" id="breakdown-search" placeholder="Filter clusters..." class="form-input"
+                style="font-size:0.8rem; padding:0.3rem; width:180px;" onkeyup="filterBreakdownTable()">
+        </div>
     </h2>
     <div class="table-container">
         <table class="data-table" id="breakdown-table">
@@ -79,6 +104,9 @@
                 <!-- Populated by JS -->
             </tbody>
         </table>
+        <div id="loader-breakdown" style="text-align:center; padding:2rem; display:none;">
+            <i class="fas fa-circle-notch fa-spin"></i> Loading Clusters...
+        </div>
     </div>
 </div>
 

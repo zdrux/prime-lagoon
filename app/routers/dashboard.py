@@ -873,7 +873,9 @@ def get_mapid_cluster_breakdown(session: Session = Depends(get_session)):
             
         results.append({
             "cluster_name": c.name,
-            "cluster_id": c.id, # Added for linking
+            "cluster_id": c.id, 
+            "environment": c.environment or "None",
+            "datacenter": c.datacenter or "None",
             "timestamp": latest_ts,
             "mapids": mapids
         })

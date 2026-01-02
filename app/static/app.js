@@ -749,7 +749,8 @@ function renderGlobalMapidChart(data) {
                 },
                 tooltip: {
                     mode: 'index',
-                    intersect: false
+                    intersect: false,
+                    itemSort: (a, b) => b.raw - a.raw
                 }
             },
             scales: {

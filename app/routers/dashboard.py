@@ -733,12 +733,18 @@ def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(ge
     # We'll fetch all and aggregate in python for MVP simplicity (assuming volume isn't massive yet).
     # Optimization: Filter fields
     
+    # Aggregate by Day + MAPID
+    # Logic: For a given Day, a Cluster might have multiple snapshots. 
+    # We should take the MAX usage for that MAPID on that Cluster for that Day.
+    # Then SUM these Maxes across all Clusters to get Global Day Total.
+    
     statement = select(
+        MapidLicenseUsage.cluster_id, # Added cluster_id
         MapidLicenseUsage.timestamp,
         MapidLicenseUsage.mapid,
         MapidLicenseUsage.license_count
     ).where(
-        MapidLicenseUsage.timestamp >= cutoff.isoformat() # Approx check assuming ISO string
+        MapidLicenseUsage.timestamp >= cutoff.isoformat()
     )
     results = session.exec(statement).all()
     
@@ -752,19 +758,12 @@ def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(ge
         snapshots = session.exec(snap_stmt).all()
         
         if snapshots:
-            # We have snapshots but no MapidLicenseUsage. Let's backfill ONCE.
-            # Ideally we should do this async, but for MVP let's do it here (might be slow if tons of data).
-            # Limit to last 5 snapshots per cluster to avoid timeout?
-            # Or just parse them all if count is low (< 100).
-            # Let's try to process them.
-            
-            from app.models import LicenseRule, AppConfig, Cluster
+            # We have snapshots but no MapidLicenseUsage. Backfill.
+            from app.models import LicenseRule, AppConfig
             from app.services.license import calculate_mapid_usage
             
             rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
             default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
-            
-            new_records = []
             
             for snap in snapshots:
                 if not snap.data_json: continue
@@ -784,50 +783,51 @@ def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(ge
                             license_count=m_data["license_count"]
                         )
                         session.add(m_usage)
-                        new_records.append(m_usage)
                 except Exception as e:
                     print(f"Error backfilling snapshot {snap.id}: {e}")
             
             session.commit()
             
-            # Use the newly created records
-            # We can just return them if we filter correctly, or re-query.
-            # Re-query is safer to reuse logic
+            # Re-query
             results = session.exec(statement).all()
 
-    # Aggregate by Day + MAPID
-    
-    # Aggregate by Day + MAPID
-    # Structure: { "2023-10-01": { "MAPID1": 10, "MAPID2": 5 } }
-    
-    raw = {} # Date -> MAPID -> Sum
+    # Processing:
+    # 1. Bucket by Date -> Cluster -> MAPID -> Max(License)
+    processed = {} # Date -> { ClusterID -> { MAPID -> MaxLic } }
     
     for row in results:
-        # timestamp is string "YYYY-MM-DD HH:MM:SS"
-        dt = row.timestamp.split(" ")[0] # Just Date
-        if dt not in raw:
-            raw[dt] = {}
+        dt = row.timestamp.split(" ")[0]
+        cid = row.cluster_id
+        mid = row.mapid
         
-        m = row.mapid
-        if m not in raw[dt]:
-            raw[dt][m] = 0
+        if dt not in processed: processed[dt] = {}
+        if cid not in processed[dt]: processed[dt][cid] = {}
         
-        raw[dt][m] += row.license_count
-        
-    # Convert to Chart.js friendly format
-    # labels: [Date1, Date2]
-    # datasets: [ { label: MAPID1, data: [...] } ]
+        current_max = processed[dt][cid].get(mid, 0)
+        if row.license_count > current_max:
+            processed[dt][cid][mid] = row.license_count
+            
+    # 2. Sum across clusters: Date -> MAPID -> Sum(MaxLic)
+    final_agg = {} # Date -> { MAPID -> Total }
     
-    dates = sorted(list(raw.keys()))
-    mapids = set()
-    for d in raw.values():
-        mapids.update(d.keys())
+    for dt, clusters in processed.items():
+        if dt not in final_agg: final_agg[dt] = {}
+        for cid, mapids in clusters.items():
+            for mid, count in mapids.items():
+                if mid not in final_agg[dt]: final_agg[dt][mid] = 0
+                final_agg[dt][mid] += count
+                
+    # 3. Chart Format
+    dates = sorted(list(final_agg.keys()))
+    all_mapids = set()
+    for d in final_agg.values():
+        all_mapids.update(d.keys())
         
     datasets = []
-    for m in sorted(list(mapids)):
+    for m in sorted(list(all_mapids)):
         data = []
         for d in dates:
-            data.append(raw[d].get(m, 0))
+            data.append(final_agg[d].get(m, 0))
         datasets.append({
             "label": m,
             "data": data

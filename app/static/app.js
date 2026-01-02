@@ -1424,7 +1424,7 @@ async function showNodeDetails(clusterId, name) {
                                     <tr>
                                         <td style="font-weight:600;">${c.type}</td>
                                         <td>
-                                            <span class="badge ${c.status === 'True' ? (['Ready', 'Available'].includes(c.type) ? 'badge-green' : 'badge-red') : (['Ready', 'Available'].includes(c.type) ? 'badge-red' : 'badge-green')}">
+                                            <span class="badge ${c.status === 'Unknown' ? 'badge-gray' : (c.status === 'True' ? (['Ready', 'Available'].includes(c.type) ? 'badge-green' : 'badge-red') : (['Ready', 'Available'].includes(c.type) ? 'badge-red' : 'badge-green'))}">
                                                 ${c.status}
                                             </span>
                                         </td>

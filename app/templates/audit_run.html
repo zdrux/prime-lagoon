@@ -324,6 +324,13 @@
         try { return JSON.parse(jsonStr || '{}'); } catch (e) { return {}; }
     }
 
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        const date = new Date(dateStr + 'Z'); // Treat as UTC
+        if (isNaN(date.getTime())) return dateStr;
+        return date.toLocaleString();
+    }
+
     function tagsMatch(targetTags, clusterTags) {
         if (!targetTags || Object.keys(targetTags).length === 0) return true;
         for (const k in targetTags) {
@@ -463,12 +470,17 @@
                                 </svg>
                             </div>
                             <div>
-                                <div style="font-weight:100; color:${color}; font-size:1.1rem; line-height:1;">
-                                    ${score.score}%
+                                <div style="display:flex; align-items:center; gap:0.5rem;">
+                                    <div style="font-weight:100; color:${color}; font-size:1.1rem; line-height:1;">
+                                        ${score.score}%
+                                    </div>
+                                    <button class="btn btn-secondary" style="padding:0.2rem 0.5rem; font-size:0.75rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2); color:#aaa;" onclick="openHistoryModal(${c.id}, '${c.name}')">
+                                        <i class="fas fa-chart-line"></i> History
+                                    </button>
                                 </div>
                                 <div style="font-size:0.7rem; opacity:0.6; margin-top:0.2rem;">
                                     ${score.passed_count}/${score.total_count} Passed<br>
-                                    ${score.timestamp}
+                                    ${formatDate(score.timestamp)}
                                 </div>
                             </div>
                         </div>
@@ -483,9 +495,6 @@
                 <td>
                     <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem; margin-right:0.5rem;" onclick="openAuditModal(${c.id}, '${c.name}')">
                         <i class="fas fa-play"></i> Run Audit
-                    </button>
-                    <button class="btn btn-secondary" style="padding:0.4rem 0.8rem; font-size:0.85rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.2); color:#aaa;" onclick="openHistoryModal(${c.id}, '${c.name}')">
-                        <i class="fas fa-chart-line"></i> History
                     </button>
                 </td>
             </tr>

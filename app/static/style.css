@@ -160,7 +160,7 @@ a:hover {
 
 .main-content {
     flex-grow: 1;
-    padding: 2rem;
+    padding: 1.5rem;
     overflow-y: auto;
 }
 

@@ -2025,6 +2025,7 @@ function openReportModal() {
     document.getElementById('report-advanced').style.display = 'none';
     document.getElementById('report-main-view').style.display = 'block';
 
+    loadReportSettings(); // Load persisted settings
     renderReportColumns();
     previewReport(); // Load everything initially
 
@@ -2039,6 +2040,36 @@ function toggleReportFilter(btn) {
     btn.classList.toggle('active');
     // Debounce or immediate? Immediate is fine for now
     previewReport();
+}
+
+
+function loadReportSettings() {
+    const stored = localStorage.getItem('ocp_report_columns');
+    if (stored) {
+        try {
+            const savedCols = JSON.parse(stored);
+            // Verify integrity: ensure all default columns exist
+            // This handles cases where we might add new columns in the future
+            // We use the saved order and inclusion status, but fall back to defaults for missing ones
+
+            // Create a map of saved cols
+            const savedMap = new Map(savedCols.map(c => [c.name, c]));
+
+            // Reconstruct reportColumns respecting saved order if possible, 
+            // but for simplicity we'll just check if the saved array has the same length/names? 
+            // A simple strategy: use savedCols directly if valid, else merge.
+            // Let's just trust valid JSON for now, but maybe ensure names match?
+            if (savedCols.length > 0) {
+                reportColumns = savedCols;
+            }
+        } catch (e) {
+            console.error("Failed to load report settings", e);
+        }
+    }
+}
+
+function saveReportSettings() {
+    localStorage.setItem('ocp_report_columns', JSON.stringify(reportColumns));
 }
 
 function renderReportColumns() {
@@ -2067,6 +2098,7 @@ function renderReportColumns() {
 
 function toggleReportColumn(idx) {
     reportColumns[idx].included = !reportColumns[idx].included;
+    saveReportSettings();
     renderReportColumns();
 }
 
@@ -2075,6 +2107,7 @@ function moveReportColumn(idx, dir) {
     const temp = reportColumns[idx];
     reportColumns[idx] = reportColumns[idx + dir];
     reportColumns[idx + dir] = temp;
+    saveReportSettings();
     renderReportColumns();
 }
 

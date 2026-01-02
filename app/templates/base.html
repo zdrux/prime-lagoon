@@ -155,7 +155,7 @@
                 </li>
                 <li class="nav-item">
                     <a href="/license-analytics" class="nav-link {% if page == 'license_analytics' %}active{% endif %}">
-                        <i class="fas fa-chart-line"></i> License Analytics
+                        <i class="fas fa-chart-line"></i> License Analytics (MAPID)
                     </a>
                 </li>
                 {% if user.is_admin %}
@@ -205,7 +205,6 @@
                     <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
                         onclick="toggleClusterMenu({{ cluster.id }})">
                         <i class="fas fa-server"></i> {{ cluster.name }}
-                        <span style="font-size:0.7rem; opacity:0.7; margin-left: auto;">{{ cluster.environment }}</span>
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
                         <a href="#" class="sub-link"
@@ -231,7 +230,6 @@
                     <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
                         onclick="toggleClusterMenu({{ cluster.id }})">
                         <i class="fas fa-server"></i> {{ cluster.name }}
-                        <span style="font-size:0.7rem; opacity:0.7; margin-left: auto;">{{ cluster.environment }}</span>
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
                         <a href="#" class="sub-link"

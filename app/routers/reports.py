@@ -117,19 +117,21 @@ def generate_report_data(filters: ReportFilter, session: Session = Depends(get_s
                 # Get License Info
                 lic_info = lic_details_map.get(name, {"licenses": 0, "status": "UNKNOWN"})
                 
-                row = {
-                    "Cluster Name": c.name,
-                    "Environment": c.environment or "-",
-                    "Datacenter": c.datacenter or "-",
-                    "Node Name": name,
-                    "Node vCPU": capacity_info.get("cpu", 0),
-                    "Node Memory (GB)": round(capacity_info.get("memory_gb", 0), 1),
-                    "Node MAPID": labels.get("mapid", "-"),
-                    "LOB": labels.get("lob", "-"),
-                    "Licenses Consumed": lic_info["licenses"],
-                    "License Status": lic_info["status"]
-                }
-                report_rows.append(row)
+                # Filter: Include Licensed nodes only
+                if lic_info["licenses"] > 0 or lic_info["status"].upper() == "LICENSED":
+                    row = {
+                        "Cluster Name": c.name,
+                        "Environment": c.environment or "-",
+                        "Datacenter": c.datacenter or "-",
+                        "Node Name": name,
+                        "Node vCPU": capacity_info.get("cpu", 0),
+                        "Node Memory (GB)": round(capacity_info.get("memory_gb", 0), 1),
+                        "Node MAPID": labels.get("mapid", "-"),
+                        "LOB": labels.get("lob", "-"),
+                        "Licenses Consumed": lic_info["licenses"],
+                        "License Status": lic_info["status"]
+                    }
+                    report_rows.append(row)
                 
         except Exception as e:
             print(f"Error generating report for cluster {c.name}: {e}")

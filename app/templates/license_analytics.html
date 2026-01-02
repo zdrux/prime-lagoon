@@ -159,87 +159,87 @@
 <div id="report-modal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
-            <h3>Generate License Report</h3>
+            <h3>Generate License Report (Excel)</h3>
             <span class="close-btn" onclick="closeReportModal()">&times;</span>
         </div>
         <div class="modal-body" style="padding: 1.5rem;">
 
-            <!-- Step 1: Filters -->
-            <div id="report-step-1" class="report-step">
-                <h4 style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">Step
-                    1: Select Filters</h4>
-                <p style="font-size:0.9rem; opacity:0.8; margin-bottom:1rem;">Select the Environment(s) and
-                    Datacenter(s) to include in the report.</p>
+            <!-- Filters & Preview Combined -->
+            <div id="report-main-view">
+                <div style="margin-bottom:1.5rem;">
+                    <h4
+                        style="margin-bottom:0.5rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+                        Filters</h4>
 
-                <div style="margin-bottom:1rem;">
-                    <label style="font-weight:600; font-size:0.9rem;">Environment</label>
-                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-                        <button class="filter-btn report-filter" data-type="env" data-val="DEV"
-                            onclick="toggleReportFilter(this)">DEV</button>
-                        <button class="filter-btn report-filter" data-type="env" data-val="UAT"
-                            onclick="toggleReportFilter(this)">UAT</button>
-                        <button class="filter-btn report-filter" data-type="env" data-val="PROD"
-                            onclick="toggleReportFilter(this)">PROD</button>
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600; font-size:0.9rem;">Environment</label>
+                        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                            <button class="filter-btn report-filter" data-type="env" data-val="DEV"
+                                onclick="toggleReportFilter(this)">DEV</button>
+                            <button class="filter-btn report-filter" data-type="env" data-val="UAT"
+                                onclick="toggleReportFilter(this)">UAT</button>
+                            <button class="filter-btn report-filter" data-type="env" data-val="PROD"
+                                onclick="toggleReportFilter(this)">PROD</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:1rem;">
+                        <label style="font-weight:600; font-size:0.9rem;">Datacenter</label>
+                        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+                            <button class="filter-btn report-filter" data-type="dc" data-val="AZURE"
+                                onclick="toggleReportFilter(this)">AZURE</button>
+                            <button class="filter-btn report-filter" data-type="dc" data-val="HCI"
+                                onclick="toggleReportFilter(this)">HCI</button>
+                        </div>
+                    </div>
+                    <p style="font-size:0.8rem; font-style:italic; opacity:0.6;">Leave filters unselected to include
+                        all.</p>
+                </div>
+
+                <div style="margin-bottom:1.5rem;">
+                    <h4
+                        style="margin-bottom:0.5rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+                        Matching Clusters</h4>
+                    <div id="preview-cluster-list"
+                        style="max-height:150px; overflow-y:auto; background:var(--bg-secondary); padding:0.5rem; border-radius:4px; margin-bottom:0.5rem; font-size:0.85rem; font-family:monospace;">
+                        <div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i>
+                            Loading...</div>
+                    </div>
+                    <div style="text-align:right; font-size:0.9rem;">
+                        Total: <span id="preview-count" style="font-weight:bold;">-</span>
                     </div>
                 </div>
 
-                <div style="margin-bottom:1rem;">
-                    <label style="font-weight:600; font-size:0.9rem;">Datacenter</label>
-                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-                        <button class="filter-btn report-filter" data-type="dc" data-val="AZURE"
-                            onclick="toggleReportFilter(this)">AZURE</button>
-                        <button class="filter-btn report-filter" data-type="dc" data-val="HCI"
-                            onclick="toggleReportFilter(this)">HCI</button>
+                <!-- Advanced Options -->
+                <div>
+                    <button class="btn btn-sm btn-secondary"
+                        onclick="document.getElementById('report-advanced').style.display = document.getElementById('report-advanced').style.display === 'none' ? 'block' : 'none'"
+                        style="width:100%; text-align:left; display:flex; justify-content:space-between; align-items:center;">
+                        <span><i class="fas fa-cog"></i> Advanced Options (Columns)</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div id="report-advanced"
+                        style="display:none; margin-top:0.5rem; border:1px solid var(--border-color); border-radius:6px; padding:0.5rem; background:rgba(0,0,0,0.2);">
+                        <p style="font-size:0.8rem; opacity:0.8; margin-bottom:0.5rem;">Toggle columns to include and
+                            reorder them.</p>
+                        <div id="column-list" style="max-height:200px; overflow-y:auto;">
+                            <!-- Populated by JS -->
+                        </div>
                     </div>
-                </div>
-
-                <p style="font-size:0.8rem; font-style:italic; opacity:0.6;">Leave filters unselected to include all.
-                </p>
-            </div>
-
-            <!-- Step 2: Columns -->
-            <div id="report-step-2" class="report-step" style="display:none;">
-                <h4 style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">Step
-                    2: Start Columns & Order</h4>
-                <p style="font-size:0.9rem; opacity:0.8; margin-bottom:1rem;">Toggle columns to include and reorder
-                    them.</p>
-
-                <div id="column-list"
-                    style="max-height:300px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; background:rgba(0,0,0,0.2);">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-
-            <!-- Step 3: Confirmation -->
-            <div id="report-step-3" class="report-step" style="display:none;">
-                <h4 style="margin-bottom:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">Step
-                    3: Confirmation</h4>
-                <p style="font-size:0.9rem; margin-bottom:1rem;">The following clusters match your selection:</p>
-
-                <div id="preview-cluster-list"
-                    style="max-height:200px; overflow-y:auto; background:var(--bg-secondary); padding:0.5rem; border-radius:4px; margin-bottom:1rem; font-size:0.85rem; font-family:monospace;">
-                    <div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading...
-                    </div>
-                </div>
-
-                <div style="text-align:right; font-size:0.9rem;">
-                    Total Clusters: <span id="preview-count" style="font-weight:bold;">-</span>
                 </div>
             </div>
 
             <!-- Loading State -->
             <div id="report-loading" style="display:none; text-align:center; padding:2rem;">
                 <i class="fas fa-circle-notch fa-spin fa-2x"></i><br>
-                <div style="margin-top:1rem;">Generating Report...</div>
+                <div style="margin-top:1rem;">Generating Excel Report...</div>
             </div>
 
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" id="report-prev-btn" onclick="prevReportStep()"
-                style="display:none;">Previous</button>
-            <button class="btn btn-primary" id="report-next-btn" onclick="nextReportStep()">Next</button>
-            <button class="btn btn-success" id="report-gen-btn" onclick="generateReport()"
-                style="display:none;">Generate CSV</button>
+            <button class="btn btn-success" id="report-gen-btn" onclick="generateReport()" style="width:100%;">
+                <i class="fas fa-file-excel"></i> Generate Excel Report
+            </button>
         </div>
     </div>
 </div>

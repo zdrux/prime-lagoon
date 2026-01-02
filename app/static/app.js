@@ -1998,7 +1998,6 @@ function renderTrendsChart(data) {
 }
 
 /* Report Generation Logic */
-let reportStep = 1;
 const reportFilters = {
     env: ['DEV', 'UAT', 'PROD'], // Default All
     dc: ['AZURE', 'HCI']
@@ -2019,9 +2018,16 @@ let reportColumns = [
 ];
 
 function openReportModal() {
-    reportStep = 1;
+    // Reset filters to default (all off = all included)
     document.querySelectorAll('.report-filter').forEach(btn => btn.classList.remove('active'));
-    updateReportModalUI();
+
+    document.getElementById('report-loading').style.display = 'none';
+    document.getElementById('report-advanced').style.display = 'none';
+    document.getElementById('report-main-view').style.display = 'block';
+
+    renderReportColumns();
+    previewReport(); // Load everything initially
+
     document.getElementById('report-modal').classList.add('open');
 }
 
@@ -2031,42 +2037,8 @@ function closeReportModal() {
 
 function toggleReportFilter(btn) {
     btn.classList.toggle('active');
-}
-
-function updateReportModalUI() {
-    [1, 2, 3].forEach(s => document.getElementById(`report-step-${s}`).style.display = 'none');
-    document.getElementById('report-loading').style.display = 'none';
-
-    document.getElementById(`report-step-${reportStep}`).style.display = 'block';
-
-    const prevBtn = document.getElementById('report-prev-btn');
-    const nextBtn = document.getElementById('report-next-btn');
-    const genBtn = document.getElementById('report-gen-btn');
-
-    prevBtn.style.display = reportStep > 1 ? 'inline-block' : 'none';
-    nextBtn.style.display = reportStep < 3 ? 'inline-block' : 'none';
-    genBtn.style.display = reportStep === 3 ? 'inline-block' : 'none';
-
-    if (reportStep === 2) {
-        renderReportColumns();
-    }
-}
-
-function nextReportStep() {
-    if (reportStep === 3) return;
-
-    if (reportStep === 2) {
-        previewReport();
-    }
-
-    reportStep++;
-    updateReportModalUI();
-}
-
-function prevReportStep() {
-    if (reportStep === 1) return;
-    reportStep--;
-    updateReportModalUI();
+    // Debounce or immediate? Immediate is fine for now
+    previewReport();
 }
 
 function renderReportColumns() {
@@ -2077,13 +2049,13 @@ function renderReportColumns() {
         const div = document.createElement('div');
         div.style.display = 'flex';
         div.style.alignItems = 'center';
-        div.style.padding = '0.5rem';
+        div.style.padding = '0.3rem 0';
         div.style.borderBottom = '1px solid var(--border-color)';
-        div.style.background = col.included ? 'rgba(255,255,255,0.05)' : 'transparent';
+        div.style.background = 'transparent';
 
         div.innerHTML = `
             <input type="checkbox" ${col.included ? 'checked' : ''} onchange="toggleReportColumn(${idx})" style="margin-right:0.5rem; cursor:pointer;">
-            <span style="flex:1; opacity:${col.included ? 1 : 0.6}; font-size:0.9rem;">${col.name}</span>
+            <span style="flex:1; opacity:${col.included ? 1 : 0.6}; font-size:0.85rem;">${col.name}</span>
             <div style="display:flex; gap:0.25rem;">
                 <button class="btn btn-sm btn-secondary" onclick="moveReportColumn(${idx}, -1)" ${idx === 0 ? 'disabled' : ''} style="padding:0.1rem 0.4rem; font-size:0.7rem;"><i class="fas fa-arrow-up"></i></button>
                 <button class="btn btn-sm btn-secondary" onclick="moveReportColumn(${idx}, 1)" ${idx === reportColumns.length - 1 ? 'disabled' : ''} style="padding:0.1rem 0.4rem; font-size:0.7rem;"><i class="fas fa-arrow-down"></i></button>
@@ -2100,17 +2072,18 @@ function toggleReportColumn(idx) {
 
 function moveReportColumn(idx, dir) {
     if (idx + dir < 0 || idx + dir >= reportColumns.length) return;
-
     const temp = reportColumns[idx];
     reportColumns[idx] = reportColumns[idx + dir];
     reportColumns[idx + dir] = temp;
-
     renderReportColumns();
 }
 
 async function previewReport() {
     const list = document.getElementById('preview-cluster-list');
     const count = document.getElementById('preview-count');
+
+    // Don't clear list while typing/clicking rapidly, maybe just show spinner overlay?
+    // For now simple:
     list.innerHTML = '<div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading...</div>';
 
     const envs = [];
@@ -2148,7 +2121,7 @@ async function previewReport() {
 }
 
 async function generateReport() {
-    document.getElementById('report-step-3').style.display = 'none';
+    document.getElementById('report-main-view').style.display = 'none';
     document.getElementById('report-loading').style.display = 'block';
 
     const envs = [];
@@ -2167,7 +2140,6 @@ async function generateReport() {
 
         if (res.ok) {
             const rowData = await res.json();
-
             const finalCols = reportColumns.filter(c => c.included);
 
             const excelData = rowData.map(row => {
@@ -2191,6 +2163,7 @@ async function generateReport() {
         console.error(e);
         alert("Error generating report: " + e.message);
     } finally {
-        updateReportModalUI();
+        document.getElementById('report-loading').style.display = 'none';
+        document.getElementById('report-main-view').style.display = 'block';
     }
 }

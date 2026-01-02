@@ -40,14 +40,14 @@
                 <div
                     style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
                     Free Disk Space</div>
-                <div id="db-free-space" style="font-size:2rem; font-weight:800;">- MB</div>
+                <div id="db-free-space" style="font-size:2rem; font-weight:800;">- GB</div>
             </div>
             <div
                 style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
                 <div
                     style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
                     Storage Used</div>
-                <div id="db-size" style="font-size:2rem; font-weight:800; color:var(--accent-color);">- MB</div>
+                <div id="db-size" style="font-size:2rem; font-weight:800; color:var(--accent-color);">- GB</div>
             </div>
             <div
                 style="background:var(--bg-secondary); padding:1rem; border-radius:8px; border:1px solid var(--border-color); text-align:center;">
@@ -61,7 +61,7 @@
                 <div
                     style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px; margin-bottom:0.5rem;">
                     Avg Size / Snapshot</div>
-                <div id="db-avg-size" style="font-size:2rem; font-weight:800;">- MB</div>
+                <div id="db-avg-size" style="font-size:2rem; font-weight:800;">- GB</div>
             </div>
         </div>
 
@@ -72,7 +72,7 @@
                     style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
                         <span style="opacity:0.7;">Operator Data (CSVs & Subscriptions)</span>
-                        <strong id="db-op-data">- MB</strong>
+                        <strong id="db-op-data">- GB</strong>
                     </div>
                     <div class="progress-bar-container" style="height:8px;">
                         <div id="db-op-bar" class="progress-bar" style="width: 0%; background:var(--accent-color);">
@@ -83,7 +83,7 @@
                     style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
                         <span style="opacity:0.7;">Cluster Inventory (Nodes, Projects, etc.)</span>
-                        <strong id="db-inv-data">- MB</strong>
+                        <strong id="db-inv-data">- GB</strong>
                     </div>
                     <div class="progress-bar-container" style="height:8px;">
                         <div id="db-inv-bar" class="progress-bar" style="width: 0%; background:#10b981;"></div>
@@ -93,7 +93,7 @@
                     style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
                         <span style="opacity:0.7;">Audit & Compliance History</span>
-                        <strong id="db-audit-data">- MB</strong>
+                        <strong id="db-audit-data">- GB</strong>
                     </div>
                     <div class="progress-bar-container" style="height:8px;">
                         <div id="db-audit-bar" class="progress-bar" style="width: 0%; background:#f59e0b;"></div>
@@ -103,7 +103,7 @@
                     style="margin:0; background:rgba(255,255,255,0.02); padding:1rem; border:1px solid var(--border-color);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
                         <span style="opacity:0.7;">DB Overhead & App Logic</span>
-                        <strong id="db-other-data">- MB</strong>
+                        <strong id="db-other-data">- GB</strong>
                     </div>
                     <div class="progress-bar-container" style="height:8px;">
                         <div id="db-other-bar" class="progress-bar"
@@ -128,6 +128,12 @@
                 and license usage history. Storage usage increases over time as new snapshots are taken.
                 The <strong>Retention Policy</strong> now automatically cleans up old records across all categories
                 to keep the database lean.
+                <br>
+                <span style="font-size: 0.8rem; opacity: 0.7; margin-top: 0.5rem; display: block;">
+                    <i class="fas fa-link"></i> Note: The path shown above is the internal application path. This
+                    typically maps to a versioned database file (e.g., <code>database_v13.db</code>) on the physical
+                    host.
+                </span>
             </p>
         </div>
     </div>
@@ -185,10 +191,14 @@
             const res = await fetch('/api/admin/clusters/config/db-stats');
             if (res.ok) {
                 const data = await res.json();
-                sizeEl.innerText = data.file_size_mb + ' MB';
+                const auditHistoryMb = (data.usage_data_mb || 0) + (data.compliance_data_mb || 0);
+
+                const toGB = (mb) => (mb / 1024).toFixed(3);
+
+                sizeEl.innerText = toGB(data.file_size_mb) + ' GB';
                 snapEl.innerText = data.snapshot_count;
-                avgEl.innerText = data.avg_snapshot_size_mb + ' MB';
-                freeEl.innerText = data.free_space_mb + ' MB';
+                avgEl.innerText = toGB(data.avg_snapshot_size_mb) + ' GB';
+                freeEl.innerText = toGB(data.free_space_mb) + ' GB';
                 pathEl.innerText = data.db_filename;
 
                 if (data.is_space_critical) {
@@ -211,12 +221,10 @@
                 const otherDataEl = document.getElementById('db-other-data');
                 const otherBarEl = document.getElementById('db-other-bar');
 
-                const auditHistoryMb = (data.usage_data_mb || 0) + (data.compliance_data_mb || 0);
-
-                opDataEl.innerText = data.op_data_mb + ' MB';
-                invDataEl.innerText = data.inventory_data_mb + ' MB';
-                auditDataEl.innerText = auditHistoryMb.toFixed(2) + ' MB';
-                otherDataEl.innerText = data.other_data_mb + ' MB';
+                opDataEl.innerText = toGB(data.op_data_mb) + ' GB';
+                invDataEl.innerText = toGB(data.inventory_data_mb) + ' GB';
+                auditDataEl.innerText = toGB(auditHistoryMb) + ' GB';
+                otherDataEl.innerText = toGB(data.other_data_mb) + ' GB';
 
                 const opPct = (data.op_data_mb / data.file_size_mb * 100) || 0;
                 const invPct = (data.inventory_data_mb / data.file_size_mb * 100) || 0;

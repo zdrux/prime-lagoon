@@ -1108,11 +1108,11 @@ function renderTable(resourceType, data) {
             },
             { header: 'Created', path: 'metadata.creationTimestamp' },
             {
-                header: 'Actions', path: item => `
+                header: 'Actions', path: item => window.isAdmin ? `
                 <button class="btn btn-secondary btn-sm" onclick="showNodeDetails(${window.currentClusterId}, '${item.metadata.name}')">
                     <i class="fas fa-microchip"></i> Details
                 </button>
-            `
+            ` : '-'
             }
         ];
     } else if (resourceType === 'machines') {
@@ -1131,11 +1131,11 @@ function renderTable(resourceType, data) {
             },
             { header: 'Created', path: 'metadata.creationTimestamp' },
             {
-                header: 'Actions', path: item => `
+                header: 'Actions', path: item => window.isAdmin ? `
                 <button class="btn btn-secondary btn-sm" onclick="showMachineDetails(${window.currentClusterId}, '${item.metadata.name}')">
                     <i class="fas fa-info-circle"></i> Details
                 </button>
-            `
+            ` : '-'
             }
         ];
     } else if (resourceType === 'machinesets') {

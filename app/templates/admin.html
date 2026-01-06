@@ -228,6 +228,16 @@
                         <div style="font-size:0.8rem; color:var(--text-secondary); margin-left: 1.5rem;">
                             Automatically runs all active audit rules during poll.
                         </div>
+
+                        <div style="margin-top:0.8rem;"></div>
+
+                        <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" id="enable-vacuum" {% if enable_db_vacuum %}checked{% endif %}>
+                            <span>Enable Weekly Database Optimization</span>
+                        </label>
+                        <div style="font-size:0.8rem; color:var(--text-secondary); margin-left: 1.5rem;">
+                            Auto-optimizes the database every Sunday at 00:00 to free up space.
+                        </div>
                     </div>
                     <div style="display:flex; gap:0.5rem; margin-top:1rem;">
                         <button class="btn btn-primary" onclick="saveSchedulerConfig()" style="flex:1;">
@@ -912,6 +922,7 @@
         const retention = document.getElementById('snapshot-retention').value;
         const collectOlm = document.getElementById('collect-olm').checked;
         const runCompliance = document.getElementById('run-compliance').checked;
+        const enableVacuum = document.getElementById('enable-vacuum').checked;
 
         try {
             const res = await fetch('/api/admin/clusters/config/scheduler', {
@@ -921,7 +932,8 @@
                     poll_interval_minutes: parseInt(interval),
                     snapshot_retention_days: parseInt(retention),
                     collect_olm: collectOlm,
-                    run_compliance: runCompliance
+                    run_compliance: runCompliance,
+                    enable_db_vacuum: enableVacuum
                 })
             });
             if (res.ok) {

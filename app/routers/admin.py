@@ -15,6 +15,7 @@ class ConfigUpdate(BaseModel):
     snapshot_retention_days: int
     collect_olm: bool
     run_compliance: bool
+    enable_db_vacuum: bool = True
 
 class CleanupRequest(BaseModel):
     days: int
@@ -137,6 +138,15 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     else:
         db_comp.value = str(config.run_compliance)
         session.add(db_comp)
+
+    # Update DB Vacuum
+    db_vacuum = session.get(AppConfig, "ENABLE_DB_VACUUM")
+    if not db_vacuum:
+        db_vacuum = AppConfig(key="ENABLE_DB_VACUUM", value=str(config.enable_db_vacuum))
+        session.add(db_vacuum)
+    else:
+        db_vacuum.value = str(config.enable_db_vacuum)
+        session.add(db_vacuum)
     
     session.commit()
     
@@ -148,7 +158,8 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
         "interval": config.poll_interval_minutes,
         "retention_days": config.snapshot_retention_days,
         "collect_olm": config.collect_olm,
-        "run_compliance": config.run_compliance
+        "run_compliance": config.run_compliance,
+        "enable_db_vacuum": config.enable_db_vacuum
     }
 
 @router.get("/config/scheduler/run-stream")

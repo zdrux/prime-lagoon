@@ -40,6 +40,7 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "retention_days": retention_days,
         "collect_olm": (session.get(AppConfig, "SNAPSHOT_COLLECT_OLM") or AppConfig(value="True")).value.lower() == "true",
         "run_compliance": (session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE") or AppConfig(value="False")).value.lower() == "true",
+        "enable_db_vacuum": (session.get(AppConfig, "ENABLE_DB_VACUUM") or AppConfig(value="True")).value.lower() == "true",
         "user": user
     })
 

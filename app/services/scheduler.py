@@ -9,54 +9,73 @@ logger = logging.getLogger(__name__)
 
 scheduler = BackgroundScheduler()
 
-def get_poll_interval():
-    """Reads the polling interval from DB or returns default."""
-    default_interval = 15
+def get_scheduler_settings():
+    """Reads scheduler settings from DB."""
+    settings = {"interval": 15, "enable_vacuum": True}
     try:
         with Session(engine) as session:
-            config = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
-            if config:
-                return int(config.value)
+            # Interval
+            c_int = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
+            if c_int: settings["interval"] = int(c_int.value)
+            
+            # Vacuum
+            c_vac = session.get(AppConfig, "ENABLE_DB_VACUUM")
+            if c_vac: settings["enable_vacuum"] = (c_vac.value.lower() == 'true')
     except Exception as e:
-        logger.error(f"Error reading poll interval: {e}")
+        logger.error(f"Error reading settings: {e}")
     
-    return default_interval
+    return settings
 
 def start_scheduler():
     """Starts the scheduler with the configured interval."""
-    interval = get_poll_interval()
-    logger.info(f"Initializing scheduler with interval: {interval} minutes")
+    settings = get_scheduler_settings()
+    logger.info(f"Initializing scheduler. Interval: {settings['interval']}m, Vacuum: {settings['enable_vacuum']}")
     
-    # Add the job
+    # Add Poller Job
     scheduler.add_job(
         poll_all_clusters, 
         'interval', 
-        minutes=interval, 
+        minutes=settings['interval'], 
         id='cluster_poller',
         replace_existing=True
     )
     
-    # Add maintenance job (Weekly Vacuum)
+    # Add Maintenance Job
     from app.services.maintenance import run_vacuum_task
-    scheduler.add_job(
-        run_vacuum_task,
-        'cron',
-        day_of_week='sun',
-        hour=0,
-        minute=0,
-        id='db_vacuum',
-        replace_existing=True
-    )
+    if settings['enable_vacuum']:
+        scheduler.add_job(
+            run_vacuum_task,
+            'cron',
+            day_of_week='sun',
+            hour=0,
+            minute=0,
+            id='db_vacuum',
+            replace_existing=True
+        )
     
     if not scheduler.running:
         scheduler.start()
 
-def reschedule_job():
-    """Updates the job with the new interval from DB."""
-    interval = get_poll_interval()
-    logger.info(f"Rescheduling poller to interval: {interval} minutes")
+def refresh_jobs():
+    """Updates jobs with new settings from DB."""
+    settings = get_scheduler_settings()
+    logger.info(f"Refreshing scheduler jobs. Settings: {settings}")
     
     try:
-        scheduler.reschedule_job('cluster_poller', trigger='interval', minutes=interval)
+        # 1. Update Poller
+        scheduler.reschedule_job('cluster_poller', trigger='interval', minutes=settings['interval'])
+        
+        # 2. Update Vacuum
+        # Check if job exists
+        job = scheduler.get_job('db_vacuum')
+        from app.services.maintenance import run_vacuum_task
+        
+        if settings['enable_vacuum']:
+            if not job:
+                scheduler.add_job(run_vacuum_task, 'cron', day_of_week='sun', hour=0, minute=0, id='db_vacuum')
+        else:
+            if job:
+                scheduler.remove_job('db_vacuum')
+                
     except Exception as e:
-         logger.error(f"Failed to reschedule job: {e}")
+         logger.error(f"Failed to refresh jobs: {e}")

@@ -996,12 +996,27 @@ function renderBreakdownTable(data) {
             childBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.6;">No mapped usage</td></tr>';
         } else {
             childBody.innerHTML = sortedMapids.map(m => `
-                <tr>
+                <tr class="mapid-row-parent">
                     <td style="font-weight:600; color:var(--accent-color);">${m.mapid}</td>
                     <td style="opacity:0.8;">${m.lob || '-'}</td>
                     <td>${m.node_count}</td>
                     <td>${m.vcpu.toFixed(1)}</td>
-                    <td style="font-weight:bold;">${m.license_count}</td>
+                    <td style="font-weight:bold;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            ${m.license_count}
+                            <button class="btn btn-sm btn-secondary" style="font-size:0.7rem; padding: 0.1rem 0.4rem;" 
+                                onclick="toggleMapidResources(${cluster.cluster_id}, '${m.mapid}', this)">
+                                <i class="fas fa-chevron-right"></i> Resources
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <tr class="mapid-resources-row" style="display:none; background:rgba(0,0,0,0.1);">
+                    <td colspan="5" style="padding:0;">
+                        <div style="padding:0.5rem 1rem; border-left: 2px solid var(--accent-color); margin: 0.5rem 1rem;">
+                            <div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading...</div>
+                        </div>
+                    </td>
                 </tr>
             `).join('');
         }
@@ -1018,6 +1033,51 @@ function renderBreakdownTable(data) {
     });
 
     window._breakdownData = data; // Store for sorting/filtering if needed later
+}
+
+async function toggleMapidResources(clusterId, mapid, btn) {
+    const tr = btn.closest('tr');
+    const childTr = tr.nextElementSibling;
+    const icon = btn.querySelector('i');
+    const container = childTr.querySelector('div');
+
+    if (childTr.style.display === 'none') {
+        childTr.style.display = 'table-row';
+        icon.className = 'fas fa-chevron-down';
+
+        try {
+            let url = `/api/dashboard/${clusterId}/mapid/${mapid}/resources`;
+            if (window.currentSnapshotTime) {
+                url += `?snapshot_time=${window.currentSnapshotTime}`;
+            }
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Failed");
+            const data = await res.json();
+
+            let html = `
+                <div style="font-size:0.85rem; padding:0.5rem;">
+                    <strong>Nodes (${data.nodes.length})</strong>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.3rem;">
+                        ${data.nodes.length ? data.nodes.map(n => `<span class="badge" style="background:rgba(255,255,255,0.1);">${n.name}</span>`).join('') : '<span style="opacity:0.5;">None</span>'}
+                    </div>
+                    
+                    <div style="margin-top:0.8rem;"></div>
+                    
+                    <strong>Namespaces (${data.projects.length})</strong>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.3rem;">
+                        ${data.projects.length ? data.projects.map(p => `<span class="badge" style="background:rgba(255,255,255,0.1);">${p.name} <span style="font-size:0.7em; opacity:0.6;">(${p.requester})</span></span>`).join('') : '<span style="opacity:0.5;">None</span>'}
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = `<div style="color:red; padding:0.5rem;">Error loading resources</div>`;
+        }
+    } else {
+        childTr.style.display = 'none';
+        icon.className = 'fas fa-chevron-right';
+    }
 }
 
 function filterBreakdownTable() {

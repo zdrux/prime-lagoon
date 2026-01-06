@@ -1047,3 +1047,72 @@ def get_unmapped_nodes_details(session: Session = Depends(get_session)):
 
     return results
 
+
+@router.get("/{cluster_id}/mapid/{mapid}/resources")
+def get_mapid_resources(cluster_id: int, mapid: str, snapshot_time: Optional[str] = Query(None), session: Session = Depends(get_session)):
+    """Returns nodes and projects (namespaces) for a specific Cluster + MAPID."""
+    cluster = session.get(Cluster, cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    
+    # Logic similar to other endpoints: Fetch snapshot or live
+    snapshot_data = None
+    if snapshot_time:
+        try:
+            clean_ts = snapshot_time.replace("T", " ")
+            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
+            if snap and snap.data_json:
+                snapshot_data = json.loads(snap.data_json)
+        except:
+             pass
+
+    # If no snapshot_data found (and no time requesting), try live or fallback to latest snapshot?
+    # For drill down consistency, if no time is provided, we should probably look at latest snapshot 
+    # since the analytics view is based on "latest" or specific time.
+    if not snapshot_data and not snapshot_time:
+         snap = session.exec(select(ClusterSnapshot).where(
+            ClusterSnapshot.cluster_id == cluster_id,
+            ClusterSnapshot.status == "Success"
+        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+         if snap and snap.data_json:
+             snapshot_data = json.loads(snap.data_json)
+    
+    nodes = []
+    projects = []
+    
+    if snapshot_data:
+        nodes = snapshot_data.get("nodes", [])
+        projects = snapshot_data.get("projects", [])
+    else:
+        # Fallback to live fetch (might be slow but accurate)
+        try:
+            nodes = fetch_resources(cluster, "v1", "Node")
+            projects = fetch_resources(cluster, "project.openshift.io/v1", "Project")
+        except:
+            pass
+            
+    # Filter
+    filtered_nodes = []
+    for n in nodes:
+        lbls = n.get("metadata", {}).get("labels", {})
+        if str(lbls.get("mapid", "")).lower() == mapid.lower():
+            filtered_nodes.append({
+                "name": n["metadata"]["name"],
+                "creationTimestamp": n["metadata"]["creationTimestamp"]
+            })
+            
+    filtered_projects = []
+    for p in projects:
+        lbls = p.get("metadata", {}).get("labels", {})
+        if str(lbls.get("mapid", "")).lower() == mapid.lower():
+             filtered_projects.append({
+                "name": p["metadata"]["name"],
+                "creationTimestamp": p["metadata"]["creationTimestamp"],
+                "requester": p["metadata"].get("annotations", {}).get("openshift.io/requester", "-")
+            })
+
+    return {
+        "nodes": filtered_nodes,
+        "projects": filtered_projects
+    }

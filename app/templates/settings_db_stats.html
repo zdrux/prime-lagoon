@@ -197,7 +197,7 @@
 
                 sizeEl.innerText = toGB(data.file_size_mb) + ' GB';
                 snapEl.innerText = data.snapshot_count;
-                avgEl.innerText = toGB(data.avg_snapshot_size_mb) + ' GB';
+                avgEl.innerText = data.avg_snapshot_size_mb + ' MB';
                 freeEl.innerText = toGB(data.free_space_mb) + ' GB';
                 pathEl.innerText = data.db_filename;
 

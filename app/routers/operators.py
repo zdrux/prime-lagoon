@@ -18,21 +18,9 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     Returns a matrix of installed operators across all clusters.
     Data is sourced from the latest successful snapshot (or specific snapshot_time) for each cluster.
     """
-    clusters = session.exec(select(Cluster)).all()
+    from sqlalchemy import func, text
     
-    # Structure:
-    # {
-    #   "clusters": [{id, name, ...}],
-    #   "operators": {
-    #       "OpName": {
-    #           "displayName": "...",
-    #           "provider": "...",
-    #           "installations": {
-    #               "ClusterName": { "version": "...", "status": "...", "channel": "..." }
-    #           }
-    #       }
-    #   }
-    # }
+    clusters = session.exec(select(Cluster)).all()
     
     matrix_data = {
         "clusters": [],
@@ -54,13 +42,20 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     
     latest_ts = None
     for cluster in clusters:
-        # Get snapshot
-        query = select(ClusterSnapshot).where(ClusterSnapshot.cluster_id == cluster.id)
+        # Optimize: Fetch ONLY the needed fields using json_extract
+        # We need: timestamp, csvs, subscriptions, __errors
+        # Note: json_extract returns the JSON string for objects/arrays in SQLite
+        
+        query = select(
+            ClusterSnapshot.timestamp,
+            func.json_extract(ClusterSnapshot.data_json, '$.csvs').label("csvs"),
+            func.json_extract(ClusterSnapshot.data_json, '$.subscriptions').label("subscriptions"),
+            func.json_extract(ClusterSnapshot.data_json, '$.__errors').label("errors")
+        ).where(ClusterSnapshot.cluster_id == cluster.id)
         
         if target_ts:
             # Match logic from dashboard.py: 
             # Allow up to 10 minutes (600s) delay (grace period) and pick the latest one in that window
-            # This handles cases where poller finishes slightly after the group run timestamp
             from datetime import timedelta
             grace_target = target_ts + timedelta(seconds=600)
             query = query.where(ClusterSnapshot.timestamp <= grace_target)
@@ -69,11 +64,14 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
         else:
             query = query.where(ClusterSnapshot.status == "Success").order_by(ClusterSnapshot.timestamp.desc())
         
-        snap = session.exec(query.limit(1)).first()
-
+        # Execute optimized query
+        # This avoids loading the full 50MB+ data_json into Python memory
+        result = session.exec(query.limit(1)).first()
         
-        if snap and (not latest_ts or snap.timestamp > latest_ts):
-            latest_ts = snap.timestamp
+        # Result is a tuple: (timestamp, csvs_json, subscriptions_json, errors_json) or None
+        
+        if result and (not latest_ts or result[0] > latest_ts):
+            latest_ts = result[0]
             
         cluster_info = {
             "id": cluster.id,
@@ -84,22 +82,30 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
             "data_collected": False
         }
         
-        if snap and snap.data_json:
+        if result:
             cluster_info["has_data"] = True
             try:
-                data = json.loads(snap.data_json)
+                # Parse the extracted JSON fragments
+                # SQLite json_extract returns the value. 
+                # If it didn't find the key, it returns None.
+                
+                raw_csvs = result[1]
+                raw_subs = result[2]
+                raw_errors = result[3]
+
+                csvs = json.loads(raw_csvs) if raw_csvs else []
+                subs = json.loads(raw_subs) if raw_subs else []
+                errors = json.loads(raw_errors) if raw_errors else {}
                 
                 # Check for Data Collection Status
-                # If csvs/subscriptions keys are MISSING (not just empty), then data was not collected
-                if "csvs" not in data and "subscriptions" not in data:
+                # If both are None (not just empty lists, but null in DB extract), data might be missing structure
+                # But json_extract returns NULL if key missing.
+                # Logic: If key was missing in original JSON, result is None.
+                if raw_csvs is None and raw_subs is None:
                     cluster_info["data_collected"] = False
                 else:
                     cluster_info["data_collected"] = True
 
-                subs = data.get("subscriptions", [])
-                csvs = data.get("csvs", [])
-                errors = data.get("__errors", {})
-                
                 # Check if we have specific errors for OLM resources
                 if errors.get("subscriptions") == "Forbidden" or errors.get("csvs") == "Forbidden":
                     cluster_info["auth_error"] = True

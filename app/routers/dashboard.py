@@ -931,6 +931,7 @@ def get_mapid_breakdown(
         
         mapid_stats[mid]["clusters"].append({
             "name": c.name,
+            "cluster_id": c.id,
             "environment": c.environment or "-",
             "datacenter": c.datacenter or "-",
             "licenses": r.license_count,

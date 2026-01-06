@@ -767,15 +767,37 @@ async function loadMapidBreakdown() {
                 const childBody = clone.querySelector('.child-tbody');
                 if (item.clusters && item.clusters.length > 0) {
                     item.clusters.forEach(c => {
+                        // Parent Row (Cluster)
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td style="font-weight:600;">${c.name}</td>
                             <td>${c.environment}</td>
                             <td>${c.datacenter}</td>
                             <td>${c.nodes}</td>
-                            <td style="font-weight:bold;">${c.licenses}</td>
+                            <td style="font-weight:bold;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                    ${c.licenses}
+                                    <button class="btn btn-sm btn-secondary" style="font-size:0.7rem; padding: 0.1rem 0.4rem;" 
+                                        onclick="toggleMapidResources(${c.cluster_id}, '${item.mapid}', this)">
+                                        <i class="fas fa-chevron-right"></i> Resources
+                                    </button>
+                                </div>
+                            </td>
                         `;
                         childBody.appendChild(row);
+
+                        // Child Row (Resources)
+                        const resRow = document.createElement('tr');
+                        resRow.style.display = 'none';
+                        resRow.style.background = 'rgba(0,0,0,0.1)';
+                        resRow.innerHTML = `
+                             <td colspan="5" style="padding:0;">
+                                <div style="padding:0.5rem 1rem; border-left: 2px solid var(--accent-color); margin: 0.5rem 1rem;">
+                                    <div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading...</div>
+                                </div>
+                            </td>
+                        `;
+                        childBody.appendChild(resRow);
                     });
                 } else {
                     childBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No contributing clusters found.</td></tr>';
@@ -1055,17 +1077,33 @@ async function toggleMapidResources(clusterId, mapid, btn) {
             const data = await res.json();
 
             let html = `
-                <div style="font-size:0.85rem; padding:0.5rem;">
-                    <strong>Nodes (${data.nodes.length})</strong>
-                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.3rem;">
-                        ${data.nodes.length ? data.nodes.map(n => `<span class="badge" style="background:rgba(255,255,255,0.1);">${n.name}</span>`).join('') : '<span style="opacity:0.5;">None</span>'}
+                <div style="font-size:0.9rem; padding:1rem;">
+                    <h6 style="margin-bottom:0.5rem; color:var(--text-color);">Nodes (${data.nodes.length})</h6>
+                    <div style="max-height: 200px; overflow-y: auto; margin-bottom: 1.5rem; background: rgba(0,0,0,0.2); border-radius:4px;">
+                        <table class="table table-sm table-borderless" style="margin:0; color:var(--text-color); font-size:0.85rem;">
+                            <tbody>
+                                ${data.nodes.length ? data.nodes.map(n => `
+                                    <tr>
+                                        <td style="padding: 0.25rem 0.5rem;"><i class="fas fa-server" style="opacity:0.5; margin-right:5px;"></i> ${n.name}</td>
+                                        <td style="padding: 0.25rem 0.5rem; text-align:right; opacity:0.6;">${n.creationTimestamp ? new Date(n.creationTimestamp).toLocaleDateString() : '-'}</td>
+                                    </tr>
+                                `).join('') : '<tr><td style="padding:0.5rem; opacity:0.5;">No nodes found</td></tr>'}
+                            </tbody>
+                        </table>
                     </div>
                     
-                    <div style="margin-top:0.8rem;"></div>
-                    
-                    <strong>Namespaces (${data.projects.length})</strong>
-                    <div style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.3rem;">
-                        ${data.projects.length ? data.projects.map(p => `<span class="badge" style="background:rgba(255,255,255,0.1);">${p.name} <span style="font-size:0.7em; opacity:0.6;">(${p.requester})</span></span>`).join('') : '<span style="opacity:0.5;">None</span>'}
+                    <h6 style="margin-bottom:0.5rem; color:var(--text-color);">Namespaces (${data.projects.length})</h6>
+                    <div style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius:4px;">
+                         <table class="table table-sm table-borderless" style="margin:0; color:var(--text-color); font-size:0.85rem;">
+                            <tbody>
+                                ${data.projects.length ? data.projects.map(p => `
+                                    <tr>
+                                        <td style="padding: 0.25rem 0.5rem;"><i class="fas fa-cubes" style="opacity:0.5; margin-right:5px;"></i> ${p.name}</td>
+                                        <td style="padding: 0.25rem 0.5rem; text-align:right; opacity:0.6;">${p.requester}</td>
+                                    </tr>
+                                `).join('') : '<tr><td style="padding:0.5rem; opacity:0.5;">No namespaces found</td></tr>'}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             `;

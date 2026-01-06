@@ -7,7 +7,7 @@ import asyncio
 from pydantic import BaseModel
 from app.database import get_session
 from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, User
-from app.services.scheduler import reschedule_job
+from app.services.scheduler import refresh_jobs
 from app.dependencies import admin_required
 
 class ConfigUpdate(BaseModel):
@@ -150,16 +150,13 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     
     session.commit()
     
-    # Trigger Reschedule
-    reschedule_job()
+    # Trigger Refresh
+    # from app.services.scheduler import refresh_jobs # already imported top level
+    refresh_jobs()
     
     return {
         "status": "updated", 
-        "interval": config.poll_interval_minutes,
-        "retention_days": config.snapshot_retention_days,
-        "collect_olm": config.collect_olm,
-        "run_compliance": config.run_compliance,
-        "enable_db_vacuum": config.enable_db_vacuum
+        "config": config.dict()
     }
 
 @router.get("/config/scheduler/run-stream")

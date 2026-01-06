@@ -56,10 +56,15 @@
 
 <!-- Global Trends Section -->
 <div class="card fade-in" style="margin-bottom: 1.5rem;">
-    <h2
-        style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
-        Global MAPID Output Trends
-    </h2>
+    <div
+        style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+        <h2 style="font-size: 1.1rem; margin:0;">Global Licence Usage by MAPID</h2>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-secondary active" id="scale-log"
+                onclick="updateChartScale('logarithmic')">Logarithmic</button>
+            <button class="btn btn-secondary" id="scale-linear" onclick="updateChartScale('linear')">Linear</button>
+        </div>
+    </div>
     <div style="position: relative; height: 300px; width: 100%;">
         <div id="loader-trends"
             style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; background:rgba(0,0,0,0.2); z-index:10;">

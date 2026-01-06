@@ -927,6 +927,21 @@ function renderGlobalMapidChart(data) {
         fill: false
     }));
 
+    let currentScale = 'logarithmic'; // Default
+
+    window.updateChartScale = function (scaleType) {
+        currentScale = scaleType;
+
+        // Update Buttons
+        document.getElementById('scale-log').classList.toggle('active', scaleType === 'logarithmic');
+        document.getElementById('scale-linear').classList.toggle('active', scaleType === 'linear');
+
+        if (licenseChartInstance) {
+            licenseChartInstance.options.scales.y.type = scaleType;
+            licenseChartInstance.update();
+        }
+    };
+
     licenseChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
@@ -953,6 +968,7 @@ function renderGlobalMapidChart(data) {
             },
             scales: {
                 y: {
+                    type: currentScale,
                     beginAtZero: true,
                     title: { display: true, text: 'Total Licenses' }
                 },

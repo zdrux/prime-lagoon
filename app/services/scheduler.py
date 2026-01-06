@@ -36,6 +36,18 @@ def start_scheduler():
         replace_existing=True
     )
     
+    # Add maintenance job (Weekly Vacuum)
+    from app.services.maintenance import run_vacuum_task
+    scheduler.add_job(
+        run_vacuum_task,
+        'cron',
+        day_of_week='sun',
+        hour=0,
+        minute=0,
+        id='db_vacuum',
+        replace_existing=True
+    )
+    
     if not scheduler.running:
         scheduler.start()
 

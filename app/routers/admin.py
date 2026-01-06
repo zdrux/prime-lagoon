@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, SQLModel
 from typing import List, Optional
@@ -481,16 +481,13 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
         "db_filename": db_file
     }
 
-@router.post("/config/db-vacuum")
-def vacuum_db(session: Session = Depends(get_session), user: User = Depends(admin_required)):
-    """Runs SQLite VACUUM to reclaim space."""
-    try:
-        from sqlalchemy import text
-        session.execute(text("VACUUM"))
-        session.commit()
-        return {"status": "success", "message": "Database optimized successfully."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.post("/config/db-vacuum", status_code=202)
+def vacuum_db(background_tasks: BackgroundTasks, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    """Runs SQLite VACUUM to reclaim space in the background."""
+    from app.services.maintenance import run_vacuum_task
+    
+    background_tasks.add_task(run_vacuum_task)
+    return {"status": "accepted", "message": "Database optimization started in background."}
 
 @router.patch("/{cluster_id}", response_model=ClusterRead)
 def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):

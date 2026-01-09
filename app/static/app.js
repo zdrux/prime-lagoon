@@ -1010,33 +1010,37 @@ function renderGlobalMapidChart(data) {
 }
 
 function renderUnmappedNodes(data) {
-    const section = document.getElementById('unmapped-nodes-section');
+    const statusBar = document.getElementById('unmapped-status-bar');
+    const statusIcon = document.getElementById('unmapped-status-icon');
+    const statusTitle = document.getElementById('unmapped-status-title');
+    const statusDesc = document.getElementById('unmapped-status-desc');
+    const actionBtn = document.getElementById('unmapped-action-btn');
     const tbody = document.getElementById('unmapped-nodes-body');
-    const badge = document.getElementById('unmapped-count-badge');
 
-    // Always show section to confirm scan ran
-    section.style.display = 'block';
+    if (!statusBar) return;
+    statusBar.style.display = 'block';
 
     if (!data || data.length === 0) {
-        badge.innerText = `0 Issues`;
-        badge.classList.remove('badge-red');
-        badge.classList.add('badge-green'); // Assuming utility class or I can set style
-        badge.style.background = 'var(--success-color)';
-
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="3" style="text-align:center; padding: 2rem; color: var(--text-secondary);">
-                    <i class="fas fa-check-circle" style="color: var(--success-color); font-size: 1.5rem; margin-bottom: 0.5rem;"></i><br>
-                    No unmapped resources found. All licensed nodes and projects have a MAPID.
-                </td>
-            </tr>
-        `;
+        // Success State
+        statusBar.style.borderLeftColor = 'var(--success-color)';
+        statusIcon.className = 'fas fa-check-circle';
+        statusIcon.style.color = 'var(--success-color)';
+        statusTitle.innerText = 'No unmapped resources found';
+        statusDesc.innerText = 'All licensed nodes and projects have a valid MAPID label.';
+        actionBtn.style.display = 'none';
         return;
     }
 
-    badge.innerText = `${data.length} Resources`;
-    badge.style.background = 'var(--danger-color)';
+    // Warning State
+    statusBar.style.borderLeftColor = 'var(--warning-color)';
+    statusIcon.className = 'fas fa-exclamation-triangle';
+    statusIcon.style.color = 'var(--warning-color)';
+    statusTitle.innerText = `${data.length} Unmapped Resources Detected`;
+    statusTitle.style.color = 'var(--warning-color)';
+    statusDesc.innerText = 'Some licensed resources are missing the mapid label.';
+    actionBtn.style.display = 'inline-flex';
 
+    // Populate Modal Table
     tbody.innerHTML = data.map(n => `
         <tr>
             <td style="font-weight:600;">${n.cluster_name}</td>

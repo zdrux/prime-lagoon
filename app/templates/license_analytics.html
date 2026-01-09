@@ -77,37 +77,81 @@
     </div>
 </div>
 
-<!-- Unmapped Nodes Alert Section -->
-<div id="unmapped-nodes-section" class="card fade-in"
-    style="margin-bottom: 1.5rem; display: none; border-left: 4px solid var(--warning-color);">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
-        <h2 style="font-size: 1.1rem; color: var(--warning-color); display:flex; align-items:center; gap:0.5rem;">
-            <i class="fas fa-exclamation-triangle"></i> Unmapped Resources Detected
-        </h2>
-        <span class="badge badge-yellow" id="unmapped-count-badge">0 Nodes</span>
+<!-- Unmapped Resources Status Bar -->
+<div id="unmapped-status-bar" class="card fade-in"
+    style="margin-bottom: 1.5rem; display: none; padding: 1rem 1.5rem; transition: all 0.3s; border-left: 4px solid var(--text-secondary);">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <i id="unmapped-status-icon" class="fas fa-circle-notch fa-spin"
+                style="font-size: 1.2rem; color: var(--text-secondary);"></i>
+            <div>
+                <h2 id="unmapped-status-title" style="font-size: 1rem; margin:0; font-weight: 600;">Scanning for
+                    unmapped resources...</h2>
+                <p id="unmapped-status-desc" style="font-size: 0.85rem; opacity: 0.7; margin:0;">Please wait while we
+                    check all clusters and projects.</p>
+            </div>
+        </div>
+        <button id="unmapped-action-btn" class="btn btn-sm btn-secondary" style="display:none;"
+            onclick="openUnmappedModal()">
+            View Details <i class="fas fa-arrow-right" style="margin-left:0.5rem;"></i>
+        </button>
     </div>
-    <p style="font-size:0.9rem; opacity:0.8; margin-bottom:1rem;">
-        The following licensed nodes or projects do not have a valid <code>mapid</code> label.
-        Please ensure these resources are tagged correctly to track usage.
-    </p>
-    <div style="max-height: 200px; overflow-y: auto;">
-        <table class="data-table" style="font-size:0.85rem;">
-            <thead>
-                <tr>
-                    <th>Cluster</th>
-                    <th>Resource Name</th>
-                    <th>Reason</th>
-                </tr>
-            </thead>
-            <tbody id="unmapped-nodes-body">
-                <!-- Populated by JS -->
-            </tbody>
-        </table>
-        <div id="loader-unmapped" style="text-align:center; padding:1rem; display:none;">
-            <i class="fas fa-circle-notch fa-spin"></i> Checking nodes...
+</div>
+
+<!-- Unmapped Resources Modal -->
+<div id="unmapped-modal" class="modal">
+    <div class="modal-content" style="max-width: 900px; height: 80vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+            <h3>Unmapped Resources Detected</h3>
+            <span class="close-btn" onclick="closeUnmappedModal()">&times;</span>
+        </div>
+        <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+            <div style="padding: 1rem; background: var(--bg-secondary); border-bottom: 1px solid var(--border-color);">
+                <p style="margin:0; font-size:0.9rem; opacity:0.8;">
+                    The following resources are licensed but lack a valid <code>mapid</code> label.
+                    Please tag them correctly or add a Namespace Exclusion Rule.
+                </p>
+                <input type="text" id="unmapped-search" placeholder="Search resources..." class="form-input"
+                    style="margin-top:0.5rem; width:100%; font-size:0.9rem; padding:0.5rem;"
+                    onkeyup="filterUnmappedModal()">
+            </div>
+            <div style="overflow-y: auto; flex: 1; padding: 1rem;">
+                <table class="data-table" id="unmapped-table">
+                    <thead>
+                        <tr>
+                            <th>Cluster</th>
+                            <th>Resource Name</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="unmapped-nodes-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeUnmappedModal()">Close</button>
         </div>
     </div>
 </div>
+
+<script>
+    function openUnmappedModal() {
+        document.getElementById('unmapped-modal').classList.add('open');
+    }
+    function closeUnmappedModal() {
+        document.getElementById('unmapped-modal').classList.remove('open');
+    }
+    function filterUnmappedModal() {
+        const input = document.getElementById('unmapped-search').value.toLowerCase();
+        const rows = document.querySelectorAll('#unmapped-nodes-body tr');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(input) ? '' : 'none';
+        });
+    }
+</script>
 
 <!-- Cluster Breakdown Section -->
 <!-- Breakdown Section -->

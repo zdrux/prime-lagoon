@@ -559,8 +559,12 @@ async function refreshClusterLive(clusterId) {
     const icon = row.querySelector('.fa-circle');
     if (icon) icon.classList.add('fa-pulse');
 
+    console.log(`[Debug] Refreshing live stats for cluster ${clusterId}...`);
     try {
-        const res = await fetch(`/api/dashboard/${clusterId}/live_stats?ts=${Date.now()}`);
+        const url = `/api/dashboard/${clusterId}/live_stats?ts=${Date.now()}`;
+        console.log(`[Debug] Fetching: ${url}`);
+        const res = await fetch(url);
+        console.log(`[Debug] Response status: ${res.status}`);
         if (res.ok) {
             const data = await res.json();
 
@@ -581,8 +585,12 @@ async function refreshClusterLive(clusterId) {
 
                 // Update Total Summary Cards
                 updateGlobalSummary();
+                console.log(`[Debug] Successfully updated cluster ${clusterId} stats`);
+            } else {
+                console.warn(`[Debug] Cluster ${clusterId} not found in global list`);
             }
         } else {
+            console.error(`[Debug] Fetch failed with status ${res.status}`);
             throw new Error("Failed to refresh");
         }
     } catch (e) {
@@ -2762,7 +2770,9 @@ function startUpgradeTimers(clusterId) {
     updateTimerDisplay();
 
     // Main Refresh Loop (15s)
+    console.log(`[Debug] Starting upgrade timer for cluster ${clusterId}`);
     _upgradePollInterval = setInterval(async () => {
+        console.log(`[Debug] Upgrade poll triggered for cluster ${clusterId}`);
         await refreshUpgradeDetails(clusterId);
         _secondsRemaining = 15; // Reset after fetch start
         updateTimerDisplay();
@@ -2799,6 +2809,7 @@ async function refreshUpgradeDetails(clusterId) {
         await refreshClusterLive(clusterId);
         // data in window._allClusters is now updated
         updateUpgradeModalContent(clusterId);
+        console.log(`[Debug] Upgrade details refreshed for cluster ${clusterId}`);
     } catch (e) {
         console.error("Auto-refresh failed", e);
     }
@@ -2806,7 +2817,10 @@ async function refreshUpgradeDetails(clusterId) {
 
 function updateUpgradeModalContent(clusterId) {
     const cluster = window._allClusters.find(c => c.id === clusterId);
-    if (!cluster || !cluster.stats || !cluster.stats.upgrade_status) return;
+    if (!cluster || !cluster.stats || !cluster.stats.upgrade_status) {
+        console.warn(`[Debug] Missing upgrade status for cluster ${clusterId}`, cluster);
+        return;
+    }
 
     const status = cluster.stats.upgrade_status;
     document.getElementById('upgrade-cluster-name').innerText = cluster.name;

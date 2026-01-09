@@ -147,6 +147,29 @@
     </div>
 </div>
 
+<!-- Upgrade Details Modal -->
+<div id="upgrade-modal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-sync fa-spin"></i> Upgrade In Progress</h3>
+            <span class="close-btn" onclick="closeUpgradeModal()">&times;</span>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 2rem;">
+            <div id="upgrade-target-version" style="font-size: 1.2rem; font-weight: bold; margin-bottom: 1rem;"></div>
+            <div class="progress-bar-container"
+                style="background: rgba(255,255,255,0.1); border-radius: 10px; height: 20px; width: 100%; overflow: hidden; margin-bottom: 1rem;">
+                <div id="upgrade-progress-bar"
+                    style="background: var(--accent-color); height: 100%; width: 0%; transition: width 0.5s;"></div>
+            </div>
+            <div id="upgrade-message" style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem;"></div>
+            <div id="upgrade-percentage" style="font-size: 2rem; font-weight: bold; color: var(--accent-color);"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeUpgradeModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- Historical Trends Modal -->
 <div id="trends-modal" class="modal">
     <div class="modal-content" style="max-width: 1100px;">

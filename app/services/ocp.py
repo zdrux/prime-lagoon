@@ -271,11 +271,32 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
                  vcpu_count += parse_cpu(cpu)
                       
             cluster_version = "N/A"
+            upgrade_status = None
+            
             # Try to get from clusterversions list if captured (new poller)
             cv_list = snapshot_data.get("clusterversions", [])
             target_cv = next((cv for cv in cv_list if get_val(cv, 'metadata.name') == 'version'), None)
             if target_cv:
                 cluster_version = get_val(target_cv, 'status.desired.version') or "N/A"
+                
+                # Check for upgrade
+                conditions = get_val(target_cv, 'status.conditions') or []
+                prog = next((c for c in conditions if c.get('type') == 'Progressing' and c.get('status') == 'True'), None)
+                if prog:
+                    msg = prog.get('message', '')
+                    pct = 0
+                    # Try to regex percentage "X of Y done (Z% complete)"
+                    import re
+                    match = re.search(r'(\d+)% complete', msg)
+                    if match:
+                        pct = int(match.group(1))
+                    
+                    upgrade_status = {
+                        "is_upgrading": True,
+                        "message": msg,
+                        "percentage": pct,
+                        "target_version": cluster_version
+                    }
             
             console_url = "#"
             # Try to get from routes list if captured (new poller)
@@ -291,7 +312,8 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
                 "node_count": node_count,
                 "vcpu_count": int(vcpu_count),
                 "version": cluster_version,
-                "console_url": console_url
+                "console_url": console_url,
+                "upgrade_status": upgrade_status
             }
 
         dyn_client = get_dynamic_client(cluster)
@@ -310,10 +332,31 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
                  
         # Version Info
         cluster_version = "N/A"
+        upgrade_status = None
         try:
              version_resource = dyn_client.resources.get(api_version='config.openshift.io/v1', kind='ClusterVersion')
              v_obj = version_resource.get(name='version')
              cluster_version = v_obj.status.desired.version
+             
+             # Check for upgrade
+             conditions = v_obj.status.conditions or []
+             # Conditions is a list of objects/dicts depending on client
+             prog = next((c for c in conditions if c.type == 'Progressing' and c.status == 'True'), None)
+             if prog:
+                msg = prog.message
+                pct = 0
+                import re
+                match = re.search(r'(\d+)% complete', msg)
+                if match:
+                    pct = int(match.group(1))
+                
+                upgrade_status = {
+                    "is_upgrading": True,
+                    "message": msg,
+                    "percentage": pct,
+                    "target_version": cluster_version
+                }
+
         except Exception:
              pass
              
@@ -332,7 +375,8 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             "node_count": node_count,
             "vcpu_count": int(vcpu_count),
             "version": cluster_version,
-            "console_url": console_url
+            "console_url": console_url,
+            "upgrade_status": upgrade_status
         }
     except Exception as e:
         print(f"Error fetching stats for {cluster.name}: {e}")
@@ -341,7 +385,8 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             "node_count": "-",
             "vcpu_count": "-",
             "version": "-",
-            "console_url": "#"
+            "console_url": "#",
+            "upgrade_status": None
         }
 def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
     try:

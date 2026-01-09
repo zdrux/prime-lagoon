@@ -454,9 +454,15 @@ function renderClusterRows(clusters) {
 
         return `
         <tr id="cluster-row-${c.id}">
-            <td style="font-weight:600; color:var(--accent-color); cursor:pointer;" onclick="showClusterDetails(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
-                <i class="fas fa-circle ${c.status === 'yellow' ? 'fa-pulse' : ''}" style="color:${statusColor}; font-size:0.6rem; margin-right:0.5rem;" title="${statusTitle}"></i>
-                ${c.name}
+            <td style="font-weight:600; color:var(--accent-color);">
+                <div style="display:flex; align-items:center;">
+                    <span style="cursor:pointer; display:flex; align-items:center;" onclick="showClusterDetails(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
+                        <i class="fas fa-circle ${c.status === 'yellow' ? 'fa-pulse' : ''}" style="color:${statusColor}; font-size:0.6rem; margin-right:0.5rem;" title="${statusTitle}"></i>
+                        ${c.name}
+                    </span>
+                    ${stats.upgrade_status && stats.upgrade_status.is_upgrading ?
+                `<i class="fas fa-sync fa-spin" style="margin-left:0.5rem; color:var(--accent-color); cursor:pointer;" title="Upgrade in progress" onclick="showUpgradeDetails(${c.id})"></i>` : ''}
+                </div>
             </td>
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${stats.node_count !== undefined ? stats.node_count : '<i class="fas fa-spinner fa-spin" style="opacity:0.3;"></i>'}</td>
             <td>
@@ -492,9 +498,9 @@ function renderClusterRows(clusters) {
                 <button class="btn btn-secondary" style="padding:0.2rem 0.4rem; font-size:0.7rem; opacity:0.8;" onclick="showClusterDetails(${c.id}, '${c.name.replace(/'/g, "\\'")}')">
                     <i class="fas fa-info-circle"></i>
                 </button>
-            </td>
-        </tr>
-    `}).join('');
+            </td >
+        </tr >
+            `}).join('');
 }
 
 /* Dashboard Specific Filtering */
@@ -546,7 +552,7 @@ function applyDashboardFilters() {
 }
 
 async function refreshClusterLive(clusterId) {
-    const row = document.getElementById(`cluster-row-${clusterId}`);
+    const row = document.getElementById(`cluster - row - ${clusterId} `);
     if (!row) return;
 
     // Optional: Show loading state in status icon
@@ -554,7 +560,7 @@ async function refreshClusterLive(clusterId) {
     if (icon) icon.classList.add('fa-pulse');
 
     try {
-        const res = await fetch(`/api/dashboard/${clusterId}/live_stats`);
+        const res = await fetch(`/ api / dashboard / ${clusterId}/live_stats`);
         if (res.ok) {
             const data = await res.json();
 
@@ -2734,4 +2740,51 @@ async function restartPod() {
         alert("Restarting... Please reload the page in a few moments.");
         setTimeout(() => window.location.reload(), 3000);
     }
+}
+
+let _upgradePollInterval = null;
+
+function showUpgradeDetails(clusterId) {
+    // Initial Render
+    updateUpgradeModalContent(clusterId);
+
+    // Open Modal
+    document.getElementById('upgrade-modal').classList.add('open');
+
+    // Start Polling (every 5 seconds)
+    if (_upgradePollInterval) clearInterval(_upgradePollInterval);
+    _upgradePollInterval = setInterval(() => refreshUpgradeDetails(clusterId), 5000);
+}
+
+function closeUpgradeModal() {
+    if (_upgradePollInterval) {
+        clearInterval(_upgradePollInterval);
+        _upgradePollInterval = null;
+    }
+    document.getElementById('upgrade-modal').classList.remove('open');
+}
+
+async function refreshUpgradeDetails(clusterId) {
+    try {
+        // reuse the live stats refresh logic
+        await refreshClusterLive(clusterId);
+        // data in window._allClusters is now updated
+        updateUpgradeModalContent(clusterId);
+    } catch (e) {
+        console.error("Auto-refresh failed", e);
+    }
+}
+
+function updateUpgradeModalContent(clusterId) {
+    const cluster = window._allClusters.find(c => c.id === clusterId);
+    if (!cluster || !cluster.stats || !cluster.stats.upgrade_status) return;
+
+    const status = cluster.stats.upgrade_status;
+    document.getElementById('upgrade-target-version').innerText = `Target Version: ${status.target_version}`;
+    document.getElementById('upgrade-message').innerText = status.message;
+
+    // Percentage
+    let pct = status.percentage || 0;
+    document.getElementById('upgrade-percentage').innerText = `${pct}%`;
+    document.getElementById('upgrade-progress-bar').style.width = `${pct}%`;
 }

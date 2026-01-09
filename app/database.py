@@ -1,5 +1,5 @@
 import os
-from sqlmodel import SQLModel, create_engine, Session
+from sqlmodel import SQLModel, create_engine, Session, text
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database_v13.db")
 
@@ -15,7 +15,6 @@ def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
     
     # Migration: Add 'order' column to LicenseRule if missing
-    from sqlmodel import text
     try:
         with engine.connect() as conn:
             # Check if column exists (SQLite specific)

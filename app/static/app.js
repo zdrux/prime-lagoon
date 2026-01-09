@@ -560,7 +560,7 @@ async function refreshClusterLive(clusterId) {
     if (icon) icon.classList.add('fa-pulse');
 
     try {
-        const res = await fetch(`/api/dashboard/${clusterId}/live_stats`);
+        const res = await fetch(`/api/dashboard/${clusterId}/live_stats?ts=${Date.now()}`);
         if (res.ok) {
             const data = await res.json();
 

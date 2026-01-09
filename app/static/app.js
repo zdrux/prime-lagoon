@@ -2743,6 +2743,8 @@ async function restartPod() {
 }
 
 let _upgradePollInterval = null;
+let _upgradeTimerInterval = null;
+let _secondsRemaining = 15;
 
 function showUpgradeDetails(clusterId) {
     // Initial Render
@@ -2751,16 +2753,43 @@ function showUpgradeDetails(clusterId) {
     // Open Modal
     document.getElementById('upgrade-modal').classList.add('open');
 
-    // Start Polling (every 5 seconds)
+    startUpgradeTimers(clusterId);
+}
+
+function startUpgradeTimers(clusterId) {
+    stopUpgradeTimers();
+    _secondsRemaining = 15;
+    updateTimerDisplay();
+
+    // Main Refresh Loop (15s)
+    _upgradePollInterval = setInterval(async () => {
+        await refreshUpgradeDetails(clusterId);
+        _secondsRemaining = 15; // Reset after fetch start
+        updateTimerDisplay();
+    }, 15000);
+
+    // Countdown Loop (1s)
+    _upgradeTimerInterval = setInterval(() => {
+        _secondsRemaining--;
+        if (_secondsRemaining < 0) _secondsRemaining = 0;
+        updateTimerDisplay();
+    }, 1000);
+}
+
+function stopUpgradeTimers() {
     if (_upgradePollInterval) clearInterval(_upgradePollInterval);
-    _upgradePollInterval = setInterval(() => refreshUpgradeDetails(clusterId), 5000);
+    if (_upgradeTimerInterval) clearInterval(_upgradeTimerInterval);
+    _upgradePollInterval = null;
+    _upgradeTimerInterval = null;
+}
+
+function updateTimerDisplay() {
+    const el = document.getElementById('upgrade-timer');
+    if (el) el.innerText = `Next refresh in: ${_secondsRemaining}s`;
 }
 
 function closeUpgradeModal() {
-    if (_upgradePollInterval) {
-        clearInterval(_upgradePollInterval);
-        _upgradePollInterval = null;
-    }
+    stopUpgradeTimers();
     document.getElementById('upgrade-modal').classList.remove('open');
 }
 

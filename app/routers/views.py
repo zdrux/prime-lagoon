@@ -38,6 +38,7 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "active_tab": tab,
         "poll_interval": poll_interval,
         "retention_days": retention_days,
+        "dashboard_cache_ttl": int((session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES") or AppConfig(value="15")).value),
         "collect_olm": (session.get(AppConfig, "SNAPSHOT_COLLECT_OLM") or AppConfig(value="True")).value.lower() == "true",
         "run_compliance": (session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE") or AppConfig(value="False")).value.lower() == "true",
         "enable_db_vacuum": (session.get(AppConfig, "ENABLE_DB_VACUUM") or AppConfig(value="True")).value.lower() == "true",

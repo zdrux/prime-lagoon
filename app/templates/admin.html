@@ -210,6 +210,11 @@
                         <input type="number" id="snapshot-retention" class="form-input" min="1" max="365"
                             value="{{ retention_days }}" style="width:80px; text-align:center;">
                     </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                        <span style="font-size:0.9rem;">All Clusters Cache TTL (Min)</span>
+                        <input type="number" id="dashboard-cache-ttl" class="form-input" min="1" max="1440"
+                            value="{{ dashboard_cache_ttl }}" style="width:80px; text-align:center;">
+                    </div>
 
                     <div style="margin: 1rem 0; border-top: 1px solid var(--border-color); padding-top: 1rem;">
                         <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
@@ -920,6 +925,7 @@
     async function saveSchedulerConfig() {
         const interval = document.getElementById('poll-interval').value;
         const retention = document.getElementById('snapshot-retention').value;
+        const cacheTtl = document.getElementById('dashboard-cache-ttl').value;
         const collectOlm = document.getElementById('collect-olm').checked;
         const runCompliance = document.getElementById('run-compliance').checked;
         const enableVacuum = document.getElementById('enable-vacuum').checked;
@@ -931,6 +937,7 @@
                 body: JSON.stringify({
                     poll_interval_minutes: parseInt(interval),
                     snapshot_retention_days: parseInt(retention),
+                    dashboard_cache_ttl_minutes: parseInt(cacheTtl),
                     collect_olm: collectOlm,
                     run_compliance: runCompliance,
                     enable_db_vacuum: enableVacuum
@@ -1111,7 +1118,7 @@
             // Heartbeats (SSE comments) keep the connection open but don't fire message events.
             // If we get here, the connection actually dropped or failed.
             console.warn("SSE Connection issue, will retry automatically...");
-            
+
             // If the modal is still loading after a long time without updates, then show error.
             // But we let EventSource try to auto-reconnect first.
             if (!_pollErrorTimeout) {

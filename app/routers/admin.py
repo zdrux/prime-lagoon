@@ -15,6 +15,7 @@ class ConfigUpdate(BaseModel):
     snapshot_retention_days: int
     collect_olm: bool
     run_compliance: bool
+    dashboard_cache_ttl_minutes: int
     enable_db_vacuum: bool = True
 
 class CleanupRequest(BaseModel):
@@ -194,6 +195,15 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     else:
         db_vacuum.value = str(config.enable_db_vacuum)
         session.add(db_vacuum)
+
+    # Update Dashboard Cache TTL
+    db_cache_ttl = session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES")
+    if not db_cache_ttl:
+        db_cache_ttl = AppConfig(key="DASHBOARD_CACHE_TTL_MINUTES", value=str(config.dashboard_cache_ttl_minutes))
+        session.add(db_cache_ttl)
+    else:
+        db_cache_ttl.value = str(config.dashboard_cache_ttl_minutes)
+        session.add(db_cache_ttl)
     
     session.commit()
     

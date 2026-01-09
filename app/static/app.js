@@ -39,6 +39,16 @@ function formatEST(timestamp, includeSeconds = true) {
     return date.toLocaleString('en-US', options);
 }
 
+function getRemainingCacheTime(timestamp, ttlMinutes) {
+    if (!timestamp || !ttlMinutes) return "---";
+    const lastUpdate = new Date(timestamp);
+    const now = new Date();
+    const diffMs = (lastUpdate.getTime() + ttlMinutes * 60000) - now.getTime();
+    if (diffMs <= 0) return "available now";
+    const minutes = Math.ceil(diffMs / 60000);
+    return `${minutes} minutes`;
+}
+
 // Global initialization
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize UI state for time travel immediately
@@ -236,6 +246,7 @@ async function loadSummary(forceRefresh = false) {
         }
 
         window._allClusters = clusters;
+        window._dashboardTtl = data.ttl_minutes;
 
         if (clusters.length === 0) {
             summaryDiv.innerHTML = '<div class="card" style="grid-column: 1/-1;">No clusters configured.</div>';
@@ -244,13 +255,7 @@ async function loadSummary(forceRefresh = false) {
 
         summaryDiv.style.display = 'block';
 
-        // Show "Data as of" if timestamp is present
-        const dataAsOfContainer = document.getElementById('data-as-of-container');
-        const dataAsOfTime = document.getElementById('data-as-of-time');
-        if (dataAsOfContainer && dataAsOfTime && data.timestamp) {
-            dataAsOfContainer.style.display = 'flex';
-            dataAsOfTime.innerText = formatEST(data.timestamp);
-        }
+        summaryDiv.style.display = 'block';
 
         summaryDiv.innerHTML = `
         <!-- Global Summary Cards -->
@@ -291,6 +296,10 @@ async function loadSummary(forceRefresh = false) {
                         <input type="text" id="cluster-table-search" placeholder="Search clusters..." 
                                style="padding:0.35rem 0.75rem 0.35rem 2rem; border-radius:15px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.8rem; width:220px;"
                                oninput="applyDashboardFilters()">
+                    </div>
+                    <div id="data-as-of-container" style="display:none; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-secondary); opacity:0.8;">
+                        <i class="far fa-clock"></i> Data as of: <span id="data-as-of-time" style="color:var(--accent-color); font-weight:600;">-</span>
+                        <span id="data-next-poll" style="font-style:italic; font-size:0.7rem;"></span>
                     </div>
                     <div style="display:flex; gap:0.25rem;" id="dashboard-filter-group">
                         <button class="filter-btn" onclick="toggleDashboardFilter(this, 'DEV')" data-filter="DEV">DEV</button>
@@ -355,6 +364,20 @@ async function loadSummary(forceRefresh = false) {
 
         // Initial re-calc
         updateGlobalSummary();
+
+        // Show "Data as of" if timestamp is present
+        const dataAsOfContainer = document.getElementById('data-as-of-container');
+        const dataAsOfTime = document.getElementById('data-as-of-time');
+        const dataNextPoll = document.getElementById('data-next-poll');
+        if (dataAsOfContainer && dataAsOfTime && data.timestamp) {
+            dataAsOfContainer.style.display = 'flex';
+            dataAsOfTime.innerText = formatEST(data.timestamp);
+
+            if (dataNextPoll && data.ttl_minutes) {
+                const remaining = getRemainingCacheTime(data.timestamp, data.ttl_minutes);
+                dataNextPoll.innerText = `(New data can be polled in: ${remaining})`;
+            }
+        }
 
     } catch (e) {
         if (summaryDiv) {
@@ -1429,6 +1452,7 @@ function renderTable(resourceType, data) {
             <div style="display:flex; align-items:center; gap:1rem;">
                 <div id="data-as-of-container" style="display:none; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-secondary); opacity:0.8;">
                     <i class="far fa-clock"></i> Data as of: <span id="data-as-of-time" style="color:var(--accent-color); font-weight:600;">-</span>
+                    <span id="data-next-poll" style="font-style:italic; font-size:0.7rem;"></span>
                 </div>
                 <input type="text" id="resource-filter" placeholder="Filter table..." class="form-input" style="width:250px;" onkeyup="filterTable()">
                 <div style="display:flex; gap:0.5rem;">
@@ -1470,13 +1494,20 @@ function renderTable(resourceType, data) {
     `;
     contentDiv.innerHTML = html;
 
-    // Show "Data as of" if timestamp is present (wrapped in data object)
-    const dataAsOfContainer = document.getElementById('data-as-of-container');
-    const dataAsOfTime = document.getElementById('data-as-of-time');
-    // For dashboard summary, we sometimes have it in the outer object if wrapped
-    if (dataAsOfContainer && dataAsOfTime && data.timestamp) {
-        dataAsOfContainer.style.display = 'flex';
-        dataAsOfTime.innerText = formatEST(data.timestamp);
+    // Set "As Of" date if present
+    if (timestamp) {
+        const container = document.getElementById('data-as-of-container');
+        const timeEl = document.getElementById('data-as-of-time');
+        const nextEl = document.getElementById('data-next-poll');
+        if (container && timeEl) {
+            container.style.display = 'flex';
+            timeEl.innerText = formatEST(timestamp);
+
+            if (nextEl && window._dashboardTtl) {
+                const remaining = getRemainingCacheTime(timestamp, window._dashboardTtl);
+                nextEl.innerText = `(New data can be polled in: ${remaining})`;
+            }
+        }
     }
 }
 

@@ -239,9 +239,10 @@ dashboard_cache = DashboardCache()
 
 @router.get("/summary")
 def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Optional[str] = Query(None), refresh: bool = Query(False), session: Session = Depends(get_session)):
+    ttl_minutes = int((session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES") or AppConfig(value="15")).value)
+
     # 1. Check Cache (Live Mode only)
     if not snapshot_time and mode != "fast" and not refresh:
-        ttl_minutes = int((session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES") or AppConfig(value="15")).value)
         if dashboard_cache.is_valid(ttl_minutes):
             return dashboard_cache.data
 
@@ -560,7 +561,8 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     response_data = {
         "clusters": results,
         "global_stats": global_stats,
-        "timestamp": timestamp if not target_dt else snapshot_time
+        "timestamp": timestamp if not target_dt else snapshot_time,
+        "ttl_minutes": ttl_minutes
     }
 
     # Save to Cache in Live Mode

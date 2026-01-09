@@ -29,6 +29,11 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
         is_included = default_include
         inclusion_reason = "Include All by Default" if default_include else "Exclude All by Default"
         
+        # Debug only for istio nodes to see why they fail
+        debug_node = "istio" in name
+        if debug_node:
+             print(f"[LicDebug] processing {name}")
+
         # Sequential Rule Check: First match wins
         for r in rules:
             if not r.is_active:
@@ -38,14 +43,15 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
             if r.rule_type == "name_match":
                 try:
                     # Strip quotes if user added them
-                    val = r.match_value.strip('"').strip("'")
+                    # DEBUG: Enforce stripping of whitespace first
+                    val = r.match_value.strip().strip('"').strip("'")
                     if re.search(val, name):
                         matched = True
                 except:
                     pass
             elif r.rule_type == "label_match":
                 # Strip quotes from the entire string first
-                clean_val = r.match_value.strip('"').strip("'")
+                clean_val = r.match_value.strip().strip('"').strip("'")
                 
                 if "=" in clean_val:
                     k, v = clean_val.split("=", 1)
@@ -61,7 +67,14 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
             if matched:
                 is_included = (r.action == "INCLUDE")
                 inclusion_reason = f"Matched rule: {r.name} ({r.action})"
+                if debug_node:
+                    print(f"  [LicDebug] Matched rule {r.name} ({r.rule_type}='{r.match_value}'). Action: {r.action}")
                 break # First match wins!
+            
+            if debug_node:
+                 # Strip for debug output consistency
+                 d_val = r.match_value.strip().strip('"').strip("'") 
+                 print(f"  [LicDebug] Did NOT match rule {r.name} ({r.rule_type}='{d_val}') against {name}")
         
         # 3. Calculate
         if is_included:

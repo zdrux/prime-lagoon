@@ -277,7 +277,20 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             cv_list = snapshot_data.get("clusterversions", [])
             target_cv = next((cv for cv in cv_list if get_val(cv, 'metadata.name') == 'version'), None)
             if target_cv:
-                cluster_version = get_val(target_cv, 'status.desired.version') or "N/A"
+                # Target version is what the cluster DESIRES to be
+                target_version = get_val(target_cv, 'status.desired.version') or "N/A"
+                
+                # Current version is the most recent "Completed" entry in history
+                history = get_val(target_cv, 'status.history') or []
+                cluster_version = "N/A"
+                for h in history:
+                    if h.get('state') == 'Completed':
+                        cluster_version = h.get('version')
+                        break
+                
+                # If no completed history (fresh cluster?), fallback to desired
+                if cluster_version == "N/A":
+                    cluster_version = target_version
                 
                 # Check for upgrade
                 conditions = get_val(target_cv, 'status.conditions') or []
@@ -295,7 +308,7 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
                         "is_upgrading": True,
                         "message": msg,
                         "percentage": pct,
-                        "target_version": cluster_version
+                        "target_version": target_version
                     }
             
             console_url = "#"
@@ -336,7 +349,21 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
         try:
              version_resource = dyn_client.resources.get(api_version='config.openshift.io/v1', kind='ClusterVersion')
              v_obj = version_resource.get(name='version')
-             cluster_version = v_obj.status.desired.version
+             
+             # Target version is what the cluster DESIRES to be
+             target_version = v_obj.status.desired.version
+             
+             # Current version is the most recent "Completed" entry in history
+             history = v_obj.status.history or []
+             cluster_version = "N/A"
+             for h in history:
+                 if h.state == 'Completed':
+                     cluster_version = h.version
+                     break
+             
+             # Fallback
+             if cluster_version == "N/A":
+                 cluster_version = target_version
              
              # Check for upgrade
              conditions = v_obj.status.conditions or []
@@ -354,7 +381,7 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
                     "is_upgrading": True,
                     "message": msg,
                     "percentage": pct,
-                    "target_version": cluster_version
+                    "target_version": target_version
                 }
 
         except Exception:

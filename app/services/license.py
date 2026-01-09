@@ -1,5 +1,6 @@
 import math
 import json
+import re
 from typing import List, Dict, Any, Optional
 from app.services.ocp import parse_cpu, get_val
 from app.models import LicenseRule
@@ -35,7 +36,6 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
                 
             matched = False
             if r.rule_type == "name_match":
-                import re
                 try:
                     # Strip quotes if user added them
                     val = r.match_value.strip('"').strip("'")
@@ -130,7 +130,6 @@ def calculate_mapid_usage(nodes: List[Any], rules: List[LicenseRule] = [], defau
             if not r.is_active: continue
             matched = False
             if r.rule_type == "name_match":
-                import re
                 try:
                     # Strip quotes if user added them
                     val = r.match_value.strip('"').strip("'")

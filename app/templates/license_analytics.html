@@ -111,15 +111,21 @@
                     The following resources are licensed but lack a valid <code>mapid</code> label.
                     Please tag them correctly or add a Namespace Exclusion Rule.
                 </p>
-                <input type="text" id="unmapped-search" placeholder="Search resources..." class="form-input"
-                    style="margin-top:0.5rem; width:100%; font-size:0.9rem; padding:0.5rem;"
-                    onkeyup="filterUnmappedModal()">
+                <div style="display:flex; gap:0.5rem; margin-top:0.8rem; align-items:center;">
+                    <button class="btn btn-xs btn-primary" id="filter-btn-all"
+                        onclick="setUnmappedFilter('all')">All</button>
+                    <button class="btn btn-xs btn-secondary" id="filter-btn-node"
+                        onclick="setUnmappedFilter('node')">Nodes</button>
+                    <button class="btn btn-xs btn-secondary" id="filter-btn-project"
+                        onclick="setUnmappedFilter('project')">Projects</button>
+                    <input type="text" id="unmapped-search" placeholder="Search resources..." class="form-input"
+                        style="flex:1; font-size:0.9rem; padding:0.4rem;" onkeyup="filterUnmappedModal()">
+                </div>
             </div>
             <div style="overflow-y: auto; flex: 1; padding: 1rem;">
                 <table class="data-table" id="unmapped-table">
                     <thead>
                         <tr>
-                            <th>Cluster</th>
                             <th>Resource Name</th>
                             <th>Reason</th>
                         </tr>

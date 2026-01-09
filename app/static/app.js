@@ -1009,13 +1009,17 @@ function renderGlobalMapidChart(data) {
     });
 }
 
+let unmappedResourcesData = [];
+let currentUnmappedFilter = 'all';
+
 function renderUnmappedNodes(data) {
+    unmappedResourcesData = data || [];
+
     const statusBar = document.getElementById('unmapped-status-bar');
     const statusIcon = document.getElementById('unmapped-status-icon');
     const statusTitle = document.getElementById('unmapped-status-title');
     const statusDesc = document.getElementById('unmapped-status-desc');
     const actionBtn = document.getElementById('unmapped-action-btn');
-    const tbody = document.getElementById('unmapped-nodes-body');
 
     if (!statusBar) return;
     statusBar.style.display = 'block';
@@ -1040,14 +1044,92 @@ function renderUnmappedNodes(data) {
     statusDesc.innerText = 'Some licensed resources are missing the mapid label.';
     actionBtn.style.display = 'inline-flex';
 
-    // Populate Modal Table
-    tbody.innerHTML = data.map(n => `
-        <tr>
-            <td style="font-weight:600;">${n.cluster_name}</td>
-            <td style="font-family:monospace;">${n.node_name}</td>
-            <td style="color:var(--danger-color);">${n.reason}</td>
-        </tr>
-    `).join('');
+    // Initial Render
+    setUnmappedFilter('all');
+}
+
+function setUnmappedFilter(type) {
+    currentUnmappedFilter = type;
+
+    // Update Buttons
+    ['all', 'node', 'project'].forEach(t => {
+        const btn = document.getElementById(`filter-btn-${t}`);
+        if (btn) {
+            if (t === type) {
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-primary');
+            } else {
+                btn.classList.add('btn-secondary');
+                btn.classList.remove('btn-primary');
+            }
+        }
+    });
+
+    renderUnmappedTableRefreshed();
+}
+
+// Wrapper for search input
+function filterUnmappedModal() {
+    renderUnmappedTableRefreshed();
+}
+
+function renderUnmappedTableRefreshed() {
+    const tbody = document.getElementById('unmapped-nodes-body');
+    const searchVal = (document.getElementById('unmapped-search').value || '').toLowerCase();
+
+    if (!tbody) return;
+
+    // Filter Data
+    let filtered = unmappedResourcesData.filter(item => {
+        // Type Filter
+        const isProject = item.node_name.startsWith('[Project]');
+        if (currentUnmappedFilter === 'node' && isProject) return false;
+        if (currentUnmappedFilter === 'project' && !isProject) return false;
+
+        // Search Filter
+        if (searchVal) {
+            const text = (item.cluster_name + ' ' + item.node_name + ' ' + item.reason).toLowerCase();
+            return text.includes(searchVal);
+        }
+        return true;
+    });
+
+    // Group by Cluster
+    const grouped = {};
+    filtered.forEach(item => {
+        if (!grouped[item.cluster_name]) grouped[item.cluster_name] = [];
+        grouped[item.cluster_name].push(item);
+    });
+
+    // Generate HTML
+    if (Object.keys(grouped).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:1rem;">No results found</td></tr>';
+        return;
+    }
+
+    let html = '';
+    // Sort clusters alphabetically
+    Object.keys(grouped).sort().forEach(cluster => {
+        // Group Header
+        html += `
+            <tr style="background: var(--bg-primary); border-top: 2px solid var(--border-color); border-bottom: 2px solid var(--border-color);">
+                <td colspan="2" style="font-weight: 700; color: var(--accent-color); padding: 0.75rem;">
+                    <i class="fas fa-server" style="opacity:0.7; margin-right:0.5rem;"></i> ${cluster}
+                </td>
+            </tr>
+        `;
+        // Items
+        grouped[cluster].forEach(n => {
+            html += `
+                <tr>
+                    <td style="font-family:monospace; padding-left: 1.5rem;">${n.node_name}</td>
+                    <td style="color:var(--danger-color); font-size:0.9rem;">${n.reason}</td>
+                </tr>
+            `;
+        });
+    });
+
+    tbody.innerHTML = html;
 }
 
 function renderBreakdownTable(data) {

@@ -82,9 +82,9 @@
     const rules = [
         {% for rule in rules %}
     {
-        "id": { { rule.id | tojson } },
-        "name": { { rule.name | tojson } },
-        "match_pattern": { { rule.match_pattern | tojson } }
+        "id": {{ rule.id | tojson }},
+        "name": {{ rule.name | tojson }},
+        "match_pattern": {{ rule.match_pattern | tojson }}
     } {% if not loop.last %}, {% endif %}
     {% endfor %}
     ];

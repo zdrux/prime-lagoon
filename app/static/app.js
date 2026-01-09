@@ -461,7 +461,7 @@ function renderClusterRows(clusters) {
                         ${c.name}
                     </span>
                     ${stats.upgrade_status && stats.upgrade_status.is_upgrading ?
-                `<i class="fas fa-sync fa-spin" style="margin-left:0.5rem; color:var(--accent-color); cursor:pointer;" title="Upgrade in progress" onclick="showUpgradeDetails(${c.id})"></i>` : ''}
+                `<i class="fas fa-sync fa-spin" style="margin-left:0.5rem; color:#f39c12; font-size:0.8rem; cursor:pointer;" title="Upgrade in progress" onclick="showUpgradeDetails(${c.id})"></i>` : ''}
                 </div>
             </td>
             <td style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${stats.node_count !== undefined ? stats.node_count : '<i class="fas fa-spinner fa-spin" style="opacity:0.3;"></i>'}</td>
@@ -2780,7 +2780,9 @@ function updateUpgradeModalContent(clusterId) {
     if (!cluster || !cluster.stats || !cluster.stats.upgrade_status) return;
 
     const status = cluster.stats.upgrade_status;
-    document.getElementById('upgrade-target-version').innerText = `Target Version: ${status.target_version}`;
+    document.getElementById('upgrade-cluster-name').innerText = cluster.name;
+    document.getElementById('upgrade-current-version').innerText = cluster.stats.version || 'Unknown';
+    document.getElementById('upgrade-target-version').innerText = status.target_version;
     document.getElementById('upgrade-message').innerText = status.message;
 
     // Percentage

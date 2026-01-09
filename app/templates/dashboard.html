@@ -155,7 +155,14 @@
             <span class="close-btn" onclick="closeUpgradeModal()">&times;</span>
         </div>
         <div class="modal-body" style="text-align: center; padding: 2rem;">
-            <div id="upgrade-target-version" style="font-size: 1.2rem; font-weight: bold; margin-bottom: 1rem;"></div>
+            <h2 id="upgrade-cluster-name" style="margin-top:0; color:var(--accent-color);"></h2>
+            <div
+                style="display:flex; justify-content:center; align-items:center; gap:1rem; margin-bottom:1.5rem; font-size:1.1rem; opacity:0.9;">
+                <span id="upgrade-current-version"></span>
+                <i class="fas fa-arrow-right" style="opacity:0.5; font-size:0.9rem;"></i>
+                <span id="upgrade-target-version" style="font-weight:bold;"></span>
+            </div>
+
             <div class="progress-bar-container"
                 style="background: rgba(255,255,255,0.1); border-radius: 10px; height: 20px; width: 100%; overflow: hidden; margin-bottom: 1rem;">
                 <div id="upgrade-progress-bar"

@@ -380,11 +380,17 @@
             </div>
 
             <!-- Loading State -->
-            <div id="report-loading" style="display:none; text-align:center; padding:2rem;">
-                <i class="fas fa-circle-notch fa-spin fa-2x"></i><br>
-                <div style="margin-top:1rem;">Generating Excel Report...</div>
-            </div>
+            <div id="report-loading" style="text-align: center; padding: 3rem; display: none;">
+                <i class="fas fa-circle-notch fa-spin fa-3x"
+                    style="color: var(--accent-color); margin-bottom: 1.5rem;"></i>
+                <h3 style="margin-bottom: 0.5rem;">Generating Excel Report...</h3>
+                <p style="opacity: 0.6; font-size: 0.9rem;">Large reports can take a minute to process.</p>
 
+                <div class="report-progress-container">
+                    <div id="report-progress-bar" class="report-progress-bar"></div>
+                </div>
+                <div id="report-progress-text" class="report-progress-text">Preparing data...</div>
+            </div>
         </div>
         <div class="modal-footer" style="padding: 1.5rem;">
             <button class="btn btn-primary" id="report-gen-btn" onclick="generateReport()" style="width:100%;">

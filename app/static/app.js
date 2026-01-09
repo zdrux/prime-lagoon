@@ -2557,8 +2557,15 @@ async function previewReport() {
 
 async function generateReport() {
     document.getElementById('report-main-view').style.display = 'none';
-    document.getElementById('report-loading').style.display = 'block';
-    document.getElementById('report-gen-btn').style.display = 'none'; // Hide button
+    const loader = document.getElementById('report-loading');
+    const progressBar = document.getElementById('report-progress-bar');
+    const progressText = document.getElementById('report-progress-text');
+    const genBtn = document.getElementById('report-gen-btn');
+
+    loader.style.display = 'block';
+    genBtn.style.display = 'none';
+    progressBar.style.width = '0%';
+    progressText.innerText = 'Connecting to server...';
 
     const envs = [];
     const dcs = [];
@@ -2567,17 +2574,64 @@ async function generateReport() {
         if (btn.dataset.type === 'dc') dcs.push(btn.dataset.val);
     });
 
+    // We get total clusters from the preview count
+    const totalCount = parseInt(document.getElementById('preview-count').innerText) || 1;
+    let clustersProcessed = 0;
+    let rowData = [];
+
     try {
-        const res = await fetch('/api/reports/generate', {
+        const response = await fetch('/api/reports/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ environments: envs, datacenters: dcs })
         });
 
-        if (res.ok) {
-            const rowData = await res.json();
-            const finalCols = reportColumns.filter(c => c.included);
+        if (!response.ok) throw new Error("Failed to generate report data.");
 
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // This is a simple but effective way to track progress since we yield one JSON object per row
+            // and the streaming response is essentially a large JSON array.
+            // We can search for the end of objects "}" followed by a comma or the end of the array.
+            // Count number of "Cluster Name" keys since each row has one.
+            const matches = buffer.match(/"Cluster Name":/g);
+            if (matches) {
+                // Approximate progress based on clusters. 
+                // Since a cluster has many nodes, let's track "Cluster Name" appearances in the buffer
+                // This isn't perfect for exact cluster count because multiple clusters might be in one chunk,
+                // but we can use unique cluster names if we want to be precise.
+
+                // For simplicity, let's just count total rows received so far to gauge activity
+                const rowCount = matches.length;
+                progressText.innerText = `Received ${rowCount} nodes...`;
+
+                // If we want a percentage, we'd need to know total nodes, which we don't.
+                // But we know total clusters! Let's count unique cluster names in the buffer.
+                // We'll use a regex that captures "Cluster Name": "..."
+                const clusterMatches = [...buffer.matchAll(/"Cluster Name":\s*"([^"]+)"/g)];
+                const uniqueClusters = new Set(clusterMatches.map(m => m[1])).size;
+
+                const percent = Math.min(Math.round((uniqueClusters / totalCount) * 100), 99);
+                progressBar.style.width = percent + '%';
+                progressText.innerText = `Processing cluster ${uniqueClusters} of ${totalCount}... (${rowCount} nodes)`;
+            }
+        }
+
+        // Final parse of the completed buffer
+        rowData = JSON.parse(buffer);
+        progressBar.style.width = '100%';
+        progressText.innerText = 'Finalizing Excel file...';
+
+        if (rowData.length > 0) {
+            const finalCols = reportColumns.filter(c => c.included);
             const excelData = rowData.map(row => {
                 const newRow = {};
                 finalCols.forEach(col => {
@@ -2590,17 +2644,17 @@ async function generateReport() {
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "License_Report");
             XLSX.writeFile(wb, `OCP_License_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
-
             closeReportModal();
         } else {
-            alert("Failed to generate report data.");
+            alert("No data found for report.");
         }
+
     } catch (e) {
         console.error(e);
         alert("Error generating report: " + e.message);
     } finally {
-        document.getElementById('report-loading').style.display = 'none';
+        loader.style.display = 'none';
         document.getElementById('report-main-view').style.display = 'block';
-        document.getElementById('report-gen-btn').style.display = 'block'; // Restore button
+        genBtn.style.display = 'block';
     }
 }

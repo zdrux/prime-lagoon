@@ -995,13 +995,28 @@ function renderUnmappedNodes(data) {
     const tbody = document.getElementById('unmapped-nodes-body');
     const badge = document.getElementById('unmapped-count-badge');
 
+    // Always show section to confirm scan ran
+    section.style.display = 'block';
+
     if (!data || data.length === 0) {
-        section.style.display = 'none';
+        badge.innerText = `0 Issues`;
+        badge.classList.remove('badge-red');
+        badge.classList.add('badge-green'); // Assuming utility class or I can set style
+        badge.style.background = 'var(--success-color)';
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" style="text-align:center; padding: 2rem; color: var(--text-secondary);">
+                    <i class="fas fa-check-circle" style="color: var(--success-color); font-size: 1.5rem; margin-bottom: 0.5rem;"></i><br>
+                    No unmapped resources found. All licensed nodes and projects have a MAPID.
+                </td>
+            </tr>
+        `;
         return;
     }
 
-    section.style.display = 'block';
-    badge.innerText = `${data.length} Nodes`;
+    badge.innerText = `${data.length} Resources`;
+    badge.style.background = 'var(--danger-color)';
 
     tbody.innerHTML = data.map(n => `
         <tr>

@@ -999,7 +999,7 @@ def get_unmapped_nodes_details(session: Session = Depends(get_session)):
     Returns a list of nodes that are licensed but have 'Unmapped' MAPID.
     Optimization: Only checks clusters that have reported 'Unmapped' usage in MapidLicenseUsage.
     """
-    from app.models import MapidLicenseUsage, LicenseRule, AppConfig
+    from app.models import MapidLicenseUsage, LicenseRule, AppConfig, NamespaceExclusionRule
     from app.services.license import calculate_licenses
     
     results = []

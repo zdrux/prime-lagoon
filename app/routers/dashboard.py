@@ -463,7 +463,8 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                 futures[executor.submit(process_cluster, cluster)] = cluster
                 
             # Wait for results with timeout
-            done, not_done = concurrent.futures.wait(futures.keys(), timeout=10)
+            # Increased from 10s to 45s to allow for slower/more clusters
+            done, not_done = concurrent.futures.wait(futures.keys(), timeout=45)
             
             for f in done:
                 res = f.result()

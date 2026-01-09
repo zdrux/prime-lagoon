@@ -552,7 +552,7 @@ function applyDashboardFilters() {
 }
 
 async function refreshClusterLive(clusterId) {
-    const row = document.getElementById(`cluster - row - ${clusterId} `);
+    const row = document.getElementById(`cluster-row-${clusterId}`);
     if (!row) return;
 
     // Optional: Show loading state in status icon

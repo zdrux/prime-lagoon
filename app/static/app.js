@@ -1915,6 +1915,7 @@ async function showClusterDetails(clusterId, clusterName) {
                 </div>
             </div>
 
+            ${window.isAdmin ? `
             <div class="card" style="margin:0;">
                 <div style="padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
                     <h4 style="color:var(--accent-color);"><i class="fas fa-cog"></i> Cluster Operators</h4>
@@ -1947,6 +1948,7 @@ async function showClusterDetails(clusterId, clusterName) {
                     </table>
                 </div>
             </div>
+            ` : ''}
         `;
 
     } catch (e) {

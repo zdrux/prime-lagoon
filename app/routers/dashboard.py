@@ -250,7 +250,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     
     # Fetch Config
     timestamp = datetime.now(timezone.utc).isoformat()
-    rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
+    rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
     default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
     
     global_stats = {

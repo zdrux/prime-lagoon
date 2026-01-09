@@ -30,6 +30,53 @@ router = APIRouter(
     tags=["admin"],
 )
 
+class PollManager:
+    def __init__(self):
+        self.subscribers: List[asyncio.Queue] = []
+        self.is_running = False
+        self._lock = asyncio.Lock()
+        self.loop = None
+
+    async def subscribe(self) -> asyncio.Queue:
+        if not self.loop:
+            self.loop = asyncio.get_running_loop()
+        q = asyncio.Queue()
+        self.subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue):
+        if q in self.subscribers:
+            self.subscribers.remove(q)
+
+    def broadcast(self, data):
+        if not self.loop:
+            return
+        for q in self.subscribers:
+            self.loop.call_soon_threadsafe(q.put_nowait, data)
+
+    async def start(self):
+        async with self._lock:
+            if self.is_running:
+                return
+            self.is_running = True
+            
+            # Start in thread
+            import threading
+            from app.services.poller import poll_all_clusters
+            
+            def run_wrapper():
+                try:
+                    poll_all_clusters(progress_callback=self.broadcast)
+                    self.broadcast({"type": "done"})
+                except Exception as e:
+                    self.broadcast({"type": "error", "message": str(e)})
+                finally:
+                    self.is_running = False
+
+            threading.Thread(target=run_wrapper, daemon=True).start()
+
+poll_manager = PollManager()
+
 @router.post("/test-connection")
 def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Verifies connection to the cluster using provided credentials."""
@@ -160,42 +207,36 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     }
 
 @router.get("/config/scheduler/run-stream")
-def trigger_manual_poll_stream(session: Session = Depends(get_session), user: User = Depends(admin_required)):
+async def trigger_manual_poll_stream(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Manually triggers the background poller and streams progress updates."""
-    from app.services.poller import poll_all_clusters
-
-    def event_generator():
-        queue = asyncio.Queue()
-
-        def progress_callback(data):
-            # Since the poller runs in a sync way, we need to bridge to async
-            # But the poller is currently blocking. 
-            # For simplicity in this demo-like app, we'll run it and yield.
-            # However, to be truly streaming while polling, 
-            # we'd need the poller to be async or run in a thread.
-            queue.put_nowait(data)
-
-        # Run poller in a separate thread to allow yielding status
-        import threading
-        thread = threading.Thread(target=poll_all_clusters, args=(progress_callback,))
-        thread.start()
-
-        while thread.is_alive() or not queue.empty():
-            try:
-                # Poll the queue for new messages
-                import time
-                while not queue.empty():
-                    msg = queue.get_nowait()
+    
+    async def event_generator():
+        queue = await poll_manager.subscribe()
+        try:
+            # Start poller if not running
+            if not poll_manager.is_running:
+                await poll_manager.start()
+            
+            # Heartbeat and message loop
+            while True:
+                try:
+                    # Wait for 15s for any message, otherwise send heartbeat
+                    msg = await asyncio.wait_for(queue.get(), timeout=15.0)
+                    
+                    if isinstance(msg, dict) and msg.get('type') == 'done':
+                        yield f"data: {json.dumps(msg)}\n\n"
+                        break
+                    
                     yield f"data: {json.dumps(msg)}\n\n"
-                time.sleep(0.1)
-                # Check if thread died with error but queue is empty
-                if not thread.is_alive() and queue.empty():
+                    
+                except asyncio.TimeoutError:
+                    # Send SSE heartbeat comment to keep connection alive
+                    yield ": heartbeat\n\n"
+                except Exception as e:
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
                     break
-            except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-                break
-        
-        yield "data: {\"type\": \"done\"}\n\n"
+        finally:
+            poll_manager.unsubscribe(queue)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

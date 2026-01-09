@@ -201,19 +201,16 @@ function refreshCurrentView() {
 }
 
 
-async function loadSummary() {
+async function loadSummary(forceRefresh = false) {
     const summaryDiv = document.getElementById('dashboard-summary');
     if (!summaryDiv) return;
     try {
         let url = '/api/dashboard/summary';
-        let fastMode = false;
 
         if (window.currentSnapshotTime) {
             url += `?snapshot_time=${encodeURIComponent(window.currentSnapshotTime)}`;
-        } else {
-            // Live mode: use simple clusters list first for extreme speed
-            url = '/api/dashboard/simple-clusters';
-            fastMode = true;
+        } else if (forceRefresh) {
+            url += `?refresh=true`;
         }
 
         const res = await fetch(url);
@@ -246,6 +243,15 @@ async function loadSummary() {
         }
 
         summaryDiv.style.display = 'block';
+
+        // Show "Data as of" if timestamp is present
+        const dataAsOfContainer = document.getElementById('data-as-of-container');
+        const dataAsOfTime = document.getElementById('data-as-of-time');
+        if (dataAsOfContainer && dataAsOfTime && data.timestamp) {
+            dataAsOfContainer.style.display = 'flex';
+            dataAsOfTime.innerText = formatEST(data.timestamp);
+        }
+
         summaryDiv.innerHTML = `
         <!-- Global Summary Cards -->
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
@@ -346,13 +352,6 @@ async function loadSummary() {
             </div>
         </div>
         `;
-
-        // Trigger Live Updates in Background
-        if (fastMode) {
-            window._allClusters.forEach(c => {
-                refreshClusterLive(c.id);
-            });
-        }
 
         // Initial re-calc
         updateGlobalSummary();
@@ -1428,6 +1427,9 @@ function renderTable(resourceType, data) {
         <div class="page-header">
             ${titleHtml}
             <div style="display:flex; align-items:center; gap:1rem;">
+                <div id="data-as-of-container" style="display:none; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-secondary); opacity:0.8;">
+                    <i class="far fa-clock"></i> Data as of: <span id="data-as-of-time" style="color:var(--accent-color); font-weight:600;">-</span>
+                </div>
                 <input type="text" id="resource-filter" placeholder="Filter table..." class="form-input" style="width:250px;" onkeyup="filterTable()">
                 <div style="display:flex; gap:0.5rem;">
                     <button class="btn btn-secondary" title="Export to Excel" onclick="exportTable('${resourceType}', 'excel')">
@@ -1467,6 +1469,15 @@ function renderTable(resourceType, data) {
         </div>
     `;
     contentDiv.innerHTML = html;
+
+    // Show "Data as of" if timestamp is present (wrapped in data object)
+    const dataAsOfContainer = document.getElementById('data-as-of-container');
+    const dataAsOfTime = document.getElementById('data-as-of-time');
+    // For dashboard summary, we sometimes have it in the outer object if wrapped
+    if (dataAsOfContainer && dataAsOfTime && data.timestamp) {
+        dataAsOfContainer.style.display = 'flex';
+        dataAsOfTime.innerText = formatEST(data.timestamp);
+    }
 }
 
 function updateSidebarHighlighting(clusterId, resourceType) {

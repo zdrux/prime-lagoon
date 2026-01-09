@@ -1017,6 +1017,8 @@
     }
 
     let _runTimerInterval;
+    let _pollErrorTimeout;
+
     function startRunTimer() {
         if (_runTimerInterval) clearInterval(_runTimerInterval);
         let sec = 0;
@@ -1080,22 +1082,22 @@
                 indexEl.innerText = `${data.index}/${data.total}`;
                 const pct = (data.index / data.total) * 100;
                 progressBar.style.width = `${pct}%`;
-                // Step 2 is collecting core resources (nodes etc)
                 updateRunStep(2);
             } else if (data.type === 'resource_start') {
                 resourceEl.innerText = `${data.resource}...`;
 
-                if (['csvs', 'subscriptions'].includes(data.resource.toLowerCase())) {
+                const res = data.resource.toLowerCase();
+                if (['csvs', 'subscriptions'].includes(res)) {
                     updateRunStep(3);
-                } else if (data.resource.includes('Compliance')) {
+                } else if (res.includes('compliance')) {
                     updateRunStep(4);
-                } else if (['nodes', 'projects'].includes(data.resource.toLowerCase())) {
+                } else if (['nodes', 'projects', 'machines'].includes(res)) {
                     updateRunStep(2);
                 }
 
             } else if (data.type === 'error') {
                 console.error("Poll Error:", data.message);
-                // We don't stop immediately unless it's a fatal stream error
+                resourceEl.innerText = `Error: ${data.message}`;
             } else if (data.type === 'done') {
                 eventSource.close();
                 clearInterval(_runTimerInterval);
@@ -1106,20 +1108,24 @@
         };
 
         eventSource.onerror = function (err) {
-            console.error("SSE Error:", err);
-
-            // Wait slightly before showing error - sometimes it's a momentary blip
-            // or the server is just closing the stream after finishing but before 'done' sent
-            setTimeout(() => {
-                if (document.getElementById('run-step-loading').style.display !== 'none') {
-                    eventSource.close();
-                    clearInterval(_runTimerInterval);
-                    document.getElementById('run-step-loading').style.display = 'none';
-                    document.getElementById('run-step-error').style.display = 'block';
-                    document.getElementById('run-error-msg').innerText = "Feedback stream disconnected. The background job might still be running.";
-                    document.getElementById('run-modal-close').style.display = 'block';
-                }
-            }, 10000); // 10s grace
+            // Heartbeats (SSE comments) keep the connection open but don't fire message events.
+            // If we get here, the connection actually dropped or failed.
+            console.warn("SSE Connection issue, will retry automatically...");
+            
+            // If the modal is still loading after a long time without updates, then show error.
+            // But we let EventSource try to auto-reconnect first.
+            if (!_pollErrorTimeout) {
+                _pollErrorTimeout = setTimeout(() => {
+                    if (document.getElementById('run-step-loading').style.display !== 'none') {
+                        eventSource.close();
+                        clearInterval(_runTimerInterval);
+                        document.getElementById('run-step-loading').style.display = 'none';
+                        document.getElementById('run-step-error').style.display = 'block';
+                        document.getElementById('run-error-msg').innerText = "The connection to the background job was lost. It might still be running; please check the snapshots page in a few minutes.";
+                        document.getElementById('run-modal-close').style.display = 'block';
+                    }
+                }, 30000); // 30s grace for reconnection
+            }
         };
     }
 

@@ -220,8 +220,31 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class DashboardCache:
+    def __init__(self):
+        self.data = None
+        self.timestamp = None
+    
+    def is_valid(self, ttl_minutes):
+        if not self.data or not self.timestamp:
+            return False
+        delta = datetime.now() - self.timestamp
+        return delta < timedelta(minutes=ttl_minutes)
+
+    def set(self, data):
+        self.data = data
+        self.timestamp = datetime.now()
+
+dashboard_cache = DashboardCache()
+
 @router.get("/summary")
-def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Optional[str] = Query(None), session: Session = Depends(get_session)):
+def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Optional[str] = Query(None), refresh: bool = Query(False), session: Session = Depends(get_session)):
+    # 1. Check Cache (Live Mode only)
+    if not snapshot_time and mode != "fast" and not refresh:
+        ttl_minutes = int((session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES") or AppConfig(value="15")).value)
+        if dashboard_cache.is_valid(ttl_minutes):
+            return dashboard_cache.data
+
     clusters = session.exec(select(Cluster)).all()
     
     # Fetch Config
@@ -534,11 +557,17 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     # Sort results by ID or Name to maintain order
     results.sort(key=lambda x: x["name"])
 
-    return {
+    response_data = {
         "clusters": results,
         "global_stats": global_stats,
         "timestamp": timestamp if not target_dt else snapshot_time
     }
+
+    # Save to Cache in Live Mode
+    if not snapshot_time:
+        dashboard_cache.set(response_data)
+
+    return response_data
 
 @router.get("/{cluster_id}/live_stats")
 def get_cluster_live_stats(cluster_id: int, session: Session = Depends(get_session)):

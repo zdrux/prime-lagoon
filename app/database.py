@@ -51,6 +51,14 @@ def create_db_and_tables():
                 conn.execute(text('ALTER TABLE auditrule ADD COLUMN "is_enabled" BOOLEAN DEFAULT 1'))
                 conn.commit()
                 print("MIGRATION: Success.")
+            
+            # Migration 4: Add DASHBOARD_CACHE_TTL_MINUTES default if missing
+            res = conn.execute(text("SELECT value FROM appconfig WHERE key = 'DASHBOARD_CACHE_TTL_MINUTES'"))
+            if not res.fetchone():
+                print("MIGRATION: Adding DASHBOARD_CACHE_TTL_MINUTES default...")
+                conn.execute(text("INSERT INTO appconfig (key, value) VALUES ('DASHBOARD_CACHE_TTL_MINUTES', '15')"))
+                conn.commit()
+
     except Exception as e:
         print(f"MIGRATION ERROR: {e}")
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
 from typing import Any, List, Dict, Optional
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from app.database import get_session
 from app.models import Cluster, LicenseUsage, AppConfig, LicenseRule, ClusterSnapshot, User
@@ -228,12 +228,12 @@ class DashboardCache:
     def is_valid(self, ttl_minutes):
         if not self.data or not self.timestamp:
             return False
-        delta = datetime.now() - self.timestamp
+        delta = datetime.now(timezone.utc) - self.timestamp
         return delta < timedelta(minutes=ttl_minutes)
 
     def set(self, data):
         self.data = data
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.now(timezone.utc)
 
 dashboard_cache = DashboardCache()
 
@@ -249,6 +249,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     clusters = session.exec(select(Cluster)).all()
     
     # Fetch Config
+    timestamp = datetime.now(timezone.utc).isoformat()
     rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True)).all()
     default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
     

@@ -9,6 +9,7 @@ from app.database import get_session
 from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, User
 from app.services.scheduler import refresh_jobs
 from app.dependencies import admin_required
+import os
 
 class ConfigUpdate(BaseModel):
     poll_interval_minutes: int
@@ -582,5 +583,21 @@ def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = D
     session.refresh(db_cluster)
     return db_cluster
 
-    return db_cluster
+@router.post("/restart")
+def restart_application(user: User = Depends(admin_required)):
+    """Intentionally crashes the pod by exiting the process. 
+    OpenShift will then restart the pod based on its restart policy.
+    """
+    username = user.username if user.username else "anonymous"
+    print(f"ADMIN RESTART TRIGGERED BY {username}")
+
+    def die():
+        import time
+        import os
+        time.sleep(0.5)
+        os._exit(1)
+
+    import threading
+    threading.Thread(target=die, daemon=True).start()
+    return {"status": "ok", "message": "Application is restarting..."}
         

@@ -41,7 +41,11 @@ function formatEST(timestamp, includeSeconds = true) {
 
 function getRemainingCacheTime(timestamp, ttlMinutes) {
     if (!timestamp || !ttlMinutes) return "---";
-    const lastUpdate = new Date(timestamp);
+    let ts = timestamp;
+    if (typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+')) {
+        ts += 'Z';
+    }
+    const lastUpdate = new Date(ts);
     const now = new Date();
     const diffMs = (lastUpdate.getTime() + ttlMinutes * 60000) - now.getTime();
     if (diffMs <= 0) return "available now";
@@ -2698,5 +2702,19 @@ async function generateReport() {
         loader.style.display = 'none';
         document.getElementById('report-main-view').style.display = 'block';
         genBtn.style.display = 'block';
+    }
+}
+async function restartPod() {
+    if (!confirm("CRITICAL ACTION: This will intentionally crash the application process to force a pod restart in OpenShift. The app will be unavailable for 10-30 seconds. Proceed?")) return;
+
+    try {
+        const res = await fetch('/api/admin/clusters/restart', { method: 'POST' });
+        // We probably won't get a response if it exits fast enough
+        alert("Restart signal sent. The application process is exiting...");
+        setTimeout(() => window.location.reload(), 5000);
+    } catch (e) {
+        // Expected error if connection closed
+        alert("Restarting... Please reload the page in a few moments.");
+        setTimeout(() => window.location.reload(), 3000);
     }
 }

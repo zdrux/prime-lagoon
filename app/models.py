@@ -144,3 +144,11 @@ class ClusterSnapshot(SQLModel, table=True):
     
     # Store full data dump
     data_json: str = Field(sa_column=Column(Text)) # Stores compressed/large JSON blob
+
+class NamespaceExclusionRule(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    match_pattern: str # Regex or glob pattern
+    is_active: bool = Field(default=True)
+    description: Optional[str] = None
+

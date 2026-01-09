@@ -846,7 +846,17 @@ async function loadLicenseAnalytics() {
     document.getElementById('loader-trends').style.display = 'flex';
     document.getElementById('loader-unmapped').style.display = 'block';
 
-    // 1. Load Trends
+    // 1. Initialize Tabs (Main Table) - Start Immediately
+    switchBreakdownTab('cluster');
+
+    // 2. Load Trends (Parallel)
+    loadTrendsDataAsync(days);
+
+    // 3. Load Unmapped Nodes (Parallel)
+    loadUnmappedNodesAsync();
+}
+
+async function loadTrendsDataAsync(days) {
     try {
         const res = await fetch(`/api/dashboard/mapid/global-trends?days=${days}`);
         if (res.ok) {
@@ -856,10 +866,12 @@ async function loadLicenseAnalytics() {
     } catch (e) {
         console.error("Failed to load trends", e);
     } finally {
-        document.getElementById('loader-trends').style.display = 'none';
+        const loader = document.getElementById('loader-trends');
+        if (loader) loader.style.display = 'none';
     }
+}
 
-    // 2. Load Unmapped Nodes
+async function loadUnmappedNodesAsync() {
     try {
         const res = await fetch(`/api/dashboard/mapid/unmapped-nodes`);
         if (res.ok) {
@@ -869,11 +881,9 @@ async function loadLicenseAnalytics() {
     } catch (e) {
         console.error("Failed to load unmapped nodes", e);
     } finally {
-        document.getElementById('loader-unmapped').style.display = 'none';
+        const loader = document.getElementById('loader-unmapped');
+        if (loader) loader.style.display = 'none';
     }
-
-    // 3. Initialize Tabs
-    switchBreakdownTab('cluster');
 }
 
 async function loadClusterBreakdown() {

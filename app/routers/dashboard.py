@@ -997,11 +997,37 @@ def get_mapid_cluster_breakdown(session: Session = Depends(get_session)):
 def get_unmapped_nodes_details(session: Session = Depends(get_session)):
     """
     Returns a list of nodes that are licensed but have 'Unmapped' MAPID.
-    This effectively requires querying the latest snapshot for nodes where label is missing.
+    Optimization: Only checks clusters that have reported 'Unmapped' usage in MapidLicenseUsage.
     """
-    clusters = session.exec(select(Cluster)).all()
-    results = []
+    from app.models import MapidLicenseUsage, LicenseRule, AppConfig
+    from app.services.license import calculate_licenses
     
+    results = []
+    cutoff = datetime.utcnow() - timedelta(days=7)
+
+    # 1. Identify clusters that HAVE unmapped nodes recently
+    # We look for records with mapid="Unmapped" (case sensitive match to service logic)
+    # or empty string.
+    stmt = select(MapidLicenseUsage.cluster_id).where(
+        (MapidLicenseUsage.mapid == "Unmapped") | (MapidLicenseUsage.mapid == ""),
+        MapidLicenseUsage.timestamp >= cutoff.isoformat()
+    ).distinct()
+    
+    target_cluster_ids = session.exec(stmt).all()
+    
+    if not target_cluster_ids:
+        return []
+        
+    # 2. Fetch clusters
+    clusters = session.exec(select(Cluster).where(Cluster.id.in_(target_cluster_ids))).all()
+    
+    # 3. Load snapshot only for these clusters
+    rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
+    ns_rules = session.exec(select(NamespaceExclusionRule).where(NamespaceExclusionRule.is_active == True)).all()
+    default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
+    
+    import re
+
     for c in clusters:
         # Get latest snapshot
         snap = session.exec(select(ClusterSnapshot).where(
@@ -1010,41 +1036,59 @@ def get_unmapped_nodes_details(session: Session = Depends(get_session)):
         ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
         
         if snap and snap.data_json:
-            data = json.loads(snap.data_json)
-            nodes = data.get("nodes", [])
-            
-            # Re-check logic or just check labels?
-            # We want nodes that ARE LICENSED but NO MAPID.
-            # So we need to run license logic again or trust our logic?
-            # Let's run license logic to be sure about "Licensed" status.
-            from app.models import LicenseRule, AppConfig
-            from app.services.license import calculate_licenses
-            
-            rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
-            default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
-            
-            lic_res = calculate_licenses(nodes, rules, default_include)
-            
-            for detail in lic_res["details"]:
-                if detail["status"] == "INCLUDED":
-                    # Check if node has mapid
-                    # We need the node object again to check labels
-                    # Detail has 'name'. Find node by name.
-                    node_obj = next((n for n in nodes if n["metadata"]["name"] == detail["name"]), None)
-                    if node_obj:
-                        labels = node_obj["metadata"].get("labels", {})
-                        if "mapid" not in labels:
-                            results.append({
-                                "cluster_name": c.name,
-                                "node_name": detail["name"],
-                                "reason": f"Missing MAPID Label (Licensed by: {detail['reason']})"
-                            })
-                        elif labels["mapid"] == "" or labels["mapid"].lower() == "none" or labels["mapid"].lower() == "unmapped":
-                             results.append({
-                                "cluster_name": c.name,
-                                "node_name": detail["name"],
-                                "reason": f"MAPID is '{labels['mapid']}' (Licensed by: {detail['reason']})"
-                            })
+            try:
+                data = json.loads(snap.data_json)
+                nodes = data.get("nodes", [])
+                projects = data.get("projects", [])
+                
+                # --- NODES CHECK ---
+                lic_res = calculate_licenses(nodes, rules, default_include)
+                
+                for detail in lic_res["details"]:
+                    if detail["status"] == "INCLUDED":
+                        # Check labels
+                        node_obj = next((n for n in nodes if n["metadata"]["name"] == detail["name"]), None)
+                        if node_obj:
+                            labels = node_obj["metadata"].get("labels", {})
+                            val = labels.get("mapid", "Unmapped")
+                            
+                            if val == "Unmapped" or val == "":
+                                results.append({
+                                    "cluster_name": c.name,
+                                    "node_name": f"[Node] {detail['name']}",
+                                    "reason": f"Licensed Node missing MAPID"
+                                })
+                
+                # --- PROJECTS CHECK ---
+                for p in projects:
+                    name = p["metadata"]["name"]
+                    labels = p["metadata"].get("labels", {})
+                    
+                    # 1. Check Exclusions
+                    is_excluded = False
+                    for rule in ns_rules:
+                        try:
+                            if re.search(rule.match_pattern, name):
+                                is_excluded = True
+                                break
+                        except:
+                            pass # Bad regex
+                    
+                    if is_excluded:
+                        continue
+                        
+                    # 2. Check MapID
+                    val = labels.get("mapid", "Unmapped")
+                    if val == "Unmapped" or val == "":
+                         results.append({
+                            "cluster_name": c.name,
+                            "node_name": f"[Project] {name}",
+                            "reason": "Project missing MAPID"
+                        })
+
+            except Exception as e:
+                print(f"Error checking unmapped nodes for {c.name}: {e}")
+
 
     return results
 

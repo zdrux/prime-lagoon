@@ -431,16 +431,30 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
     snapshot_count = session.exec(select(func.count(ClusterSnapshot.id))).one()
     
     # Calculate Record Sizes
-    snapshot_size_bytes = session.exec(select(func.sum(func.length(ClusterSnapshot.data_json)))).one() or 0
-    usage_size_bytes = session.exec(select(func.sum(func.length(LicenseUsage.details_json)))).one() or 0
-    compliance_size_bytes = session.exec(select(func.sum(func.length(ComplianceScore.results_json)))).one() or 0
+    # OPTIMIZATION: Use estimation based on recent samples to avoid full table scans on large DBs
+    
+    def estimate_table_size(model, json_col):
+        count = session.exec(select(func.count(model.id))).one()
+        if count == 0: return 0
+        
+        # Sample last 50 records
+        sample_stmt = select(func.length(json_col)).order_by(model.id.desc()).limit(50)
+        sizes = session.exec(sample_stmt).all()
+        
+        if not sizes: return 0
+        avg_size = sum(sizes) / len(sizes)
+        return int(avg_size * count)
+
+    snapshot_size_bytes = estimate_table_size(ClusterSnapshot, ClusterSnapshot.data_json)
+    usage_size_bytes = estimate_table_size(LicenseUsage, LicenseUsage.details_json)
+    compliance_size_bytes = estimate_table_size(ComplianceScore, ComplianceScore.results_json)
     
     # ESTIMATE Operator portion within snapshots (sum of lengths of csvs + subscriptions keys)
     # We'll use a rough estimation if json_extract is not performing well or available
     # For this demo, let's try to fetch a few samples and calculate average ratio
     op_ratio = 0.4 # Default estimate: 40% of snapshot data is OLM data (CSVs are bulky)
     try:
-        sample = session.exec(select(ClusterSnapshot.data_json).limit(5)).all()
+        sample = session.exec(select(ClusterSnapshot.data_json).order_by(ClusterSnapshot.id.desc()).limit(5)).all()
         if sample:
             ratios = []
             for sj in sample:

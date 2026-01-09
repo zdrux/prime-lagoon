@@ -353,3 +353,57 @@ def preview_license_config(req: LicensePreviewRequest, session: Session = Depend
         import traceback
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
+
+# --- Namespace Exclusion Rules ---
+from app.models import NamespaceExclusionRule
+
+@router.get("/namespaces", response_class=HTMLResponse)
+def namespace_settings_page(
+    request: Request, 
+    session: Session = Depends(get_session),
+    user: User = Depends(admin_required)
+):
+    clusters = session.exec(select(Cluster)).all()
+    # Group clusters by Datacenter for the sidebar
+    clusters_by_dc = {}
+    for c in clusters:
+        dc = c.datacenter or "Uncategorized"
+        if dc not in clusters_by_dc:
+            clusters_by_dc[dc] = []
+        clusters_by_dc[dc].append(c)
+        
+    rules = session.exec(select(NamespaceExclusionRule)).all()
+    
+    return templates.TemplateResponse("settings_namespace_rules.html", {
+        "request": request,
+        "user": user,
+        "page": "settings_namespaces",
+        "rules": rules,
+        "clusters_by_dc": clusters_by_dc
+    })
+
+class NamespaceRuleCreate(BaseModel):
+    name: str
+    match_pattern: str
+
+@router.post("/api/namespaces/rules")
+def create_namespace_rule(rule: NamespaceRuleCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    db_rule = NamespaceExclusionRule(
+        name=rule.name,
+        match_pattern=rule.match_pattern,
+        is_active=True
+    )
+    session.add(db_rule)
+    session.commit()
+    session.refresh(db_rule)
+    return {"ok": True, "rule": db_rule}
+
+@router.delete("/api/namespaces/rules/{rule_id}")
+def delete_namespace_rule(rule_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    rule = session.get(NamespaceExclusionRule, rule_id)
+    if not rule:
+        return {"ok": False, "error": "Rule not found"}
+    session.delete(rule)
+    session.commit()
+    return {"ok": True}
+

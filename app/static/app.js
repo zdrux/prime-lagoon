@@ -251,6 +251,7 @@ async function loadSummary(forceRefresh = false) {
 
         window._allClusters = clusters;
         window._dashboardTtl = data.ttl_minutes;
+        window._dashboardTimestamp = data.timestamp;
 
         if (clusters.length === 0) {
             summaryDiv.innerHTML = '<div class="card" style="grid-column: 1/-1;">No clusters configured.</div>';
@@ -1498,19 +1499,33 @@ function renderTable(resourceType, data) {
     `;
     contentDiv.innerHTML = html;
 
-    // Set "As Of" date if present
-    if (timestamp) {
-        const container = document.getElementById('data-as-of-container');
-        const timeEl = document.getElementById('data-as-of-time');
-        const nextEl = document.getElementById('data-next-poll');
-        if (container && timeEl) {
-            container.style.display = 'flex';
-            timeEl.innerText = formatEST(timestamp);
+    // Set status info: Live vs Cached vs Historical
+    const container = document.getElementById('data-as-of-container');
+    const timeEl = document.getElementById('data-as-of-time');
+    const nextEl = document.getElementById('data-next-poll');
 
-            if (nextEl && window._dashboardTtl) {
-                const remaining = getRemainingCacheTime(timestamp, window._dashboardTtl);
+    if (container && timeEl && nextEl) {
+        if (window.currentSnapshotTime) {
+            // Case 1: Time Travel
+            container.style.display = 'flex';
+            timeEl.innerText = formatEST(window.currentSnapshotTime);
+            nextEl.innerText = "(Historical View)";
+        } else if (data && data.timestamp) {
+            // Case 2: Dashboard Cache
+            container.style.display = 'flex';
+            timeEl.innerText = formatEST(data.timestamp);
+            if (window._dashboardTtl) {
+                const remaining = getRemainingCacheTime(data.timestamp, window._dashboardTtl);
                 nextEl.innerText = `(New data can be polled in: ${remaining})`;
             }
+        } else if (window.currentClusterId) {
+            // Case 3: Live Resource Page
+            container.style.display = 'flex';
+            timeEl.innerHTML = '<span class="badge badge-green" style="font-size:0.7rem;">Live Data</span>';
+            timeEl.style.color = 'var(--success-color)';
+            nextEl.innerText = "(Internal refresh)";
+        } else {
+            container.style.display = 'none';
         }
     }
 }

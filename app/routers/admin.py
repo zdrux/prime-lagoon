@@ -22,6 +22,10 @@ class ConfigUpdate(BaseModel):
 class CleanupRequest(BaseModel):
     days: int
 
+class UserCreate(BaseModel):
+    username: str
+    is_admin: bool = False
+
 class ClusterTestRequest(SQLModel):
     api_url: str
     token: str
@@ -600,4 +604,17 @@ def restart_application(user: User = Depends(admin_required)):
     import threading
     threading.Thread(target=die, daemon=True).start()
     return {"status": "ok", "message": "Application is restarting..."}
+
+@router.post("/users")
+def create_user(user: UserCreate, session: Session = Depends(get_session), admin: User = Depends(admin_required)):
+    """Manually create a user."""
+    existing = session.exec(select(User).where(User.username == user.username)).first()
+    if existing:
+         raise HTTPException(status_code=400, detail="User already exists")
+    
+    new_user = User(username=user.username, is_admin=user.is_admin)
+    session.add(new_user)
+    session.commit()
+    session.refresh(new_user)
+    return new_user
         

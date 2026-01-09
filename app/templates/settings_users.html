@@ -21,11 +21,26 @@
 </div>
 
 <div class="card fade-in">
-    <div class="resource-header" style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700;">
-        <i class="fas fa-users" style="margin-right:0.5rem; color:var(--accent-color);"></i> Authorized Users
+    <div class="resource-header"
+        style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <i class="fas fa-users" style="margin-right:0.5rem; color:var(--accent-color);"></i> Authorized Users
+        </div>
+        <div style="display:flex; gap:1rem; align-items:center;">
+            <div style="position:relative;">
+                <i class="fas fa-search"
+                    style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); font-size:0.8rem; color:var(--text-secondary);"></i>
+                <input type="text" id="user-search" placeholder="Search users..."
+                    style="padding:0.4rem 0.75rem 0.4rem 2rem; border-radius:4px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.9rem;"
+                    oninput="filterUsers()">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">
+                <i class="fas fa-plus"></i> Add User
+            </button>
+        </div>
     </div>
     <div class="table-container">
-        <table class="data-table">
+        <table class="data-table" id="users-table">
             <thead>
                 <tr>
                     <th>Username</th>
@@ -35,7 +50,7 @@
             </thead>
             <tbody id="user-table-body">
                 {% for u in users %}
-                <tr>
+                <tr class="user-row" data-username="{{ u.username | lower }}">
                     <td style="font-weight:600;">{{ u.username }}</td>
                     <td>
                         {% if u.is_admin %}
@@ -55,6 +70,42 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    <!-- Pagination Controls -->
+    <div
+        style="padding:0.8rem 1rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; align-items:center; gap:1rem;">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="pagination-info">Showing 0-0 of 0</span>
+        <div style="display:flex; gap:0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="prev-btn" onclick="changePage(-1)" disabled><i
+                    class="fas fa-chevron-left"></i></button>
+            <button class="btn btn-secondary btn-sm" id="next-btn" onclick="changePage(1)" disabled><i
+                    class="fas fa-chevron-right"></i></button>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="add-user-modal" class="modal">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="modal-header">
+            <h3>Add User</h3>
+            <button onclick="closeAddUserModal()" class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" id="new-username" class="form-input" placeholder="e.g. jdoe">
+            </div>
+            <div class="form-group">
+                <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                    <input type="checkbox" id="new-is-admin">
+                    <span>Grant Admin Privileges</span>
+                </label>
+            </div>
+            <div id="add-user-error"
+                style="color:var(--danger-color); font-size:0.9rem; display:none; margin-bottom:1rem;"></div>
+            <button class="btn btn-primary" onclick="saveUser()" style="width:100%;">Create User</button>
+        </div>
     </div>
 </div>
 
@@ -110,6 +161,97 @@
 </style>
 
 <script>
+    let _allRows = [];
+    let _currentPage = 1;
+    const _rowsPerPage = 10;
+
+    document.addEventListener("DOMContentLoaded", function () {
+        _allRows = Array.from(document.querySelectorAll('.user-row'));
+        renderTablePage();
+    });
+
+    function filterUsers() {
+        // Reset to page 1 on search
+        _currentPage = 1;
+        renderTablePage();
+    }
+
+    function changePage(delta) {
+        _currentPage += delta;
+        renderTablePage();
+    }
+
+    function renderTablePage() {
+        const query = document.getElementById('user-search').value.toLowerCase();
+        // Filter first
+        const matchedRows = _allRows.filter(r => {
+            return !query || r.getAttribute('data-username').includes(query);
+        });
+
+        const total = matchedRows.length;
+        const totalPages = Math.ceil(total / _rowsPerPage);
+
+        if (_currentPage < 1) _currentPage = 1;
+        if (_currentPage > totalPages && totalPages > 0) _currentPage = totalPages;
+        if (totalPages === 0) _currentPage = 1;
+
+        const start = (_currentPage - 1) * _rowsPerPage;
+        const end = start + _rowsPerPage;
+
+        // Hide all rows first
+        _allRows.forEach(r => r.style.display = 'none');
+
+        // Show slice of matched
+        matchedRows.slice(start, end).forEach(r => r.style.display = '');
+
+        // Update Controls
+        document.getElementById('pagination-info').innerText = `Showing ${total === 0 ? 0 : Math.min(start + 1, total)}-${Math.min(end, total)} of ${total}`;
+        document.getElementById('prev-btn').disabled = _currentPage <= 1;
+        document.getElementById('next-btn').disabled = _currentPage >= totalPages || totalPages === 0;
+    }
+
+    function openAddUserModal() {
+        document.getElementById('add-user-modal').classList.add('open');
+        document.getElementById('new-username').focus();
+    }
+
+    function closeAddUserModal() {
+        document.getElementById('add-user-modal').classList.remove('open');
+        document.getElementById('add-user-error').style.display = 'none';
+        document.getElementById('new-username').value = '';
+    }
+
+    async function saveUser() {
+        const username = document.getElementById('new-username').value.trim();
+        const isAdmin = document.getElementById('new-is-admin').checked;
+        const errDiv = document.getElementById('add-user-error');
+
+        if (!username) {
+            errDiv.innerText = "Username is required.";
+            errDiv.style.display = 'block';
+            return;
+        }
+
+        errDiv.style.display = 'none';
+
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, is_admin: isAdmin })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Failed to create user");
+
+            window.location.reload();
+
+        } catch (e) {
+            errDiv.innerText = e.message;
+            errDiv.style.display = 'block';
+        }
+    }
+
     async function toggleAdmin(userId) {
         const res = await fetch(`/settings/api/users/${userId}/toggle_admin`, { method: 'POST' });
         const data = await res.json();
@@ -117,6 +259,7 @@
             alert(data.error);
             window.location.reload();
         } else {
+            // No reload needed if we just want to toggle, but for safety reload to sync state
             window.location.reload();
         }
     }

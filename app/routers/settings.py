@@ -398,6 +398,20 @@ def create_namespace_rule(rule: NamespaceRuleCreate, session: Session = Depends(
     session.refresh(db_rule)
     return {"ok": True, "rule": db_rule}
 
+@router.put("/api/namespaces/rules/{rule_id}")
+def update_namespace_rule(rule_id: int, updated_rule: NamespaceRuleCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    db_rule = session.get(NamespaceExclusionRule, rule_id)
+    if not db_rule:
+        return {"ok": False, "error": "Rule not found"}
+    
+    db_rule.name = updated_rule.name
+    db_rule.match_pattern = updated_rule.match_pattern
+    
+    session.add(db_rule)
+    session.commit()
+    session.refresh(db_rule)
+    return {"ok": True, "rule": db_rule}
+
 @router.delete("/api/namespaces/rules/{rule_id}")
 def delete_namespace_rule(rule_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     rule = session.get(NamespaceExclusionRule, rule_id)

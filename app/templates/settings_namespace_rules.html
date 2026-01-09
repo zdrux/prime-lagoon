@@ -11,8 +11,10 @@
 </div>
 
 <div class="card">
-    <h3 style="margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:1px solid var(--border-color);">Defined Rules</h3>
-    <p style="opacity:0.7; margin-bottom:1.5rem;">These rules define namespaces that should be <strong>ignored</strong> when reporting unmapped projects.</p>
+    <h3 style="margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:1px solid var(--border-color);">Defined Rules
+    </h3>
+    <p style="opacity:0.7; margin-bottom:1.5rem;">These rules define namespaces that should be <strong>ignored</strong>
+        when reporting unmapped projects.</p>
 
     {% if rules %}
     <table class="data-table">
@@ -31,6 +33,9 @@
                 <td><code>{{ rule.match_pattern }}</code></td>
                 <td><span class="badge badge-red">EXCLUDE</span></td>
                 <td>
+                    <button class="btn btn-sm btn-secondary" onclick="openEditRuleModal({{ rule.id }})">
+                        <i class="fas fa-edit"></i>
+                    </button>
                     <button class="btn btn-sm btn-danger" onclick="deleteRule({{ rule.id }})">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -54,6 +59,7 @@
             <span class="close-btn" onclick="closeRuleModal()">&times;</span>
         </div>
         <div class="modal-body">
+            <input type="hidden" id="rule-id">
             <div class="form-group">
                 <label>Rule Name</label>
                 <input type="text" id="rule-name" class="form-input" placeholder="e.g. Ignore OpenShift System">
@@ -61,20 +67,46 @@
             <div class="form-group">
                 <label>Regex Pattern</label>
                 <input type="text" id="rule-pattern" class="form-input" placeholder="e.g. ^openshift-.*">
-                <small style="display:block; margin-top:0.3rem; opacity:0.6;">Namespaces matching this request will be excluded.</small>
+                <small style="display:block; margin-top:0.3rem; opacity:0.6;">Namespaces matching this request will be
+                    excluded.</small>
             </div>
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeRuleModal()">Cancel</button>
-            <button class="btn btn-primary" onclick="submitRule()">Create Rule</button>
+            <button class="btn btn-primary" id="modal-submit-btn" onclick="submitRule()">Create Rule</button>
         </div>
     </div>
 </div>
 
 <script>
+    const rules = [
+        {% for rule in rules %}
+    {
+        "id": { { rule.id | tojson } },
+        "name": { { rule.name | tojson } },
+        "match_pattern": { { rule.match_pattern | tojson } }
+    } {% if not loop.last %}, {% endif %}
+    {% endfor %}
+    ];
+
     function openAddRuleModal() {
+        document.getElementById('modal-title').innerText = 'Add Exclusion Rule';
+        document.getElementById('modal-submit-btn').innerText = 'Create Rule';
+        document.getElementById('rule-id').value = '';
         document.getElementById('rule-name').value = '';
         document.getElementById('rule-pattern').value = '';
+        document.getElementById('rule-modal').classList.add('open');
+    }
+
+    function openEditRuleModal(id) {
+        const rule = rules.find(r => r.id === id);
+        if (!rule) return;
+
+        document.getElementById('modal-title').innerText = 'Edit Exclusion Rule';
+        document.getElementById('modal-submit-btn').innerText = 'Update Rule';
+        document.getElementById('rule-id').value = rule.id;
+        document.getElementById('rule-name').value = rule.name;
+        document.getElementById('rule-pattern').value = rule.match_pattern;
         document.getElementById('rule-modal').classList.add('open');
     }
 
@@ -83,6 +115,7 @@
     }
 
     async function submitRule() {
+        const id = document.getElementById('rule-id').value;
         const name = document.getElementById('rule-name').value;
         const pattern = document.getElementById('rule-pattern').value;
 
@@ -91,9 +124,12 @@
             return;
         }
 
+        const url = id ? `/settings/api/namespaces/rules/${id}` : '/settings/api/namespaces/rules';
+        const method = id ? 'PUT' : 'POST';
+
         try {
-            const res = await fetch('/settings/api/namespaces/rules', {
-                method: 'POST',
+            const res = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name: name,

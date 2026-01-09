@@ -853,6 +853,25 @@ async function loadLicenseAnalytics() {
     loadTrendsDataAsync(days);
 
     // 3. Load Unmapped Nodes (Parallel)
+    // Show scanning state immediately
+    const section = document.getElementById('unmapped-nodes-section');
+    const tbody = document.getElementById('unmapped-nodes-body');
+    const badge = document.getElementById('unmapped-count-badge');
+
+    if (section && tbody) {
+        section.style.display = 'block';
+        badge.innerText = 'Scanning...';
+        badge.classList.remove('badge-green', 'badge-red');
+        badge.style.background = 'var(--text-secondary)';
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" style="text-align:center; padding: 2rem; color: var(--text-secondary);">
+                     <i class="fas fa-search fa-pulse"></i> Scanning for unmapped nodes & projects...
+                </td>
+            </tr>
+        `;
+    }
+
     loadUnmappedNodesAsync();
 }
 

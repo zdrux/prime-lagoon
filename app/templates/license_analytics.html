@@ -82,20 +82,20 @@
     style="margin-bottom: 1.5rem; display: none; border-left: 4px solid var(--warning-color);">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
         <h2 style="font-size: 1.1rem; color: var(--warning-color); display:flex; align-items:center; gap:0.5rem;">
-            <i class="fas fa-exclamation-triangle"></i> Unmapped Nodes Detected
+            <i class="fas fa-exclamation-triangle"></i> Unmapped Resources Detected
         </h2>
         <span class="badge badge-yellow" id="unmapped-count-badge">0 Nodes</span>
     </div>
     <p style="font-size:0.9rem; opacity:0.8; margin-bottom:1rem;">
-        The following licensed nodes do not have a valid <code>mapid</code> label.
-        Please ensure these nodes are tagged correctly to track usage.
+        The following licensed nodes or projects do not have a valid <code>mapid</code> label.
+        Please ensure these resources are tagged correctly to track usage.
     </p>
     <div style="max-height: 200px; overflow-y: auto;">
         <table class="data-table" style="font-size:0.85rem;">
             <thead>
                 <tr>
                     <th>Cluster</th>
-                    <th>Node Name</th>
+                    <th>Resource Name</th>
                     <th>Reason</th>
                 </tr>
             </thead>

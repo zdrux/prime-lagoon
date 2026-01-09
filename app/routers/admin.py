@@ -32,7 +32,7 @@ class ClusterTestRequest(SQLModel):
     cluster_id: Optional[int] = None
 
 router = APIRouter(
-    prefix="/api/admin/clusters",
+    prefix="/api/admin",
     tags=["admin"],
 )
 
@@ -83,7 +83,7 @@ class PollManager:
 
 poll_manager = PollManager()
 
-@router.post("/test-connection")
+@router.post("/clusters/test-connection")
 def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Verifies connection to the cluster using provided credentials."""
     from app.services.ocp import get_dynamic_client
@@ -118,7 +118,7 @@ def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depend
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-@router.post("/", response_model=ClusterRead)
+@router.post("/clusters/", response_model=ClusterRead)
 def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     db_cluster = Cluster.model_validate(cluster)
     
@@ -149,12 +149,12 @@ def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_sessio
     session.refresh(db_cluster)
     return db_cluster
 
-@router.get("/", response_model=List[ClusterRead])
+@router.get("/clusters/", response_model=List[ClusterRead])
 def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     clusters = session.exec(select(Cluster).offset(offset).limit(limit)).all()
     return clusters
 
-@router.post("/config/scheduler")
+@router.post("/clusters/config/scheduler")
 def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     # Update Interval
     db_interval = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
@@ -221,7 +221,7 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
         "config": config.dict()
     }
 
-@router.get("/config/scheduler/run-stream")
+@router.get("/clusters/config/scheduler/run-stream")
 async def trigger_manual_poll_stream(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Manually triggers the background poller and streams progress updates."""
     
@@ -255,7 +255,7 @@ async def trigger_manual_poll_stream(session: Session = Depends(get_session), us
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-@router.post("/config/scheduler/run")
+@router.post("/clusters/config/scheduler/run")
 def trigger_manual_poll(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Manually triggers the background poller."""
     from app.services.poller import poll_all_clusters
@@ -265,7 +265,7 @@ def trigger_manual_poll(session: Session = Depends(get_session), user: User = De
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/snapshots", response_model=dict)
+@router.get("/clusters/snapshots", response_model=dict)
 def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Groups snapshots by global timestamp (run)."""
     from sqlmodel import func
@@ -384,7 +384,7 @@ def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(
 class BulkDeleteRequest(BaseModel):
     group_ids: List[str] # List of timestamp strings
 
-@router.post("/snapshots/bulk-delete")
+@router.post("/clusters/snapshots/bulk-delete")
 def bulk_delete_snapshots(request: BulkDeleteRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Deletes all snapshots belonging to multiple runs."""
     from sqlalchemy import text, func
@@ -408,7 +408,7 @@ def bulk_delete_snapshots(request: BulkDeleteRequest, session: Session = Depends
     return {"status": "success", "deleted_count": deleted_count}
 
 
-@router.post("/snapshots/cleanup")
+@router.post("/clusters/snapshots/cleanup")
 def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Deletes snapshots older than X days."""
     from datetime import datetime, timedelta
@@ -433,7 +433,7 @@ def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_se
     session.commit()
     return {"status": "success", "deleted_count": count}
 
-@router.delete("/snapshots/{snapshot_id}")
+@router.delete("/clusters/snapshots/{snapshot_id}")
 def delete_snapshot(snapshot_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     snap = session.get(ClusterSnapshot, snapshot_id)
     if not snap:
@@ -443,14 +443,14 @@ def delete_snapshot(snapshot_id: int, session: Session = Depends(get_session), u
     session.commit()
     return {"ok": True}
 
-@router.get("/{cluster_id}", response_model=ClusterRead)
+@router.get("/clusters/{cluster_id}", response_model=ClusterRead)
 def read_cluster(cluster_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
     return cluster
 
-@router.delete("/{cluster_id}")
+@router.delete("/clusters/{cluster_id}")
 def delete_cluster(cluster_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
@@ -459,7 +459,7 @@ def delete_cluster(cluster_id: int, session: Session = Depends(get_session), use
     session.commit()
     return {"ok": True}
 
-@router.get("/config/db-stats")
+@router.get("/clusters/config/db-stats")
 def get_db_stats(session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Returns database size and record counts."""
     import os
@@ -559,7 +559,7 @@ def get_db_stats(session: Session = Depends(get_session), user: User = Depends(a
         "db_filename": db_file
     }
 
-@router.post("/config/db-vacuum", status_code=202)
+@router.post("/clusters/config/db-vacuum", status_code=202)
 def vacuum_db(background_tasks: BackgroundTasks, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Runs SQLite VACUUM to reclaim space in the background."""
     from app.services.maintenance import run_vacuum_task
@@ -567,7 +567,7 @@ def vacuum_db(background_tasks: BackgroundTasks, session: Session = Depends(get_
     background_tasks.add_task(run_vacuum_task)
     return {"status": "accepted", "message": "Database optimization started in background."}
 
-@router.patch("/{cluster_id}", response_model=ClusterRead)
+@router.patch("/clusters/{cluster_id}", response_model=ClusterRead)
 def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     db_cluster = session.get(Cluster, cluster_id)
     if not db_cluster:
@@ -587,7 +587,7 @@ def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = D
     session.refresh(db_cluster)
     return db_cluster
 
-@router.post("/restart")
+@router.post("/clusters/restart")
 def restart_application(user: User = Depends(admin_required)):
     """Intentionally crashes the pod by exiting the process. 
     OpenShift will then restart the pod based on its restart policy.
@@ -617,4 +617,19 @@ def create_user(user: UserCreate, session: Session = Depends(get_session), admin
     session.commit()
     session.refresh(new_user)
     return new_user
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int, session: Session = Depends(get_session), admin: User = Depends(admin_required)):
+    """Delete a user."""
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Safety: Cannot delete self
+    if user.username == admin.username:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account.")
+        
+    session.delete(user)
+    session.commit()
+    return {"ok": True}
         

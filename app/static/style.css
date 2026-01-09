@@ -249,6 +249,17 @@ a:hover {
     background: rgba(239, 68, 68, 0.2);
 }
 
+.btn-secondary {
+    background: #f8fafc;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover {
+    background: #ffffff;
+    transform: translateY(-1px);
+}
+
 /* Tables */
 .table-container {
     overflow-x: auto;

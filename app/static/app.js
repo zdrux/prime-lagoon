@@ -6674,6 +6674,43 @@ function renderArgoCDPage(clusterData, clusterId) {
     }
     const projects = Object.keys(appsByProject).sort();
 
+    // Application Set HTML
+    let appSetHtml = '';
+    if (cd.application_sets && cd.application_sets.length > 0) {
+        appSetHtml = `
+            <div class="card" style="margin-bottom:2rem;">
+                 <h3 style="margin-bottom:1rem; opacity:0.9; font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+                    <i class="fas fa-layer-group" style="color:#d946ef; margin-right:0.5rem;"></i> ApplicationSets (${cd.application_sets.length})
+                 </h3>
+                 <div style="overflow-x:auto;">
+                     <table class="data-table" style="width:100%;">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Namespace</th>
+                                <th>Generators</th>
+                                <th style="width:80px; text-align:center;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${cd.application_sets.map(aset => `
+                                <tr>
+                                    <td style="font-weight:600; color:var(--text-primary);">${aset.name}</td>
+                                    <td>${aset.namespace}</td>
+                                    <td><span style="opacity:0.8; font-family:monospace; font-size:0.85rem;">${(aset.generators || []).join(', ')}</span></td>
+                                    <td style="text-align:center;">
+                                        <button class="btn-icon" onclick="loadArgoCDAppSetDetails(${clusterId}, '${aset.namespace}', '${aset.name}')" title="View Details">
+                                            <i class="fas fa-info-circle"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                     </table>
+                 </div>
+            </div>`;
+    }
+
     const html = `
     <div class="fade-in">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
@@ -6733,6 +6770,9 @@ function renderArgoCDPage(clusterData, clusterId) {
             </div>
         </div>
 
+        <!-- App Sets Section -->
+        ${appSetHtml}
+
         <!-- Applications Section -->
         <h3 style="margin-bottom:1rem; font-size:1.2rem;"><i class="fas fa-cubes"></i> Applications</h3>
         
@@ -6758,33 +6798,39 @@ function renderArgoCDPage(clusterData, clusterId) {
                                     <th>Sync Status</th>
                                     <th>Health</th>
                                     <th>Repo / Path</th>
+                                    <th style="width:80px; text-align:center;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${appsByProject[proj].map(app => `
-                                    <tr class="clickable-row argocd-app-row" 
+                                    <tr class="argocd-app-row" 
                                         data-name="${app.name.toLowerCase()}" 
                                         data-namespace="${app.namespace.toLowerCase()}" 
-                                        style="cursor:pointer; transition:background 0.2s;">
-                                        <td style="font-weight:600; color:var(--text-primary);" onclick="loadArgoCDAppDetails(${clusterId}, '${app.namespace}', '${app.name}')">
+                                        style="transition:background 0.2s;">
+                                        <td style="font-weight:600; color:var(--text-primary);">
                                             ${app.name}
                                             <div style="font-size:0.75rem; opacity:0.6; font-weight:400;">${app.namespace}</div>
                                         </td>
-                                        <td onclick="loadArgoCDAppDetails(${clusterId}, '${app.namespace}', '${app.name}')">
+                                        <td>
                                             ${app.sync_status === 'Synced'
             ? '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Synced</span>'
             : (app.sync_status === 'OutOfSync' ? '<span style="color:#f59e0b;"><i class="fas fa-sync-alt"></i> OutOfSync</span>' : `<span style="opacity:0.7;">${app.sync_status}</span>`)}
                                         </td>
-                                        <td onclick="loadArgoCDAppDetails(${clusterId}, '${app.namespace}', '${app.name}')">
+                                        <td>
                                                 ${app.health_status === 'Healthy'
             ? '<span style="color:#10b981;"><i class="fas fa-heart"></i> Healthy</span>'
             : (app.health_status === 'Degraded' ? '<span style="color:#ef4444;"><i class="fas fa-heart-broken"></i> Degraded</span>' : `<span style="opacity:0.7;">${app.health_status}</span>`)}
                                         </td>
                                         <td style="font-family:monospace; font-size:0.85rem; opacity:0.8;">
                                             <div style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${app.repo_url}">
-                                                <a href="${app.repo_url}" target="_blank" style="color:var(--accent-color); text-decoration:none; border-bottom:1px dotted var(--accent-color);" onclick="event.stopPropagation();">${app.repo_url}</a>
+                                                <a href="${app.repo_url}" target="_blank" style="color:var(--accent-color); text-decoration:none; border-bottom:1px dotted var(--accent-color);">${app.repo_url}</a>
                                             </div>
-                                            <div style="color:var(--text-secondary); opacity:0.8;" onclick="loadArgoCDAppDetails(${clusterId}, '${app.namespace}', '${app.name}')">${app.path}</div>
+                                            <div style="color:var(--text-secondary); opacity:0.8;">${app.path}</div>
+                                        </td>
+                                        <td style="text-align:center;">
+                                             <button class="btn-icon" onclick="loadArgoCDAppDetails(${clusterId}, '${app.namespace}', '${app.name}')" title="View Details">
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -6797,36 +6843,6 @@ function renderArgoCDPage(clusterData, clusterId) {
         
         ${!cd.applications || cd.applications.length === 0 ? '<div style="padding:2rem; text-align:center; opacity:0.6;">No applications found</div>' : ''}
 
-
-        <!-- Application Sets -->
-        ${cd.application_sets && cd.application_sets.length > 0 ? `
-        <div class="card" style="margin-top:2rem;">
-            <h3 style="margin-bottom:1.5rem;"><i class="fas fa-layer-group"></i> ApplicationSets</h3>
-             <table class="data-table" style="width:100%;">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Namespace</th>
-                            <th>Generators</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${cd.application_sets.map(aset => `
-                            <tr>
-                                <td style="font-weight:600;">${aset.name}</td>
-                                <td>${aset.namespace}</td>
-                                <td>
-                                    ${aset.generators.map(g => `<span class="badge" style="background:rgba(255,255,255,0.1); margin-right:4px;">${g}</span>`).join('')}
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-            </table>
-        </div>
-        ` : ''}
-
-    </div>
-    
     <!-- Modal Container for App Details -->
     <div id="argocd-app-modal" class="modal">
         <div class="modal-content" style="max-width:900px;">
@@ -6835,6 +6851,19 @@ function renderArgoCDPage(clusterData, clusterId) {
                 <button class="close-btn" onclick="document.getElementById('argocd-app-modal').classList.remove('open')">&times;</button>
             </div>
             <div id="argocd-app-modal-body">
+                <div style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Container for AppSet Details -->
+    <div id="argocd-appset-modal" class="modal">
+        <div class="modal-content" style="max-width:900px;">
+            <div class="modal-header">
+                <h3>ApplicationSet Details</h3>
+                <button class="close-btn" onclick="document.getElementById('argocd-appset-modal').classList.remove('open')">&times;</button>
+            </div>
+            <div id="argocd-appset-modal-body">
                 <div style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>
             </div>
         </div>
@@ -6892,7 +6921,27 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
             <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:2rem;">
                 <div>
                     <h2 style="color:var(--accent-color); margin-bottom:0.5rem;">${details.name}</h2>
-                    <div style="margin-bottom:1.5rem; opacity:0.8;">Namespace: ${details.namespace} | Project: ${details.project}</div>
+                    <div style="margin-bottom:1.5rem; opacity:0.8;">
+                        <i class="fas fa-project-diagram"></i> Project: <strong>${details.project}</strong> | 
+                        <i class="fas fa-cubes"></i> Namespace: <strong>${details.namespace}</strong>
+                    </div>
+                    
+                    <!-- Source & Destination -->
+                    <div style="background:rgba(255,255,255,0.03); border-radius:8px; padding:1rem; margin-bottom:1.5rem; display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+                        <div>
+                            <div style="opacity:0.6; font-size:0.85rem; margin-bottom:0.3rem;">SOURCE</div>
+                            <div style="font-family:monospace; word-break:break-all; font-size:0.9rem;">
+                                <a href="${details.source.repoURL}" target="_blank" style="color:var(--accent-color);">${details.source.repoURL}</a>
+                            </div>
+                            <div style="margin-top:0.3rem; font-size:0.9rem;"><span style="opacity:0.6;">Path:</span> ${details.source.path}</div>
+                            <div style="margin-top:0.3rem; font-size:0.9rem;"><span style="opacity:0.6;">Revision:</span> ${details.source.targetRevision}</div>
+                        </div>
+                        <div>
+                            <div style="opacity:0.6; font-size:0.85rem; margin-bottom:0.3rem;">DESTINATION</div>
+                            <div style="font-size:0.9rem;"><span style="opacity:0.6;">Server:</span> ${details.destination.server}</div>
+                            <div style="font-size:0.9rem;"><span style="opacity:0.6;">Namespace:</span> ${details.destination.namespace}</div>
+                        </div>
+                    </div>
                     
                     <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
                         <h4 style="margin-bottom:0.8rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">Sync Status</h4>
@@ -6904,7 +6953,18 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                             
                             <span style="opacity:0.6;">Revision:</span> 
                             <code style="font-size:0.85rem;">${details.sync.revision.substring(0, 8)}</code>
+                            
+                            <span style="opacity:0.6;">Auto-Sync:</span>
+                            <span style="${details.sync_policy.automated ? 'color:#10b981;' : 'opacity:0.7;'}">
+                                ${details.sync_policy.automated ? 'Enabled' : 'Disabled'}
+                            </span>
                         </div>
+                         ${details.sync_policy.sync_options && details.sync_policy.sync_options.length > 0 ? `
+                             <div style="margin-top:0.8rem;">
+                                <div style="opacity:0.6; font-size:0.85rem; margin-bottom:0.3rem;">Sync Options:</div>
+                                <div>${details.sync_policy.sync_options.map(o => `<span class="badge" style="background:rgba(255,255,255,0.1); font-size:0.8rem;">${o}</span>`).join(' ')}</div>
+                             </div>
+                         ` : ''}
                     </div>
 
                     <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
@@ -6950,6 +7010,74 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
 
     } catch (e) {
         body.innerHTML = `<div class="error-state"><i class="fas fa-exclamation-triangle"></i><p>${e.message}</p></div>`;
+    }
+}
+
+async function loadArgoCDAppSetDetails(clusterId, namespace, name) {
+    const modal = document.getElementById('argocd-appset-modal');
+    const body = document.getElementById('argocd-appset-modal-body');
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center; padding:4rem;"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--accent-color);"></i><p style="margin-top:1rem; opacity:0.7;">Fetching AppSet details...</p></div>';
+
+    try {
+        const response = await fetch(`/api/dashboard/${clusterId}/argocd/applicationset/${namespace}/${name}`);
+        if (!response.ok) throw new Error("Failed to fetch AppSet details");
+        const details = await response.json();
+
+        if (details.error) throw new Error(details.error);
+
+        const tmpl = details.template || {};
+
+        let html = `
+            <div style="margin-bottom:2rem;">
+                <h2 style="color:#d946ef; margin-bottom:0.5rem;">${details.name}</h2>
+                <div style="opacity:0.8;">Namespace: ${details.namespace}</div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:2rem;">
+                <div class="card">
+                     <h3 style="margin-bottom:1rem; font-size:1rem; opacity:0.9;">Generators</h3>
+                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        ${details.generators.length > 0 ? details.generators.map(g => `
+                            <span class="badge" style="background:rgba(217, 70, 239, 0.2); color:#d946ef; border:1px solid rgba(217, 70, 239, 0.3); font-size:0.9rem; padding:0.4rem 0.8rem;">${g}</span>
+                        `).join('') : '<span style="opacity:0.6;">No generators detected</span>'}
+                     </div>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-bottom:1rem; font-size:1rem; opacity:0.9;">Template</h3>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                         <div><span style="opacity:0.6;">Project:</span> ${tmpl.project || 'default'}</div>
+                         <div><span style="opacity:0.6;">Repo URL:</span> <span style="font-family:monospace; word-break:break-all;">${tmpl.repoURL || ''}</span></div>
+                         <div><span style="opacity:0.6;">Path:</span> ${tmpl.path || ''}</div>
+                         <div style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border-color);">
+                             <span style="opacity:0.6;">Dest Server:</span> ${tmpl.dest_server || ''}<br>
+                             <span style="opacity:0.6;">Dest Namespace:</span> ${tmpl.dest_namespace || ''}
+                         </div>
+                    </div>
+                </div>
+            </div>
+
+            ${details.conditions && details.conditions.length > 0 ? `
+            <div class="card" style="margin-top:2rem;">
+                <h3 style="margin-bottom:1rem; font-size:1rem; opacity:0.9;">Conditions</h3>
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                    ${details.conditions.map(c => `
+                        <div style="padding:0.5rem; background:rgba(255,255,255,0.05); border-radius:4px;">
+                            <div style="font-weight:600; color:${c.status === 'True' ? '#ef4444' : 'var(--text-primary)'};">${c.type}</div>
+                            <div style="font-size:0.9rem; opacity:0.8;">${c.message}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+        `;
+
+        body.innerHTML = html;
+
+    } catch (e) {
+        console.error(e);
+        body.innerHTML = `<div class="error-state"><i class="fas fa-exclamation-triangle"></i><p>Error: ${e.message}</p></div>`;
     }
 }
 

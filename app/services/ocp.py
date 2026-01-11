@@ -1211,10 +1211,28 @@ def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) 
         op_state = getattr(status, 'operationState', None)
         op_state_dict = op_state.to_dict() if op_state else None
 
+
+        dest = getattr(spec, 'destination', None) or {}
+        source = getattr(spec, 'source', None) or {}
+        sync_policy = getattr(spec, 'syncPolicy', None) or {}
+
         return {
             "name": app.metadata.name,
             "namespace": app.metadata.namespace,
             "project": getattr(spec, 'project', 'default'),
+            "destination": {
+                "server": getattr(dest, 'server', 'Unknown'),
+                "namespace": getattr(dest, 'namespace', 'Unknown')
+            },
+            "source": {
+                "repoURL": getattr(source, 'repoURL', 'Unknown'),
+                "path": getattr(source, 'path', ''),
+                "targetRevision": getattr(source, 'targetRevision', 'HEAD')
+            },
+            "sync_policy": {
+                "automated": getattr(sync_policy, 'automated', None) is not None,
+                "sync_options": getattr(sync_policy, 'syncOptions', []) or []
+            },
             "summary": {
                 "images": summary_images,
                 "external_urls": summary_urls
@@ -1234,4 +1252,57 @@ def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) 
         }
     except Exception as e:
         print(f"Error fetching ArgoCD app details for {name} on {cluster.name}: {e}")
+        return {"error": str(e)}
+
+def get_argocd_applicationset_details(cluster: Cluster, namespace: str, name: str) -> dict:
+    """
+    Fetches details for a specific ArgoCD ApplicationSet.
+    """
+    try:
+        dyn_client = get_dynamic_client(cluster)
+        appset_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='ApplicationSet')
+        
+        aset = appset_api.get(name=name, namespace=namespace)
+        
+        spec = getattr(aset, 'spec', None) or {}
+        status = getattr(aset, 'status', None) or {}
+        
+        # Generators
+        gens_raw = getattr(spec, 'generators', []) or []
+        generators = []
+        for g in gens_raw:
+            try:
+                # Generators are a list of dicts/objects with one key usually (e.g. 'list', 'git', 'clusterDecisionResource')
+                if hasattr(g, 'keys'):
+                    generators.extend(list(g.keys()))
+                elif isinstance(g, dict):
+                    generators.extend(list(g.keys()))
+                else:
+                    # Fallback for complex objects
+                    generators.append("Unknown Generator")
+            except:
+                pass
+        
+        # Template
+        template = getattr(spec, 'template', None) or {}
+        template_spec = getattr(template, 'spec', None) or {}
+        template_project = getattr(template_spec, 'project', 'default')
+        template_source = getattr(template_spec, 'source', {})
+        template_dest = getattr(template_spec, 'destination', {})
+
+        return {
+            "name": aset.metadata.name,
+            "namespace": aset.metadata.namespace,
+            "generators": list(set(generators)), # Dedupe
+            "template": {
+                "project": template_project,
+                "repoURL": getattr(template_source, 'repoURL', ''),
+                "path": getattr(template_source, 'path', ''),
+                "dest_server": getattr(template_dest, 'server', ''),
+                "dest_namespace": getattr(template_dest, 'namespace', '')
+            },
+            "conditions": [c.to_dict() for c in getattr(status, 'conditions', []) or []]
+        }
+    except Exception as e:
+        print(f"Error fetching ArgoCD AppSet details for {name}: {e}")
         return {"error": str(e)}

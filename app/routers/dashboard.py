@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from app.database import get_session
 from app.models import Cluster, LicenseUsage, AppConfig, LicenseRule, ClusterSnapshot, User
-from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu, get_detailed_stats, parse_memory_to_gb, get_dynamic_client, get_argocd_application_details
+from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu, get_detailed_stats, parse_memory_to_gb, get_dynamic_client, get_argocd_application_details, get_argocd_applicationset_details
 
 # Consolidated license calculation logic is now in poller, but for realtime we still might need it
 # Or we can reuse the logic
@@ -684,6 +684,18 @@ def get_argocd_app_details(cluster_id: int, namespace: str, name: str, session: 
 
     try:
         return get_argocd_application_details(cluster, namespace, name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{cluster_id}/argocd/applicationset/{namespace}/{name}")
+def get_argocd_appset_details(cluster_id: int, namespace: str, name: str, session: Session = Depends(get_session)):
+    """Fetches live details for a specific ArgoCD ApplicationSet."""
+    cluster = session.get(Cluster, cluster_id)
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    try:
+        return get_argocd_applicationset_details(cluster, namespace, name)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -6231,7 +6231,8 @@ function renderServiceMeshPage(clusterData, meshData) {
 
     const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
 
-    const clusterName = clusterData.name || clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
+    // Fix: Prioritize cluster_name which comes from get_detailed_stats
+    const clusterName = clusterData.cluster_name || clusterData.name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
 
 
 
@@ -6650,302 +6651,306 @@ async function loadArgoCD(clusterId) {
 
 
 function renderArgoCDPage(clusterData) {
-
     const cd = clusterData.argocd;
-
-    const clusterName = clusterData.name || clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
-
-
+    // Fix: Prioritize cluster_name which comes from get_detailed_stats
+    const clusterName = clusterData.cluster_name || clusterData.name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
 
     // Stats calculation
-
     const totalApps = cd.applications ? cd.applications.length : 0;
-
     const healthyApps = cd.applications ? cd.applications.filter(a => a.health_status === 'Healthy').length : 0;
-
     const syncedApps = cd.applications ? cd.applications.filter(a => a.sync_status === 'Synced').length : 0;
-
     const appSets = cd.application_sets ? cd.application_sets.length : 0;
-
-
 
     const instances = cd.instances || [];
 
-
+    // Group Applications by Project
+    const appsByProject = {};
+    if (cd.applications) {
+        cd.applications.forEach(app => {
+            const proj = app.project || 'default';
+            if (!appsByProject[proj]) appsByProject[proj] = [];
+            appsByProject[proj].push(app);
+        });
+    }
+    const projects = Object.keys(appsByProject).sort();
 
     const html = `
-
     <div class="fade-in">
-
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
-
             <div>
-
                 <h1 style="margin-bottom:0.5rem;">
-
                     <i class="fas fa-sync" style="color:#f97316; margin-right:0.8rem;"></i>ArgoCD Overview
-
                 </h1>
-
                 <div style="font-size:1.1rem; opacity:0.8; font-family:'Inter', sans-serif;">
-
                     Cluster: <span style="font-weight:600; color:var(--text-primary);">${clusterName}</span>
-
                 </div>
-
             </div>
-
             <div>
-
                 <button class="btn btn-secondary" onclick="loadDashboard()"><i class="fas fa-arrow-left"></i> Dashboard</button>
-
             </div>
-
         </div>
-
-
 
         <!-- Top Cards -->
-
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
-
             
-
             <!-- Instances Card -->
-
             <div class="card">
-
                 <h3 style="margin-bottom:1rem; opacity:0.8; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Controller Instances</h3>
-
                 <div style="display:flex; flex-direction:column; gap:0.8rem;">
-
                     ${instances.length > 0 ? instances.map(i => `
-
                         <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:0.5rem; border-bottom:1px solid var(--border-color);">
-
                             <div>
-
                                 <div style="font-weight:600;">${i.namespace}</div>
-
                                 <div style="font-size:0.8rem; opacity:0.6;">${i.version}</div>
-
                             </div>
-
-                            <span class="badge ${i.status === 'Running' || i.status === 'Active' ? 'badge-green' : 'badge-red'}">${i.status}</span>
-
+                            <span class="badge ${i.status === 'Running' || i.status === 'Active' || i.status === 'Available' ? 'badge-green' : 'badge-red'}">${i.status}</span>
                         </div>
-
                     `).join('') : '<div style="opacity:0.6; font-style:italic;">No instances detected</div>'}
-
                 </div>
-
             </div>
-
-
 
             <!-- Stats Card -->
-
             <div class="card">
-
                 <h3 style="margin-bottom:1rem; opacity:0.8; font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Application Health</h3>
-
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-
                     <div style="text-align:center; padding:1rem; background:rgba(255,255,255,0.03); border-radius:8px;">
-
                         <div style="font-size:2rem; font-weight:700; color:var(--accent-color);">${totalApps}</div>
-
                         <div style="font-size:0.8rem; opacity:0.7;">Total Apps</div>
-
                     </div>
-
                     <div style="text-align:center; padding:1rem; background:rgba(255,255,255,0.03); border-radius:8px;">
-
                         <div style="font-size:2rem; font-weight:700; color:#10b981;">${healthyApps}</div>
-
                         <div style="font-size:0.8rem; opacity:0.7;">Healthy</div>
-
                     </div>
-
                     <div style="text-align:center; padding:1rem; background:rgba(255,255,255,0.03); border-radius:8px;">
-
                         <div style="font-size:2rem; font-weight:700; color:#3b82f6;">${syncedApps}</div>
-
                         <div style="font-size:0.8rem; opacity:0.7;">Synced</div>
-
                     </div>
-
                     <div style="text-align:center; padding:1rem; background:rgba(255,255,255,0.03); border-radius:8px;">
-
                         <div style="font-size:2rem; font-weight:700; color:#f59e0b;">${appSets}</div>
-
                         <div style="font-size:0.8rem; opacity:0.7;">AppSets</div>
-
                     </div>
-
                 </div>
-
             </div>
-
         </div>
 
-
-
-        <!-- Main Content: Applications -->
-
-        <div class="card">
-
-            <h3 style="margin-bottom:1.5rem;"><i class="fas fa-cubes"></i> Applications</h3>
-
-            
-
-            <div style="overflow-x:auto;">
-
-                <table class="data-table" style="width:100%;">
-
-                    <thead>
-
-                        <tr>
-
-                            <th>Name</th>
-
-                            <th>Project</th>
-
-                            <th>Sync Status</th>
-
-                            <th>Health</th>
-
-                            <th>Repo / Path</th>
-
-                        </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                        ${cd.applications ? cd.applications.map(app => `
-
-                            <tr>
-
-                                <td style="font-weight:600; color:var(--text-primary);">
-
-                                    ${app.name}
-
-                                    <div style="font-size:0.75rem; opacity:0.6; font-weight:400;">${app.namespace}</div>
-
-                                </td>
-
-                                <td>${app.project}</td>
-
-                                <td>
-
-                                    ${app.sync_status === 'Synced'
-
-            ? '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Synced</span>'
-
-            : (app.sync_status === 'OutOfSync' ? '<span style="color:#f59e0b;"><i class="fas fa-sync-alt"></i> OutOfSync</span>' : `<span style="opacity:0.7;">${app.sync_status}</span>`)}
-
-                                </td>
-
-                                <td>
-
-                                     ${app.health_status === 'Healthy'
-
-            ? '<span style="color:#10b981;"><i class="fas fa-heart"></i> Healthy</span>'
-
-            : (app.health_status === 'Degraded' ? '<span style="color:#ef4444;"><i class="fas fa-heart-broken"></i> Degraded</span>' : `<span style="opacity:0.7;">${app.health_status}</span>`)}
-
-                                </td>
-
-                                <td style="font-family:monospace; font-size:0.85rem; opacity:0.8;">
-
-                                    <div style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${app.repo_url}">
-
-                                        ${app.repo_url}
-
-                                    </div>
-
-                                    <div style="color:var(--accent-color);">${app.path}</div>
-
-                                </td>
-
-                            </tr>
-
-                        `).join('') : ''}
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-            ${!cd.applications || cd.applications.length === 0 ? '<div style="padding:2rem; text-align:center; opacity:0.6;">No applications found</div>' : ''}
-
-        </div>
-
+        <!-- Applications Section -->
+        <h3 style="margin-bottom:1rem; font-size:1.2rem;"><i class="fas fa-cubes"></i> Applications</h3>
         
+        <!-- Search Bar -->
+        <div style="margin-bottom:1.5rem;">
+            <input type="text" id="argocd-search" placeholder="Search applications..." 
+                onkeyup="filterArgoCDApps()" class="form-input" 
+                style="width:100%; max-width:400px; padding:0.6rem; border-radius:6px; background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-primary);">
+        </div>
+
+        <div id="argocd-projects-container">
+            ${projects.map(proj => `
+                <div class="card project-group" data-project="${proj}" style="margin-bottom:1.5rem;">
+                    <h3 style="margin-bottom:1rem; opacity:0.9; font-size:1rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; display:flex; justify-content:space-between;">
+                        <span><i class="fas fa-folder" style="color:#fbbf24; margin-right:0.5rem;"></i> Project: ${proj}</span>
+                        <span style="font-size:0.8rem; opacity:0.6; font-weight:400;">${appsByProject[proj].length} Apps</span>
+                    </h3>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" style="width:100%;">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Sync Status</th>
+                                    <th>Health</th>
+                                    <th>Repo / Path</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${appsByProject[proj].map(app => `
+                                    <tr class="clickable-row argocd-app-row" 
+                                        data-name="${app.name.toLowerCase()}" 
+                                        data-namespace="${app.namespace.toLowerCase()}" 
+                                        onclick="loadArgoCDAppDetails(${clusterData.id}, '${app.namespace}', '${app.name}')"
+                                        style="cursor:pointer; transition:background 0.2s;">
+                                        <td style="font-weight:600; color:var(--text-primary);">
+                                            ${app.name}
+                                            <div style="font-size:0.75rem; opacity:0.6; font-weight:400;">${app.namespace}</div>
+                                        </td>
+                                        <td>
+                                            ${app.sync_status === 'Synced'
+            ? '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Synced</span>'
+            : (app.sync_status === 'OutOfSync' ? '<span style="color:#f59e0b;"><i class="fas fa-sync-alt"></i> OutOfSync</span>' : `<span style="opacity:0.7;">${app.sync_status}</span>`)}
+                                        </td>
+                                        <td>
+                                                ${app.health_status === 'Healthy'
+            ? '<span style="color:#10b981;"><i class="fas fa-heart"></i> Healthy</span>'
+            : (app.health_status === 'Degraded' ? '<span style="color:#ef4444;"><i class="fas fa-heart-broken"></i> Degraded</span>' : `<span style="opacity:0.7;">${app.health_status}</span>`)}
+                                        </td>
+                                        <td style="font-family:monospace; font-size:0.85rem; opacity:0.8;">
+                                            <div style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${app.repo_url}">
+                                                ${app.repo_url}
+                                            </div>
+                                            <div style="color:var(--accent-color);">${app.path}</div>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        
+        ${!cd.applications || cd.applications.length === 0 ? '<div style="padding:2rem; text-align:center; opacity:0.6;">No applications found</div>' : ''}
+
 
         <!-- Application Sets -->
-
         ${cd.application_sets && cd.application_sets.length > 0 ? `
-
         <div class="card" style="margin-top:2rem;">
-
             <h3 style="margin-bottom:1.5rem;"><i class="fas fa-layer-group"></i> ApplicationSets</h3>
-
              <table class="data-table" style="width:100%;">
-
                     <thead>
-
                         <tr>
-
                             <th>Name</th>
-
                             <th>Namespace</th>
-
                             <th>Generators</th>
-
                         </tr>
-
                     </thead>
-
                     <tbody>
-
                         ${cd.application_sets.map(aset => `
-
                             <tr>
-
                                 <td style="font-weight:600;">${aset.name}</td>
-
                                 <td>${aset.namespace}</td>
-
                                 <td>
-
                                     ${aset.generators.map(g => `<span class="badge" style="background:rgba(255,255,255,0.1); margin-right:4px;">${g}</span>`).join('')}
-
                                 </td>
-
                             </tr>
-
                         `).join('')}
-
                     </tbody>
-
             </table>
-
         </div>
-
         ` : ''}
 
-
-
     </div>
-
+    
+    <!-- Modal Container for App Details -->
+    <div id="argocd-app-modal" class="modal">
+        <div class="modal-content" style="max-width:900px;">
+            <div class="modal-header">
+                <h3>Application Details</h3>
+                <button class="close-btn" onclick="document.getElementById('argocd-app-modal').classList.remove('open')">&times;</button>
+            </div>
+            <div id="argocd-app-modal-body">
+                <div style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>
+            </div>
+        </div>
+    </div>
     `;
 
-
-
     document.querySelector('.main-content').innerHTML = html;
+}
 
+function filterArgoCDApps() {
+    const input = document.getElementById('argocd-search');
+    const filter = input.value.toLowerCase();
+    const rows = document.getElementsByClassName('argocd-app-row');
+    const groups = document.getElementsByClassName('project-group');
+
+    // Filter rows
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const name = row.getAttribute('data-name');
+        const ns = row.getAttribute('data-namespace');
+        if (name.includes(filter) || ns.includes(filter)) {
+            row.style.display = "";
+        } else {
+            row.style.display = "none";
+        }
+    }
+
+    // Hide empty groups
+    for (let i = 0; i < groups.length; i++) {
+        const group = groups[i];
+        const visibleRows = group.querySelectorAll('.argocd-app-row:not([style*="display: none"])');
+        if (visibleRows.length > 0) {
+            group.style.display = "";
+        } else {
+            group.style.display = "none";
+        }
+    }
+}
+
+async function loadArgoCDAppDetails(clusterId, namespace, name) {
+    const modal = document.getElementById('argocd-app-modal');
+    const body = document.getElementById('argocd-app-modal-body');
+    modal.classList.add('open');
+    body.innerHTML = '<div style="text-align:center; padding:4rem;"><i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--accent-color);"></i><p style="margin-top:1rem; opacity:0.7;">Fetching live details...</p></div>';
+
+    try {
+        const response = await fetch(`/api/dashboard/${clusterId}/argocd/application/${namespace}/${name}`);
+        if (!response.ok) throw new Error("Failed to fetch app details");
+        const details = await response.json();
+
+        if (details.error) throw new Error(details.error);
+
+        // Render Details
+        let html = `
+            <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:2rem;">
+                <div>
+                    <h2 style="color:var(--accent-color); margin-bottom:0.5rem;">${details.name}</h2>
+                    <div style="margin-bottom:1.5rem; opacity:0.8;">Namespace: ${details.namespace} | Project: ${details.project}</div>
+                    
+                    <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
+                        <h4 style="margin-bottom:0.8rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">Sync Status</h4>
+                        <div style="display:grid; grid-template-columns: auto 1fr; gap:0.5rem 1rem; align-items:center;">
+                            <span style="opacity:0.6;">Status:</span> 
+                            <span class="${details.sync.status === 'Synced' ? 'text-green' : 'text-orange'}" style="font-weight:bold;">
+                                ${details.sync.status === 'Synced' ? '<i class="fas fa-check-circle"></i>' : ''} ${details.sync.status}
+                            </span>
+                            
+                            <span style="opacity:0.6;">Revision:</span> 
+                            <code style="font-size:0.85rem;">${details.sync.revision.substring(0, 8)}</code>
+                        </div>
+                    </div>
+
+                    <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
+                         <h4 style="margin-bottom:0.8rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">Health</h4>
+                         <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span class="${details.health.status === 'Healthy' ? 'text-green' : 'text-red'}" style="font-weight:bold; font-size:1.1rem;">
+                                ${details.health.status}
+                            </span>
+                            ${details.health.message ? `<span style="opacity:0.7; font-size:0.9rem;">- ${details.health.message}</span>` : ''}
+                         </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 style="margin-bottom:1rem;">Sync History</h4>
+                    <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                        ${details.history.length > 0 ? details.history.slice().reverse().map(h => `
+                            <div style="background:rgba(0,0,0,0.2); padding:0.8rem; border-radius:6px; font-size:0.9rem; border-left: 3px solid var(--border-color);">
+                                <div style="display:flex; justify-content:space-between; margin-bottom:0.3rem;">
+                                    <span style="opacity:0.6;">${h.deployedAt ? new Date(h.deployedAt).toLocaleString() : 'Unknown'}</span>
+                                    <span style="font-weight:600; font-family:monospace;">${h.revision ? h.revision.substring(0, 7) : ''}</span>
+                                </div>
+                                <div>${h.source ? h.source.repoURL : ''}</div>
+                            </div>
+                        `).join('') : '<div style="opacity:0.5;">No history available</div>'}
+                    </div>
+                </div>
+            </div>
+
+            ${details.summary.images && details.summary.images.length > 0 ? `
+            <div style="margin-top:1.5rem;">
+                <h4 style="margin-bottom:1rem;">Container Images</h4>
+                <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                    ${details.summary.images.map(img => `
+                        <span style="background:rgba(255,255,255,0.1); padding:0.3rem 0.6rem; border-radius:4px; font-size:0.85rem; font-family:monospace;">${img}</span>
+                    `).join('')}
+                </div>
+            </div>
+            ` : ''}
+        `;
+
+        body.innerHTML = html;
+
+    } catch (e) {
+        body.innerHTML = `<div class="error-state"><i class="fas fa-exclamation-triangle"></i><p>${e.message}</p></div>`;
+    }
 }
 

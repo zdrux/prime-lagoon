@@ -1161,7 +1161,51 @@ def get_argocd_details(cluster: Cluster, snapshot_data: Optional[dict] = None) -
         except:
             pass
             
+        return argocd_data
+
     except Exception as e:
         print(f"Error fetching ArgoCD details for {cluster.name}: {e}")
-    
-    return argocd_data
+        return {"is_active": False, "error": str(e)}
+
+
+def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) -> dict:
+    """
+    Fetches live details for a specific ArgoCD Application.
+    """
+    try:
+        dyn_client = get_dynamic_client(cluster)
+        app_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='Application')
+        
+        # Determine the namespace to search in. 
+        # Typically ArgoCD apps live in the openshift-gitops namespace or where the instance is installed.
+        # But for 'Application' resources, they are namespaced. The frontend sends the namespace of the App.
+        
+        app = app_api.get(name=name, namespace=namespace)
+        
+        status = getattr(app, 'status', {})
+        spec = getattr(app, 'spec', {})
+        
+        return {
+            "name": app.metadata.name,
+            "namespace": app.metadata.namespace,
+            "project": getattr(spec, 'project', 'default'),
+            "summary": {
+                "images": getattr(status.summary, 'images', []) if hasattr(status, 'summary') else [],
+                "external_urls": getattr(status.summary, 'externalURLs', []) if hasattr(status, 'summary') else []
+            },
+            "sync": {
+                "status": getattr(status.sync, 'status', 'Unknown') if hasattr(status, 'sync') else 'Unknown',
+                "revision": getattr(status.sync, 'revision', '') if hasattr(status, 'sync') else '',
+                "compared_to": getattr(status.sync, 'comparedTo', {}) if hasattr(status, 'sync') else {}
+            },
+            "health": {
+                "status": getattr(status.health, 'status', 'Unknown') if hasattr(status, 'health') else 'Unknown',
+                "message": getattr(status.health, 'message', '') if hasattr(status, 'health') else ''
+            },
+            "history": [h.to_dict() for h in getattr(status, 'history', [])][-5:], # Last 5
+            "operation_state": getattr(status, 'operationState', None).to_dict() if hasattr(status, 'operationState') else None,
+            "conditions": [c.to_dict() for c in getattr(status, 'conditions', [])]
+        }
+    except Exception as e:
+        print(f"Error fetching ArgoCD app details for {name} on {cluster.name}: {e}")
+        return {"error": str(e)}

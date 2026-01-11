@@ -255,20 +255,23 @@ async function loadSummary(forceRefresh = false) {
 
         // Dynamically update Sidebar Service Mesh indicators
         clusters.forEach(c => {
-            if (c.id && c.has_service_mesh !== undefined) {
+            if (c.id) {
+                // Fix: has_service_mesh is nested in stats object
+                const hasMesh = c.stats ? (c.stats.has_service_mesh === true) : false;
+
                 const clusterLink = document.querySelector(`.nav-link[data-cluster-id="${c.id}"]`);
                 const submenu = document.getElementById(`submenu-${c.id}`);
 
                 // Update Badge
                 if (clusterLink) {
                     let badge = clusterLink.querySelector('.badge-sm');
-                    if (c.has_service_mesh && !badge) {
+                    if (hasMesh && !badge) {
                         // Add it
                         badge = document.createElement('span');
                         badge.className = 'badge-sm';
                         badge.innerText = 'SM';
                         clusterLink.appendChild(badge);
-                    } else if (!c.has_service_mesh && badge) {
+                    } else if (!hasMesh && badge) {
                         // Remove it
                         badge.remove();
                     }
@@ -276,23 +279,18 @@ async function loadSummary(forceRefresh = false) {
 
                 // Update Sublink
                 if (submenu) {
-                    let smLink = submenu.querySelector('.sub-link-sm'); // We need to tag it or find by onclick
-                    // Finding by onclick is messy, let's look for text or icon
-                    // Easier: Re-check existing. If not found, prepend it.
-                    // The existing implementation uses Jinja2. JS injection should match.
-
                     // Find existing by checking text content or specific class we can add?
                     // Let's assume we search for the specific onclick
                     const existingLink = Array.from(submenu.querySelectorAll('a')).find(a => a.onclick && a.onclick.toString().includes('loadServiceMesh'));
 
-                    if (c.has_service_mesh && !existingLink) {
+                    if (hasMesh && !existingLink) {
                         const link = document.createElement('a');
                         link.href = "#";
                         link.className = "sub-link sub-link-sm";
                         link.onclick = function (e) { loadServiceMesh(c.id); e.stopPropagation(); };
                         link.innerHTML = '<i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh';
                         submenu.prepend(link); // Service Mesh usually top
-                    } else if (!c.has_service_mesh && existingLink) {
+                    } else if (!hasMesh && existingLink) {
                         existingLink.remove();
                     }
                 }

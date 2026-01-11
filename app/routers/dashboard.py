@@ -291,6 +291,15 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                 if snap and snap.data_json:
                     snapshot_data = json.loads(snap.data_json)
                     stats = get_cluster_stats(cluster, snapshot_data=snapshot_data)
+                    
+                    # Inject Service Mesh status from snapshot
+                    stats['has_service_mesh'] = False
+                    if snap.service_mesh_json:
+                        try:
+                            sm_data = json.loads(snap.service_mesh_json)
+                            stats['has_service_mesh'] = sm_data.get('is_active', False)
+                        except:
+                            pass
                     s_nodes = snapshot_data.get("nodes", [])
                     lic_data = calculate_licenses(s_nodes, rules, default_include=default_include)
                     

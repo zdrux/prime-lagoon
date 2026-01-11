@@ -3098,10 +3098,7 @@ function renderServiceMeshPage(clusterData, meshData) {
             <div>
                  <div style="font-size:0.85rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:0.2rem;">Service Mesh Dashboard</div>
                  <h1 class="page-title" style="display:flex; align-items:center; gap:0.5rem;">
-                    ${clusterName} 
-                    <span class="badge" style="${versionBadgeStyle} font-size:0.9rem; padding:0.3rem 0.8rem; vertical-align:middle; font-weight:normal;">
-                        <i class="fas fa-code-branch" style="opacity:0.7; margin-right:4px;"></i> ${meshData.summary.version || 'Active'}
-                    </span>
+                    Cluster: <span style="color:var(--accent-color);">${clusterName}</span>
                  </h1>
             </div>
             <!-- Back button removed -->
@@ -3161,11 +3158,11 @@ function renderServiceMeshPage(clusterData, meshData) {
             
             <div class="accordion" id="sm-accordion">
                 ${sortedMembers.map((ns, idx) => {
-                    const nsGateways = gateways.filter(g => g.namespace === ns);
-                    const nsVS = vservices.filter(v => v.namespace === ns);
-                    const hasConfig = nsGateways.length > 0 || nsVS.length > 0;
-                    
-                    return `
+        const nsGateways = gateways.filter(g => g.namespace === ns);
+        const nsVS = vservices.filter(v => v.namespace === ns);
+        const hasConfig = nsGateways.length > 0 || nsVS.length > 0;
+
+        return `
                     <div class="accordion-item" style="background:var(--card-bg); border:1px solid var(--border-color); margin-bottom:0.5rem; border-radius:8px; overflow:hidden;">
                         <div class="accordion-header" onclick="this.parentElement.classList.toggle('active')" style="display:flex; justify-content:space-between; align-items:center; padding:1rem; cursor:pointer; background:rgba(255,255,255,0.02);">
                             <div style="display:flex; align-items:center; gap:0.8rem;">
@@ -3202,7 +3199,7 @@ function renderServiceMeshPage(clusterData, meshData) {
                                                                     ${Object.keys(g.selector || {}).map(k => `${k}=${g.selector[k]}`).join(' ')}
                                                                 </div>
                                                                 <div style="font-size:0.8rem;">
-                                                                    ${(g.servers || []).map(s => `<div>${s.port?.number}/${s.port?.protocol} [${(s.hosts||[]).join(', ')}]</div>`).join('')}
+                                                                    ${(g.servers || []).map(s => `<div>${s.port?.number}/${s.port?.protocol} [${(s.hosts || []).join(', ')}]</div>`).join('')}
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -3229,8 +3226,8 @@ function renderServiceMeshPage(clusterData, meshData) {
                                                                 <div style="font-weight:600; color:var(--accent-color);">${v.name}</div>
                                                             </td>
                                                             <td style="vertical-align:top; font-size:0.85rem;">
-                                                                <div style="margin-bottom:2px;"><i class="fas fa-globe" style="width:16px; opacity:0.5;"></i> ${(v.hosts||[]).join(', ')}</div>
-                                                                <div><i class="fas fa-door-open" style="width:16px; opacity:0.5;"></i> ${(v.gateways||[]).join(', ')}</div>
+                                                                <div style="margin-bottom:2px;"><i class="fas fa-globe" style="width:16px; opacity:0.5;"></i> ${(v.hosts || []).join(', ')}</div>
+                                                                <div><i class="fas fa-door-open" style="width:16px; opacity:0.5;"></i> ${(v.gateways || []).join(', ')}</div>
                                                             </td>
                                                         </tr>
                                                     `).join('')}
@@ -3243,13 +3240,13 @@ function renderServiceMeshPage(clusterData, meshData) {
                         </div>
                     </div>
                     `;
-                }).join('')}
+    }).join('')}
             </div>
         </div>
     `;
 
     document.querySelector('.main-content').innerHTML = html;
-    
+
     // Simple Accordion Handler CSS
     // We need styles for .accordion-icon
     const styleId = 'sm-accordion-style';

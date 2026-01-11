@@ -2958,12 +2958,14 @@ function renderServiceMesh(meshData) {
         </div>
     `;
 
+    return html;
+}
 
-    async function loadServiceMesh(clusterId) {
-        try {
-            // Show loading state
-            const contentDiv = document.querySelector('.main-content');
-            contentDiv.innerHTML = `
+async function loadServiceMesh(clusterId) {
+    try {
+        // Show loading state
+        const contentDiv = document.querySelector('.main-content');
+        contentDiv.innerHTML = `
             <div class="page-header">
                 <h1 class="page-title"><i class="fas fa-project-diagram"></i> Service Mesh - Loading...</h1>
             </div>
@@ -2972,36 +2974,36 @@ function renderServiceMesh(meshData) {
             </div>
         `;
 
-            // Highlight logic reuse
-            document.querySelectorAll('.nav-link, .sub-link').forEach(l => l.classList.remove('active'));
-            // Find the SM link and activate it? Hard to find specific one easily without ID, 
-            // but let's at least highlight the cluster parent.
-            const clusterLink = document.querySelector(`.nav-link[data-cluster-id="${clusterId}"]`);
-            if (clusterLink) {
-                // Find parent
-                const clusterItem = clusterLink.closest('.cluster-item');
-                if (clusterItem) {
-                    const smLink = clusterItem.querySelector('.sub-link[onclick*="loadServiceMesh"]');
-                    if (smLink) smLink.classList.add('active');
-                }
+        // Highlight logic reuse
+        document.querySelectorAll('.nav-link, .sub-link').forEach(l => l.classList.remove('active'));
+        // Find the SM link and activate it? Hard to find specific one easily without ID, 
+        // but let's at least highlight the cluster parent.
+        const clusterLink = document.querySelector(`.nav-link[data-cluster-id="${clusterId}"]`);
+        if (clusterLink) {
+            // Find parent
+            const clusterItem = clusterLink.closest('.cluster-item');
+            if (clusterItem) {
+                const smLink = clusterItem.querySelector('.sub-link[onclick*="loadServiceMesh"]');
+                if (smLink) smLink.classList.add('active');
             }
+        }
 
-            // Fetch details (reuse existing endpoint)
-            let url = `/api/dashboard/${clusterId}/details`;
-            if (window.currentSnapshotTime) {
-                url += `?snapshot_time=${encodeURIComponent(window.currentSnapshotTime)}`;
-            }
+        // Fetch details (reuse existing endpoint)
+        let url = `/api/dashboard/${clusterId}/details`;
+        if (window.currentSnapshotTime) {
+            url += `?snapshot_time=${encodeURIComponent(window.currentSnapshotTime)}`;
+        }
 
-            const response = await fetch(url);
-            if (!response.ok) throw new Error("Failed to fetch cluster details");
-            const data = await response.json();
-            const cluster = data.cluster || {}; // If wrapping exists
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch cluster details");
+        const data = await response.json();
+        const cluster = data.cluster || {}; // If wrapping exists
 
-            // Extract SM Data
-            const meshData = data.service_mesh || (data.stats && data.stats.service_mesh); // Support both structures if flattened
+        // Extract SM Data
+        const meshData = data.service_mesh || (data.stats && data.stats.service_mesh); // Support both structures if flattened
 
-            if (!meshData || !meshData.is_active) {
-                contentDiv.innerHTML = `
+        if (!meshData || !meshData.is_active) {
+            contentDiv.innerHTML = `
                 <div class="page-header">
                      <h1 class="page-title"><i class="fas fa-project-diagram"></i> ${data.cluster_name || 'Cluster'} Service Mesh</h1>
                 </div>
@@ -3011,31 +3013,31 @@ function renderServiceMesh(meshData) {
                     <p style="opacity:0.6;">No active Service Mesh Control Plane was detected on this cluster.</p>
                 </div>
             `;
-                return;
-            }
+            return;
+        }
 
-            renderServiceMeshPage(data, meshData);
+        renderServiceMeshPage(data, meshData);
 
-        } catch (e) {
-            console.error("Load SM Error", e);
-            document.querySelector('.main-content').innerHTML = `
+    } catch (e) {
+        console.error("Load SM Error", e);
+        document.querySelector('.main-content').innerHTML = `
             <div style="padding:2rem; color:var(--danger-color); text-align:center;">
                 <h3>Error Loading Service Mesh</h3>
                 <p>${e.message}</p>
             </div>
         `;
-        }
     }
+}
 
-    function renderServiceMeshPage(clusterData, meshData) {
-        const cps = meshData.control_planes || [];
-        const members = meshData.membership || [];
-        const gateways = meshData.traffic ? meshData.traffic.gateways : [];
-        const vservices = meshData.traffic ? meshData.traffic.virtual_services : [];
-        const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
-        const clusterName = clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
+function renderServiceMeshPage(clusterData, meshData) {
+    const cps = meshData.control_planes || [];
+    const members = meshData.membership || [];
+    const gateways = meshData.traffic ? meshData.traffic.gateways : [];
+    const vservices = meshData.traffic ? meshData.traffic.virtual_services : [];
+    const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
+    const clusterName = clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
 
-        const html = `
+    const html = `
         <div class="page-header" style="margin-bottom: 2rem;">
             <div>
                  <div style="font-size:0.85rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:0.2rem;">Service Mesh Dashboard</div>
@@ -3168,5 +3170,5 @@ function renderServiceMesh(meshData) {
         </div>
     `;
 
-        document.querySelector('.main-content').innerHTML = html;
-    }
+    document.querySelector('.main-content').innerHTML = html;
+}

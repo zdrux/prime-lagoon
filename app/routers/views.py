@@ -97,13 +97,53 @@ def _group_clusters(clusters):
     # Sort DCs but keep Azure/HCI order if possible, or just alpha
     return dict(sorted(by_dc.items()))
 
+def _get_cluster_sm_status(session, cluster_id):
+    from app.models import ClusterSnapshot
+    import json
+    # Quick check for latest snapshot
+    # Optimization: This could be batched, but for Views page load it's acceptable for <100 clusters
+    try:
+        snap = session.exec(select(ClusterSnapshot).where(
+            ClusterSnapshot.cluster_id == cluster_id,
+            ClusterSnapshot.status == "Success"
+        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+        
+        if snap and snap.service_mesh_json:
+            data = json.loads(snap.service_mesh_json)
+            if data.get("is_active"):
+                return True
+    except:
+        pass
+    return False
+
+def _group_clusters_with_status(clusters, session):
+    by_dc = {}
+    for c in clusters:
+        # Convert to dict to allow adding arbitrary fields for the view
+        c_dict = c.model_dump()
+        c_dict['has_service_mesh'] = _get_cluster_sm_status(session, c.id)
+        
+        # SQLModel relations (like user lazy loads) generally aren't used in these simple lists, 
+        # but if `c` has methods used in template, those are lost.
+        # Checking dashboard.html: uses .name, .id, .datacenter, .environment. All are data fields.
+        
+        dc = c.datacenter if c.datacenter else "Other"
+        if dc not in by_dc:
+            by_dc[dc] = []
+        by_dc[dc].append(c_dict)
+    
+    for dc in by_dc:
+        by_dc[dc].sort(key=lambda x: x['name'].lower())
+    
+    return dict(sorted(by_dc.items()))
+
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
 
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
-    clusters_by_dc = _group_clusters(clusters)
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
         
     return templates.TemplateResponse("dashboard.html", {
         "request": request, 
@@ -118,7 +158,7 @@ def operators_view(request: Request, session: Session = Depends(get_session), us
     # if is_ldap_enabled and not user, admin_required will already have handled auth via get_current_user
     
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
-    clusters_by_dc = _group_clusters(clusters)
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
     
     return templates.TemplateResponse("operators.html", {
         "request": request, 
@@ -135,7 +175,7 @@ def license_analytics_view(request: Request, session: Session = Depends(get_sess
         return RedirectResponse(url="/login")
         
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
-    clusters_by_dc = _group_clusters(clusters)
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
     
     return templates.TemplateResponse("license_analytics.html", {
         "request": request, 

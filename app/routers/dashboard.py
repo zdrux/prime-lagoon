@@ -656,12 +656,31 @@ def get_simple_clusters(session: Session = Depends(get_session)):
     """Returns a simple list of clusters for fast initial dashboard loading."""
     clusters = session.exec(select(Cluster)).all()
     results = []
+    
+    # Pre-fetch latest snapshots for all clusters to determine SM status efficienty?
+    # Or just do a subquery? For now, N+1 query on snapshots limit 1 is okay for small N clusters.
     for c in clusters:
+        # Check if latest snapshot has service mesh
+        has_sm = False
+        snap = session.exec(select(ClusterSnapshot).where(
+            ClusterSnapshot.cluster_id == c.id,
+            ClusterSnapshot.status == "Success"
+        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+        
+        if snap and snap.service_mesh_json:
+             try:
+                 sm_data = json.loads(snap.service_mesh_json)
+                 if sm_data.get("is_active"):
+                     has_sm = True
+             except:
+                 pass
+
         results.append({
             "id": c.id,
             "name": c.name,
             "unique_id": c.unique_id,
             "datacenter": c.datacenter,
+            "has_service_mesh": has_sm,
             "environment": c.environment,
             "status": "yellow" # Default to loading/stale state
         })

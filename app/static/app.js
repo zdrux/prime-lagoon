@@ -2958,5 +2958,215 @@ function renderServiceMesh(meshData) {
         </div>
     `;
 
-    return html;
-}
+
+    async function loadServiceMesh(clusterId) {
+        try {
+            // Show loading state
+            const contentDiv = document.querySelector('.main-content');
+            contentDiv.innerHTML = `
+            <div class="page-header">
+                <h1 class="page-title"><i class="fas fa-project-diagram"></i> Service Mesh - Loading...</h1>
+            </div>
+            <div style="text-align:center; padding: 4rem;">
+                <i class="fas fa-circle-notch fa-spin fa-3x" style="color:var(--accent-color);"></i>
+            </div>
+        `;
+
+            // Highlight logic reuse
+            document.querySelectorAll('.nav-link, .sub-link').forEach(l => l.classList.remove('active'));
+            // Find the SM link and activate it? Hard to find specific one easily without ID, 
+            // but let's at least highlight the cluster parent.
+            const clusterLink = document.querySelector(`.nav-link[data-cluster-id="${clusterId}"]`);
+            if (clusterLink) {
+                // Find parent
+                const clusterItem = clusterLink.closest('.cluster-item');
+                if (clusterItem) {
+                    const smLink = clusterItem.querySelector('.sub-link[onclick*="loadServiceMesh"]');
+                    if (smLink) smLink.classList.add('active');
+                }
+            }
+
+            // Fetch details (reuse existing endpoint)
+            let url = `/api/dashboard/${clusterId}/details`;
+            if (window.currentSnapshotTime) {
+                url += `?snapshot_time=${encodeURIComponent(window.currentSnapshotTime)}`;
+            }
+
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Failed to fetch cluster details");
+            const data = await response.json();
+            const cluster = data.cluster || {}; // If wrapping exists
+
+            // Extract SM Data
+            const meshData = data.service_mesh || (data.stats && data.stats.service_mesh); // Support both structures if flattened
+
+            if (!meshData || !meshData.is_active) {
+                contentDiv.innerHTML = `
+                <div class="page-header">
+                     <h1 class="page-title"><i class="fas fa-project-diagram"></i> ${data.cluster_name || 'Cluster'} Service Mesh</h1>
+                </div>
+                <div class="card" style="text-align:center; padding:3rem;">
+                    <i class="fas fa-ban fa-3x" style="color:var(--text-secondary); opacity:0.3; margin-bottom:1rem;"></i>
+                    <h3>Service Mesh Not Enabled</h3>
+                    <p style="opacity:0.6;">No active Service Mesh Control Plane was detected on this cluster.</p>
+                </div>
+            `;
+                return;
+            }
+
+            renderServiceMeshPage(data, meshData);
+
+        } catch (e) {
+            console.error("Load SM Error", e);
+            document.querySelector('.main-content').innerHTML = `
+            <div style="padding:2rem; color:var(--danger-color); text-align:center;">
+                <h3>Error Loading Service Mesh</h3>
+                <p>${e.message}</p>
+            </div>
+        `;
+        }
+    }
+
+    function renderServiceMeshPage(clusterData, meshData) {
+        const cps = meshData.control_planes || [];
+        const members = meshData.membership || [];
+        const gateways = meshData.traffic ? meshData.traffic.gateways : [];
+        const vservices = meshData.traffic ? meshData.traffic.virtual_services : [];
+        const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
+        const clusterName = clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
+
+        const html = `
+        <div class="page-header" style="margin-bottom: 2rem;">
+            <div>
+                 <div style="font-size:0.85rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:0.2rem;">Service Mesh Dashboard</div>
+                 <h1 class="page-title" style="display:flex; align-items:center; gap:0.5rem;">
+                    ${clusterName} <span class="badge-sm" style="font-size:0.9rem; padding:0.3rem 0.8rem; vertical-align:middle;">${meshData.summary.version || 'Active'}</span>
+                 </h1>
+            </div>
+            <div>
+                <button class="btn btn-secondary" onclick="loadSummary()"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
+            <!-- Control Plane Card -->
+            <div class="card" style="margin:0; border-top: 4px solid #3b82f6;">
+                <h3 style="margin-bottom:1.2rem; color:#3b82f6; display:flex; align-items:center; gap:0.5rem;">
+                    <i class="fas fa-tower-broadcast"></i> Control Plane
+                </h3>
+                ${cps.map(cp => `
+                    <div style="background:rgba(255,255,255,0.03); border-radius:8px; padding:1rem; margin-bottom:1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                            <span style="font-weight:700; font-size:1.1rem;">${cp.type}</span>
+                            <span class="badge ${cp.status === 'Active' || cp.status === 'Healthy' ? 'badge-green' : 'badge-orange'}">${cp.status}</span>
+                        </div>
+                        <div style="display:grid; grid-template-columns: auto 1fr; gap:0.5rem 1rem; font-size:0.9rem; opacity:0.9;">
+                            <span style="opacity:0.6;">Name:</span> <code>${cp.name}</code>
+                            <span style="opacity:0.6;">Namespace:</span> <code>${cp.namespace}</code>
+                            <span style="opacity:0.6;">Version:</span> <strong>${cp.version}</strong>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <!-- Stats Card -->
+            <div class="card" style="margin:0; border-top: 4px solid #10b981;">
+                <h3 style="margin-bottom:1.2rem; color:#10b981; display:flex; align-items:center; gap:0.5rem;">
+                    <i class="fas fa-chart-pie"></i> Mesh Overview
+                </h3>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; text-align:center;">
+                    <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px;">
+                        <div style="font-size:2rem; font-weight:800;">${members.length}</div>
+                        <div style="text-transform:uppercase; font-size:0.7rem; opacity:0.6; letter-spacing:1px;">Namespaces</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px;">
+                        <div style="font-size:2rem; font-weight:800;">${meshSize}</div>
+                        <div style="text-transform:uppercase; font-size:0.7rem; opacity:0.6; letter-spacing:1px;">Proxied Pods</div>
+                    </div>
+                     <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px;">
+                        <div style="font-size:2rem; font-weight:800;">${gateways.length}</div>
+                        <div style="text-transform:uppercase; font-size:0.7rem; opacity:0.6; letter-spacing:1px;">Gateways</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px;">
+                        <div style="font-size:2rem; font-weight:800;">${vservices.length}</div>
+                        <div style="text-transform:uppercase; font-size:0.7rem; opacity:0.6; letter-spacing:1px;">VirtualServices</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+             <h3 style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">
+                <i class="fas fa-network-wired"></i> Traffic Configuration
+            </h3>
+            
+            <h4 style="margin-top:0; margin-bottom:1rem; opacity:0.8; font-size:1rem;">Ingress Gateways</h4>
+            <div class="table-container" style="margin-bottom: 2rem;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width:20%;">Name</th>
+                            <th style="width:20%;">Namespace</th>
+                            <th style="width:30%;">Selector</th>
+                            <th style="width:30%;">Servers (Port/Host)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${gateways.length > 0 ? gateways.map(g => `
+                            <tr>
+                                <td style="font-weight:600; color:var(--accent-color);">${g.name}</td>
+                                <td>${g.namespace}</td>
+                                <td>${Object.keys(g.selector || {}).map(k => `<span class="badge badge-gray" style="font-family:monospace;">${k}=${g.selector[k]}</span>`).join(' ')}</td>
+                                <td style="font-size:0.85rem;">${(g.servers || []).map(s => `
+                                    <div style="margin-bottom:4px;">
+                                        <span style="font-weight:bold;">${s.port?.number}/${s.port?.protocol}</span>
+                                        <span style="opacity:0.7;">[${(s.hosts || []).join(', ')})}]</span>
+                                    </div>
+                                `).join('')}</td>
+                            </tr>
+                        `).join('') : '<tr><td colspan="4" style="text-align:center; padding:2rem; opacity:0.5;">No Gateways configured</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+
+            <h4 style="margin-bottom:1rem; opacity:0.8; font-size:1rem;">Virtual Services</h4>
+             <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width:20%;">Name</th>
+                            <th style="width:20%;">Namespace</th>
+                            <th style="width:30%;">Hosts</th>
+                            <th style="width:30%;">Gateways</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                         ${vservices.length > 0 ? vservices.map(v => `
+                            <tr>
+                                <td style="font-weight:600; color:var(--accent-color);">${v.name}</td>
+                                <td>${v.namespace}</td>
+                                <td>${(v.hosts || []).map(h => `<code style="display:block; margin-bottom:2px;">${h}</code>`).join('')}</td>
+                                <td>${(v.gateways || []).map(g => `<span class="badge badge-gray">${g}</span>`).join(' ')}</td>
+                            </tr>
+                        `).join('') : '<tr><td colspan="4" style="text-align:center; padding:2rem; opacity:0.5;">No VirtualServices configured</td></tr>'}
+                    </tbody>
+                </table>
+             </div>
+        </div>
+        
+        <!-- Members List (Collapsible) -->
+        <div class="card" style="padding:0; overflow:hidden;">
+            <div style="padding:1rem 1.5rem; background:rgba(255,255,255,0.02); display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+                 <h4 style="margin:0;"><i class="fas fa-users"></i> Member Namespaces (${members.length})</h4>
+                 <i class="fas fa-chevron-down" style="opacity:0.5;"></i>
+            </div>
+            <div style="padding:1.5rem; display:none;">
+                 <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                    ${members.map(m => `<span class="badge badge-gray" style="font-size:0.85rem; padding:0.4rem 0.8rem;">${m}</span>`).join('')}
+                 </div>
+            </div>
+        </div>
+    `;
+
+        document.querySelector('.main-content').innerHTML = html;
+    }

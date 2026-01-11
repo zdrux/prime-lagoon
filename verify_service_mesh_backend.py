@@ -122,11 +122,55 @@ def test_traffic_serialization():
         
         print("PASS: Traffic Serialization")
 
+def test_view_helper():
+    print("\nTesting View Helper (Snapshot Status)...")
+    from app.routers.views import _group_clusters_with_status
+    from app.models import ClusterSnapshot
+    
+    # Mock Session and Data
+    session = MagicMock()
+    c1 = Cluster(id=1, name="cluster-with-mesh", datacenter="DC1")
+    c2 = Cluster(id=2, name="cluster-no-mesh", datacenter="DC1")
+    
+    # Mock Snapshot Query Result
+    # We need to mock session.exec().limit().first() chain
+    # This is complex to mock fully with SQLModel chaining, so we'll mock _get_cluster_sm_status directly if possible, 
+    # but since we want to test integration, let's try to mock the internal query return.
+    
+    # However, since we can't easily import the internal helper to patch it from here without strictly knowing imports,
+    # let's patch the helper in the module.
+    
+    with patch("app.routers.views._get_cluster_sm_status") as mock_get_status:
+        mock_get_status.side_effect = lambda s, cid: True if cid == 1 else False
+        
+        clusters = [c1, c2]
+        grouped = _group_clusters_with_status(clusters, session)
+        
+        assert "DC1" in grouped
+        assert len(grouped["DC1"]) == 2
+        assert "DC1" in grouped
+        assert len(grouped["DC1"]) == 2
+        # Check first item (should be sorted by name)
+        # cluster-no-mesh (id 2) vs cluster-with-mesh (id 1)
+        # "cluster-no-mesh" < "cluster-with-mesh"
+        
+        c0 = grouped["DC1"][0]
+        c1 = grouped["DC1"][1]
+        
+        assert c0['name'] == "cluster-no-mesh"
+        assert c1['name'] == "cluster-with-mesh"
+        
+        assert c0['has_service_mesh'] == False
+        assert c1['has_service_mesh'] == True
+        
+        print("PASS: View Helper Status Injection")
+
 if __name__ == "__main__":
     try:
         test_v2_detection()
         test_v3_detection()
         test_traffic_serialization()
+        test_view_helper()
         print("\nALL BACKEND TESTS PASSED")
     except Exception as e:
         print(f"\nFAILED: {e}")

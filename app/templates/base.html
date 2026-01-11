@@ -211,8 +211,16 @@
                     <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
                         onclick="toggleClusterMenu({{ cluster.id }})">
                         <i class="fas fa-server"></i> {{ cluster.name }}
+                        {% if cluster.has_service_mesh %}
+                        <span class="badge-sm">SM</span>
+                        {% endif %}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
+                        {% if cluster.has_service_mesh %}
+                        <a href="#" class="sub-link" onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
+                             <i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh
+                        </a>
+                        {% endif %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
                         <a href="#" class="sub-link"
@@ -236,8 +244,16 @@
                     <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
                         onclick="toggleClusterMenu({{ cluster.id }})">
                         <i class="fas fa-server"></i> {{ cluster.name }}
+                        {% if cluster.has_service_mesh %}
+                        <span class="badge-sm">SM</span>
+                        {% endif %}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
+                        {% if cluster.has_service_mesh %}
+                         <a href="#" class="sub-link" onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
+                             <i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh
+                        </a>
+                        {% endif %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
                         <a href="#" class="sub-link"

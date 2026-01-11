@@ -541,3 +541,18 @@ a:hover {
     background: rgba(255, 255, 255, 0.1);
     transform: rotate(90deg);
 }
+
+/* Service Mesh Badge */
+.badge-sm {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    border-radius: 999px;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    letter-spacing: 0.5px;
+}

@@ -6843,6 +6843,8 @@ function renderArgoCDPage(clusterData, clusterId) {
         
         ${!cd.applications || cd.applications.length === 0 ? '<div style="padding:2rem; text-align:center; opacity:0.6;">No applications found</div>' : ''}
 
+    </div>
+    
     <!-- Modal Container for App Details -->
     <div id="argocd-app-modal" class="modal">
         <div class="modal-content" style="max-width:900px;">
@@ -6872,6 +6874,7 @@ function renderArgoCDPage(clusterData, clusterId) {
 
     document.querySelector('.main-content').innerHTML = html;
 }
+
 
 function filterArgoCDApps() {
     const input = document.getElementById('argocd-search');

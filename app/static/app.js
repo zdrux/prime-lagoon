@@ -6593,7 +6593,7 @@ function renderServiceMeshPage(clusterData, meshData) {
 
 async function loadArgoCD(clusterId) {
 
-    const mainContent = document.getElementById('main-content');
+    const mainContent = document.querySelector('.main-content');
 
     mainContent.innerHTML = '<div class="loading-spinner"></div>';
 
@@ -6945,7 +6945,7 @@ function renderArgoCDPage(clusterData) {
 
 
 
-    document.getElementById('main-content').innerHTML = html;
+    document.querySelector('.main-content').innerHTML = html;
 
 }
 

@@ -109,53 +109,82 @@ def _group_clusters(clusters):
     # Sort DCs but keep Azure/HCI order if possible, or just alpha
     return dict(sorted(by_dc.items()))
 
-def _get_cluster_sm_status(session, cluster_id):
-    from app.models import ClusterSnapshot
-    import json
-    # Quick check for latest snapshot
-    # Optimization: This could be batched, but for Views page load it's acceptable for <100 clusters
-    try:
-        snap = session.exec(select(ClusterSnapshot).where(
-            ClusterSnapshot.cluster_id == cluster_id,
-            ClusterSnapshot.status == "Success"
-        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
-        
-        if snap and snap.service_mesh_json:
-            data = json.loads(snap.service_mesh_json)
-            if data.get("is_active"):
-                return True
-    except:
-        pass
-    return False
-
-def _get_cluster_argocd_status(session, cluster_id):
-    from app.models import ClusterSnapshot
-    import json
-    try:
-        snap = session.exec(select(ClusterSnapshot).where(
-            ClusterSnapshot.cluster_id == cluster_id,
-            ClusterSnapshot.status == "Success"
-        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
-        
-        if snap and snap.argocd_json:
-            data = json.loads(snap.argocd_json)
-            if data.get("is_active"):
-                return True
-    except:
-        pass
-    return False
-
 def _group_clusters_with_status(clusters, session):
+    from app.routers.dashboard import dashboard_cache as d_cache
+    from app.models import ClusterSnapshot
+    from sqlmodel import select, func
+    import json
+    
+    # 1. Try to get status from Cache first (fastest)
+    status_map = {} # cluster_id -> {has_sm: bool, has_cd: bool}
+    
+    # Check if cache is partially valid? We just check if it has data.
+    if d_cache and d_cache.data and "clusters" in d_cache.data:
+        for c in d_cache.data["clusters"]:
+            stats = c.get("stats") or {}
+            # Ensure ID is present
+            if "id" in c:
+                status_map[c["id"]] = {
+                    "has_service_mesh": stats.get("has_service_mesh", False),
+                    "has_argocd": stats.get("has_argocd", False)
+                }
+
+    # 2. Identify missing clusters (Cache Miss)
+    # If cache was empty or some clusters are new, we need to fetch them from DB
+    missing_ids = [c.id for c in clusters if c.id not in status_map]
+    
+    if missing_ids:
+        # Batch Fetch Fallback
+        # Strategy: Get the LATEST successful snapshot for each missing cluster
+        # Subquery: Max ID per Cluster for Success status
+        # Note: SQLite optimization - simple GROUP BY max(id) works well enough
+        
+        try:
+            # We want to fetch service_mesh_json and argocd_json for these clusters
+            # Optimized Query:
+            # SELECT cluster_id, service_mesh_json, argocd_json 
+            # FROM clustersnapshot 
+            # WHERE id IN (SELECT MAX(id) FROM clustersnapshot WHERE status='Success' AND cluster_id IN (...) GROUP BY cluster_id)
+            
+            subq = select(func.max(ClusterSnapshot.id))\
+                .where(ClusterSnapshot.status == "Success")\
+                .where(ClusterSnapshot.cluster_id.in_(missing_ids))\
+                .group_by(ClusterSnapshot.cluster_id)
+            
+            statement = select(ClusterSnapshot.cluster_id, ClusterSnapshot.service_mesh_json, ClusterSnapshot.argocd_json)\
+                .where(ClusterSnapshot.id.in_(subq))
+                
+            results = session.exec(statement).all()
+            
+            for cid, sm_json, cd_json in results:
+                has_sm = False
+                has_cd = False
+                
+                if sm_json:
+                    try:
+                        if json.loads(sm_json).get("is_active"): has_sm = True
+                    except: pass
+                
+                if cd_json:
+                    try:
+                        if json.loads(cd_json).get("is_active"): has_cd = True
+                    except: pass
+                    
+                status_map[cid] = {"has_service_mesh": has_sm, "has_argocd": has_cd}
+                
+        except Exception as e:
+            print(f"Error fetching batch status for sidebar: {e}")
+
+    # 3. Build Result
     by_dc = {}
     for c in clusters:
-        # Convert to dict to allow adding arbitrary fields for the view
+        # Convert to dict
         c_dict = c.model_dump()
-        c_dict['has_service_mesh'] = _get_cluster_sm_status(session, c.id)
-        c_dict['has_argocd'] = _get_cluster_argocd_status(session, c.id)
         
-        # SQLModel relations (like user lazy loads) generally aren't used in these simple lists, 
-        # but if `c` has methods used in template, those are lost.
-        # Checking dashboard.html: uses .name, .id, .datacenter, .environment. All are data fields.
+        # Inject Status
+        st = status_map.get(c.id, {"has_service_mesh": False, "has_argocd": False})
+        c_dict['has_service_mesh'] = st['has_service_mesh']
+        c_dict['has_argocd'] = st['has_argocd']
         
         dc = c.datacenter if c.datacenter else "Other"
         if dc not in by_dc:

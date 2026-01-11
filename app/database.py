@@ -41,6 +41,17 @@ def create_db_and_tables():
                     if col not in columns:
                         print(f"MIGRATION: Adding '{col}' column to clustersnapshot table...")
                         conn.execute(text(f'ALTER TABLE clustersnapshot ADD COLUMN "{col}" {sql_type}'))
+                
+                # New Migration for ServiceMesh/ArgoCD
+                new_cols = {
+                    "service_mesh_json": "TEXT",
+                    "argocd_json": "TEXT"
+                }
+                for col, sql_type in new_cols.items():
+                    if col not in columns:
+                         print(f"MIGRATION: Adding '{col}' column to clustersnapshot table...")
+                         conn.execute(text(f'ALTER TABLE clustersnapshot ADD COLUMN "{col}" {sql_type}'))
+
                 conn.commit()
             
             # Migration 3: Add 'is_enabled' column to auditrule if missing

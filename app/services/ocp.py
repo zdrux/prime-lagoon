@@ -397,7 +397,38 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
         except Exception:
              pass
              
+        except Exception:
+             pass
+             
+        # Service Mesh Check (Lightweight)
+        has_service_mesh = False
+        try:
+            # Check v2
+            try:
+                smcp_api = dyn_client.resources.get(api_version='maistra.io/v2', kind='ServiceMeshControlPlane')
+                if smcp_api.get().items:
+                    has_service_mesh = True
+            except:
+                pass
+            
+            # Check v3 (if not v2)
+            if not has_service_mesh:
+                try:
+                    istio_api = dyn_client.resources.get(api_version='sail.operator.openshift.io/v1', kind='Istio')
+                    if istio_api.get().items:
+                        has_service_mesh = True
+                except:
+                     try: # Fallback
+                        istio_api = dyn_client.resources.get(api_version='istio.io/v1beta1', kind='Istio')
+                        if istio_api.get().items:
+                            has_service_mesh = True
+                     except:
+                        pass
+        except:
+            pass
+
         return {
+            "has_service_mesh": has_service_mesh,
             "id": cluster.id,
             "node_count": node_count,
             "vcpu_count": int(vcpu_count),
@@ -413,7 +444,8 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             "vcpu_count": "-",
             "version": "-",
             "console_url": "#",
-            "upgrade_status": None
+            "upgrade_status": None,
+            "has_service_mesh": False
         }
 def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
     try:

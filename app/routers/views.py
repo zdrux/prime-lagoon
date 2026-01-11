@@ -21,7 +21,7 @@ def root():
 def admin_view(request: Request, tab: str = 'clusters', session: Session = Depends(get_session), user: User = Depends(admin_required)):
     from app.models import AppConfig
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
-    clusters_by_dc = _group_clusters(clusters)
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
     
     # Get configs
     poll_int_config = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
@@ -29,6 +29,18 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
     
     retention_config = session.get(AppConfig, "SNAPSHOT_RETENTION_DAYS")
     retention_days = int(retention_config.value) if retention_config else 30
+    
+    dashboard_ttl = session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES")
+    dashboard_ttl_val = int(dashboard_ttl.value) if dashboard_ttl else 15
+
+    collect_olm_config = session.get(AppConfig, "SNAPSHOT_COLLECT_OLM")
+    collect_olm = collect_olm_config.value.lower() == "true" if collect_olm_config else True
+
+    run_compliance_config = session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE")
+    run_compliance = run_compliance_config.value.lower() == "true" if run_compliance_config else False
+
+    enable_vacuum_config = session.get(AppConfig, "ENABLE_DB_VACUUM")
+    enable_vacuum = enable_vacuum_config.value.lower() == "true" if enable_vacuum_config else True
     
     return templates.TemplateResponse("admin.html", {
         "request": request, 
@@ -38,10 +50,10 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "active_tab": tab,
         "poll_interval": poll_interval,
         "retention_days": retention_days,
-        "dashboard_cache_ttl": int((session.get(AppConfig, "DASHBOARD_CACHE_TTL_MINUTES") or AppConfig(value="15")).value),
-        "collect_olm": (session.get(AppConfig, "SNAPSHOT_COLLECT_OLM") or AppConfig(value="True")).value.lower() == "true",
-        "run_compliance": (session.get(AppConfig, "SNAPSHOT_COLLECT_COMPLIANCE") or AppConfig(value="False")).value.lower() == "true",
-        "enable_db_vacuum": (session.get(AppConfig, "ENABLE_DB_VACUUM") or AppConfig(value="True")).value.lower() == "true",
+        "dashboard_cache_ttl": dashboard_ttl_val,
+        "collect_olm": collect_olm,
+        "run_compliance": run_compliance,
+        "enable_db_vacuum": enable_vacuum,
         "user": user
     })
 
@@ -54,7 +66,7 @@ def audit_view(request: Request, session: Session = Depends(get_session), user: 
     bundles = session.exec(select(AuditBundle)).all()
     
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
-    clusters_by_dc = _group_clusters(clusters)
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
     
     return templates.TemplateResponse("audit.html", {
         "request": request, 
@@ -72,7 +84,7 @@ def compliance_view(request: Request, session: Session = Depends(get_session), u
         return RedirectResponse(url="/login")
         
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
-    clusters_by_dc = _group_clusters(clusters)
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
     
     return templates.TemplateResponse("audit_run.html", {
         "request": request, 

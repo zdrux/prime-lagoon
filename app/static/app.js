@@ -1964,7 +1964,7 @@ async function showClusterDetails(clusterId, clusterName) {
             </div>
             ` : ''}
 
-            ${data.service_mesh ? renderServiceMesh(data.service_mesh) : ''}
+
         `;
 
     } catch (e) {

@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlmodel import Session, select
 from app.database import engine
 from app.models import Cluster, ClusterSnapshot, LicenseUsage, LicenseRule, MapidLicenseUsage
-from app.services.ocp import fetch_resources, parse_cpu, get_val
+from app.services.ocp import fetch_resources, parse_cpu, get_val, get_service_mesh_details
 from app.services.license import calculate_licenses, calculate_mapid_usage
 
 logger = logging.getLogger(__name__)
@@ -274,6 +274,14 @@ def poll_cluster(
                 # Partial status is still appropriate
                 status = "Partial"
 
+        # 1.5 Fetch Service Mesh Details
+        sm_data = {}
+        try:
+             sm_data = get_service_mesh_details(cluster)
+        except Exception as e:
+             logger.error(f"Error checking Service Mesh for {cluster.name}: {e}")
+
+
         # 2. Calculate Stats from collected resources
         nodes = snapshot_data.get("nodes", [])
         total_node_count = len(nodes)
@@ -328,6 +336,7 @@ def poll_cluster(
             machine_count=len(snapshot_data.get("machines", [])),
             license_count=lic_data["total_licenses"],
             licensed_node_count=lic_data["node_count"],
+            service_mesh_json=json.dumps(sm_data, default=str),
             data_json=json.dumps(snapshot_data, default=str) # default=str handles datetime objects in k8s responses
         )
         session.add(snapshot)

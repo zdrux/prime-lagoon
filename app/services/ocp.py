@@ -427,8 +427,31 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
         except:
             pass
 
+        # ArgoCD Check (Lightweight)
+        has_argocd = False
+        try:
+            # Check for ArgoCD CR (Operator managed)
+            try:
+                argo_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='ArgoCD')
+                if argo_api.get().items:
+                    has_argocd = True
+            except:
+                pass
+            
+            # Fallback: Check for Applications if not found via Controller CR
+            if not has_argocd:
+                 try:
+                    app_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='Application')
+                    if app_api.get().items:
+                        has_argocd = True
+                 except:
+                    pass
+        except:
+            pass
+
         return {
             "has_service_mesh": has_service_mesh,
+            "has_argocd": has_argocd,
             "id": cluster.id,
             "node_count": node_count,
             "vcpu_count": int(vcpu_count),
@@ -445,7 +468,8 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             "version": "-",
             "console_url": "#",
             "upgrade_status": None,
-            "has_service_mesh": False
+            "has_service_mesh": False,
+            "has_argocd": False
         }
 def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
     try:

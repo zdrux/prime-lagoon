@@ -3081,7 +3081,7 @@ function renderServiceMeshPage(clusterData, meshData) {
     const gateways = meshData.traffic ? meshData.traffic.gateways : [];
     const vservices = meshData.traffic ? meshData.traffic.virtual_services : [];
     const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
-    const clusterName = clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
+    const clusterName = clusterData.name || clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
 
     // color fix: ensure high contrast for version
     // Using a light purple badge to match the theme but ensure visibility

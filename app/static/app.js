@@ -1,4 +1,4 @@
-function toggleClusterMenu(clusterId) {
+﻿function toggleClusterMenu(clusterId) {
 
     const submenu = document.getElementById(`submenu-${clusterId}`);
 
@@ -6771,7 +6771,7 @@ function renderArgoCDPage(clusterData, clusterId) {
         </div>
 
         <!-- App Sets Section -->
-        ${appSetHtml}
+
 
         <!-- Applications Section -->
         <h3 style="margin-bottom:1rem; font-size:1.2rem;"><i class="fas fa-cubes"></i> Applications</h3>
@@ -6842,6 +6842,9 @@ function renderArgoCDPage(clusterData, clusterId) {
         </div>
         
         ${!cd.applications || cd.applications.length === 0 ? '<div style="padding:2rem; text-align:center; opacity:0.6;">No applications found</div>' : ''}
+
+        <!-- App Sets Section -->
+        ${appSetHtml}
 
     </div>
     
@@ -6921,92 +6924,69 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
 
         // Render Details
         let html = `
-            <div style="display:grid; grid-template-columns: 1.5fr 1fr; gap:2rem;">
-                <div>
-                    <h2 style="color:var(--accent-color); margin-bottom:0.5rem;">${details.name}</h2>
-                    <div style="margin-bottom:1.5rem; opacity:0.8;">
-                        <i class="fas fa-project-diagram"></i> Project: <strong>${details.project}</strong> | 
-                        <i class="fas fa-cubes"></i> Namespace: <strong>${details.namespace}</strong>
-                    </div>
-                    
-                    <!-- Source & Destination -->
-                    <div style="background:rgba(255,255,255,0.03); border-radius:8px; padding:1rem; margin-bottom:1.5rem; display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
-                        <div>
-                            <div style="opacity:0.6; font-size:0.85rem; margin-bottom:0.3rem;">SOURCE</div>
-                            <div style="font-family:monospace; word-break:break-all; font-size:0.9rem;">
-                                <a href="${details.source.repoURL}" target="_blank" style="color:var(--accent-color);">${details.source.repoURL}</a>
-                            </div>
-                            <div style="margin-top:0.3rem; font-size:0.9rem;"><span style="opacity:0.6;">Path:</span> ${details.source.path}</div>
-                            <div style="margin-top:0.3rem; font-size:0.9rem;"><span style="opacity:0.6;">Revision:</span> ${details.source.targetRevision}</div>
-                        </div>
-                        <div>
-                            <div style="opacity:0.6; font-size:0.85rem; margin-bottom:0.3rem;">DESTINATION</div>
-                            <div style="font-size:0.9rem;"><span style="opacity:0.6;">Server:</span> ${details.destination.server}</div>
-                            <div style="font-size:0.9rem;"><span style="opacity:0.6;">Namespace:</span> ${details.destination.namespace}</div>
+            <div style="display:flex; flex-direction:column; gap:1.5rem;">
+                
+                <!-- Header Info -->
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:1rem;">
+                    <div>
+                        <h2 style="color:var(--accent-color); margin-bottom:0.5rem; font-size:1.8rem;">${details.name}</h2>
+                        <div style="opacity:0.8; font-size:1rem; display:flex; gap:1.5rem; align-items:center;">
+                            <span><i class="fas fa-project-diagram" style="color:#fbbf24;"></i> Project: <strong>${details.project}</strong></span>
+                            <span><i class="fas fa-cubes" style="color:#a855f7;"></i> Namespace: <strong>${details.namespace}</strong></span>
                         </div>
                     </div>
+                </div>
+
+                <!-- Info Grid -->
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1.5rem;">
                     
-                    <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
-                        <h4 style="margin-bottom:0.8rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">Sync Status</h4>
-                        <div style="display:grid; grid-template-columns: auto 1fr; gap:0.5rem 1rem; align-items:center;">
-                            <span style="opacity:0.6;">Status:</span> 
-                            <span class="${details.sync.status === 'Synced' ? 'text-green' : 'text-orange'}" style="font-weight:bold;">
-                                ${details.sync.status === 'Synced' ? '<i class="fas fa-check-circle"></i>' : ''} ${details.sync.status}
-                            </span>
-                            
-                            <span style="opacity:0.6;">Revision:</span> 
-                            <code style="font-size:0.85rem;">${details.sync.revision.substring(0, 8)}</code>
-                            
-                            <span style="opacity:0.6;">Auto-Sync:</span>
+                    <!-- Source -->
+                    <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:1.2rem; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">SOURCE</div>
+                        <div style="margin-bottom:0.5rem;">
+                            <a href="${details.source.repoURL}" target="_blank" style="color:var(--accent-color); font-family:monospace; word-break:break-all; font-size:0.9rem;">${details.source.repoURL}</a>
+                        </div>
+                        <div style="font-size:0.9rem; margin-bottom:0.3rem;"><span style="opacity:0.6;">Path:</span> ${details.source.path}</div>
+                        <div style="font-size:0.9rem;"><span style="opacity:0.6;">Target:</span> <code style="font-size:0.85rem;">${details.source.targetRevision}</code></div>
+                    </div>
+
+                    <!-- Destination -->
+                    <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:1.2rem; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">DESTINATION</div>
+                        <div style="font-size:0.9rem; margin-bottom:0.3rem;"><span style="opacity:0.6;">Server:</span> ${details.destination.server}</div>
+                        <div style="font-size:0.9rem;"><span style="opacity:0.6;">Namespace:</span> ${details.destination.namespace}</div>
+                    </div>
+                    
+                    <!-- Sync Policy -->
+                    <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:1.2rem; border:1px solid rgba(255,255,255,0.05);">
+                        <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">SYNC POLICY</div>
+                        <div style="font-size:0.9rem; margin-bottom:0.3rem;">
+                            <span style="opacity:0.6;">Auto-Sync:</span> 
                             <span style="${details.sync_policy.automated ? 'color:#10b981;' : 'opacity:0.7;'}">
                                 ${details.sync_policy.automated ? 'Enabled' : 'Disabled'}
                             </span>
                         </div>
-                         ${details.sync_policy.sync_options && details.sync_policy.sync_options.length > 0 ? `
-                             <div style="margin-top:0.8rem;">
-                                <div style="opacity:0.6; font-size:0.85rem; margin-bottom:0.3rem;">Sync Options:</div>
-                                <div>${details.sync_policy.sync_options.map(o => `<span class="badge" style="background:rgba(255,255,255,0.1); font-size:0.8rem;">${o}</span>`).join(' ')}</div>
+                        <div style="font-size:0.9rem; margin-bottom:0.5rem;">
+                             <span style="opacity:0.6;">Last Rev:</span> <code style="font-size:0.85rem;">${details.sync.revision.substring(0, 8)}</code>
+                        </div>
+                        ${details.sync_policy.sync_options && details.sync_policy.sync_options.length > 0 ? `
+                             <div>
+                                ${details.sync_policy.sync_options.map(o => `<span class="badge" style="background:rgba(255,255,255,0.1); font-size:0.75rem;">${o}</span>`).join(' ')}
                              </div>
                          ` : ''}
                     </div>
-
-                    <div style="background:rgba(255,255,255,0.05); border-radius:8px; padding:1rem; margin-bottom:1.5rem;">
-                         <h4 style="margin-bottom:0.8rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">Health</h4>
-                         <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <span class="${details.health.status === 'Healthy' ? 'text-green' : 'text-red'}" style="font-weight:bold; font-size:1.1rem;">
-                                ${details.health.status}
-                            </span>
-                            ${details.health.message ? `<span style="opacity:0.7; font-size:0.9rem;">- ${details.health.message}</span>` : ''}
-                         </div>
-                    </div>
                 </div>
 
-                <div>
-                    <h4 style="margin-bottom:1rem;">Sync History</h4>
-                    <div style="display:flex; flex-direction:column; gap:0.8rem;">
-                        ${details.history.length > 0 ? details.history.slice().reverse().map(h => `
-                            <div style="background:rgba(0,0,0,0.2); padding:0.8rem; border-radius:6px; font-size:0.9rem; border-left: 3px solid var(--border-color);">
-                                <div style="display:flex; justify-content:space-between; margin-bottom:0.3rem;">
-                                    <span style="opacity:0.6;">${h.deployedAt ? new Date(h.deployedAt).toLocaleString() : 'Unknown'}</span>
-                                    <span style="font-weight:600; font-family:monospace;">${h.revision ? h.revision.substring(0, 7) : ''}</span>
-                                </div>
-                                <div>${h.source ? h.source.repoURL : ''}</div>
-                            </div>
-                        `).join('') : '<div style="opacity:0.5;">No history available</div>'}
-                    </div>
+                <!-- Images -->
+                ${details.summary.images && details.summary.images.length > 0 ? `
+                <div style="background:rgba(255,255,255,0.03); border-radius:12px; padding:1.2rem; border:1px solid rgba(255,255,255,0.05);">
+                     <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px;">CONTAINER IMAGES</div>
+                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                        ${details.summary.images.map(img => `<code style="background:rgba(0,0,0,0.3); padding:0.4rem 0.8rem; border-radius:4px; font-size:0.85rem; border:1px solid rgba(255,255,255,0.1);">${img}</code>`).join('')}
+                     </div>
                 </div>
+                ` : ''}
             </div>
-
-            ${details.summary.images && details.summary.images.length > 0 ? `
-            <div style="margin-top:1.5rem;">
-                <h4 style="margin-bottom:1rem;">Container Images</h4>
-                <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
-                    ${details.summary.images.map(img => `
-                        <span style="background:rgba(255,255,255,0.1); padding:0.3rem 0.6rem; border-radius:4px; font-size:0.85rem; font-family:monospace;">${img}</span>
-                    `).join('')}
-                </div>
-            </div>
-            ` : ''}
         `;
 
         body.innerHTML = html;

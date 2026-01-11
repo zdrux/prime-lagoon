@@ -1963,6 +1963,8 @@ async function showClusterDetails(clusterId, clusterName) {
                 </div>
             </div>
             ` : ''}
+
+            ${data.service_mesh ? renderServiceMesh(data.service_mesh) : ''}
         `;
 
     } catch (e) {
@@ -2832,4 +2834,129 @@ function updateUpgradeModalContent(clusterId) {
     let pct = status.percentage || 0;
     document.getElementById('upgrade-percentage').innerText = `${pct}%`;
     document.getElementById('upgrade-progress-bar').style.width = `${pct}%`;
+}
+
+function renderServiceMesh(meshData) {
+    if (!meshData || !meshData.is_active) return '';
+
+    const cps = meshData.control_planes || [];
+    const members = meshData.membership || [];
+    const gateways = meshData.traffic ? meshData.traffic.gateways : [];
+    const vservices = meshData.traffic ? meshData.traffic.virtual_services : [];
+    const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
+
+    let html = `
+        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+            <h3 style="color:var(--accent-color); margin-bottom: 1rem;"><i class="fas fa-project-diagram"></i> Service Mesh Inventory</h3>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:1.5rem; margin-bottom:1.5rem;">
+                <!-- Control Planes -->
+                <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid #3b82f6;">
+                    <h4 style="margin-bottom:1rem; color:#3b82f6;"><i class="fas fa-tower-broadcast"></i> Control Plane</h4>
+                    ${cps.length > 0 ? cps.map(cp => `
+                        <div style="margin-bottom: 0.8rem; padding-bottom: 0.8rem; border-bottom: 1px solid var(--border-color);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.2rem;">
+                                <div style="font-weight:600; font-size:1rem;">${cp.type}</div>
+                                <span class="badge ${cp.status === 'Active' || cp.status === 'Healthy' ? 'badge-green' : 'badge-orange'}">${cp.status}</span>
+                            </div>
+                            <div style="display:grid; grid-template-columns: 80px 1fr; gap:0.3rem; font-size:0.85rem;">
+                                <span style="opacity:0.6;">Name:</span> <code style="word-break:break-all;">${cp.name}</code>
+                                <span style="opacity:0.6;">Namespace:</span> <code style="word-break:break-all;">${cp.namespace}</code>
+                                <span style="opacity:0.6;">Version:</span> <strong>${cp.version}</strong>
+                            </div>
+                        </div>
+                    `).join('') : '<div style="opacity:0.6;">No Control Planes detected</div>'}
+                </div>
+
+                <!-- Mesh Stats -->
+                <div class="card" style="margin:0; padding:1.2rem; border-left: 4px solid #10b981;">
+                    <h4 style="margin-bottom:1rem; color:#10b981;"><i class="fas fa-chart-pie"></i> Mesh Overview</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; text-align:center;">
+                        <div>
+                            <div style="font-size:1.5rem; font-weight:700;">${members.length}</div>
+                            <div style="font-size:0.8rem; opacity:0.7;">Namespaces</div>
+                        </div>
+                        <div>
+                            <div style="font-size:1.5rem; font-weight:700;">${meshSize}</div>
+                            <div style="font-size:0.8rem; opacity:0.7;">Proxied Pods</div>
+                        </div>
+                        <div>
+                            <div style="font-size:1.5rem; font-weight:700;">${gateways.length}</div>
+                            <div style="font-size:0.8rem; opacity:0.7;">Gateways</div>
+                        </div>
+                        <div>
+                            <div style="font-size:1.5rem; font-weight:700;">${vservices.length}</div>
+                            <div style="font-size:0.8rem; opacity:0.7;">VirtualServices</div>
+                        </div>
+                        
+                        <div style="grid-column: 1 / -1; margin-top: 0.5rem;">
+                             <div style="max-height: 100px; overflow-y: auto; background: rgba(0,0,0,0.1); padding: 0.5rem; border-radius: 4px; text-align: left; font-size: 0.75rem; font-family: monospace;">
+                                <div style="font-weight:600; margin-bottom:0.3rem; color:var(--text-secondary);">Member Namespaces:</div>
+                                ${members.join(', ')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traffic Config -->
+            <div class="card" style="margin:0; padding:1.2rem;">
+                 <h4 style="margin-bottom:1rem; color:var(--text-primary);"><i class="fas fa-network-wired"></i> Traffic Configuration</h4>
+                 
+                 <div style="margin-bottom: 1.5rem;">
+                    <h5 style="opacity:0.8; font-size:0.9rem; margin-bottom:0.5rem;">Gateways</h5>
+                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                        <table class="data-table" style="font-size:0.8rem; width:100%;">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Namespace</th>
+                                    <th>Selector</th>
+                                    <th>Servers</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${gateways.length > 0 ? gateways.map(g => `
+                                    <tr>
+                                        <td>${g.name}</td>
+                                        <td>${g.namespace}</td>
+                                        <td>${Object.keys(g.selector || {}).map(k => `${k}=${g.selector[k]}`).join(', ')}</td>
+                                        <td>${(g.servers || []).map(s => `${s.port?.number}/${s.port?.protocol} (${(s.hosts || []).join(', ')})`).join('<br>')}</td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="4" style="text-align:center; opacity:0.5;">No Gateways found</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                 </div>
+
+                 <div>
+                    <h5 style="opacity:0.8; font-size:0.9rem; margin-bottom:0.5rem;">VirtualServices</h5>
+                    <div class="table-container" style="max-height: 200px; overflow-y: auto;">
+                        <table class="data-table" style="font-size:0.8rem; width:100%;">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Namespace</th>
+                                    <th>Hosts</th>
+                                    <th>Gateways</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${vservices.length > 0 ? vservices.map(v => `
+                                    <tr>
+                                        <td>${v.name}</td>
+                                        <td>${v.namespace}</td>
+                                        <td>${(v.hosts || []).join(', ')}</td>
+                                        <td>${(v.gateways || []).join(', ')}</td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="4" style="text-align:center; opacity:0.5;">No VirtualServices found</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                 </div>
+            </div>
+        </div>
+    `;
+
+    return html;
 }

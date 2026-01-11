@@ -103,6 +103,11 @@ def get_cluster_details(cluster_id: int, snapshot_time: Optional[str] = Query(No
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
+                if snap.service_mesh_json:
+                    try:
+                        snapshot_data['service_mesh'] = json.loads(snap.service_mesh_json)
+                    except Exception:
+                        pass
         except ValueError:
             pass # Ignore invalid time format, fallback to live? Or error? Let's fallback for robustness but maybe should error.
 

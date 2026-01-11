@@ -2,7 +2,7 @@ import urllib3
 import re
 from typing import Optional, List, Any
 from kubernetes import client
-from openshift.dynamic import DynamicClient
+from openshift.dynamic import DynamicClient, exceptions as dyn_exc
 from app.models import Cluster
 
 # Disable insecure request warnings for now as many internal OCP clusters use self-signed certs
@@ -497,11 +497,186 @@ def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
                     "message": next((c.message for c in o.status.conditions if (c.type == "Degraded" or c.type == "Progressing") and c.status == "True" and getattr(c, 'message', None)), 
                                next((c.message for c in o.status.conditions if c.type == "Available" and getattr(c, 'message', None)), ""))
                 } for o in operators
-            ]
+            ],
+            "service_mesh": get_service_mesh_details(cluster, snapshot_data=None)
         }
     except Exception as e:
         print(f"Error fetching detailed stats for {cluster.name}: {e}")
         raise e
+
+def get_service_mesh_details(cluster: Cluster, snapshot_data: Optional[dict] = None) -> dict:
+    """
+    Detects and inventories Service Mesh (v2 Maistra and v3 Istio/Sail).
+    Returns Control Planes, Membership, and Traffic config.
+    """
+    mesh_data = {
+        "is_active": False,
+        "control_planes": [],
+        "membership": [],
+        "traffic": {
+            "gateways": [],
+            "virtual_services": []
+        },
+        "summary": {
+            "mesh_size": 0,
+            "version": "None"
+        }
+    }
+
+    try:
+        if snapshot_data:
+            return snapshot_data.get('service_mesh', mesh_data)
+
+        dyn_client = get_dynamic_client(cluster)
+
+        # --- 1. Control Plane Detection ---
+        
+        # v2: ServiceMeshControlPlane
+        v2_cp_list = []
+        try:
+            smcp_api = dyn_client.resources.get(api_version='maistra.io/v2', kind='ServiceMeshControlPlane')
+            v2_cp_list = smcp_api.get().items
+        except dyn_exc.ResourceNotFoundError:
+            pass
+        except Exception as e:
+            print(f"Error checking SMCP v2 on {cluster.name}: {e}")
+
+        # v3: Istio (Sail Operator)
+        v3_cp_list = []
+        try:
+            istio_api = dyn_client.resources.get(api_version='sail.operator.openshift.io/v1', kind='Istio')
+            v3_cp_list = istio_api.get().items
+        except dyn_exc.ResourceNotFoundError:
+            # Fallback to upstream istio.io if sail not using own group yet or different version
+            try:
+                istio_api = dyn_client.resources.get(api_version='istio.io/v1beta1', kind='Istio')
+                v3_cp_list = istio_api.get().items
+            except:
+                pass
+        except Exception:
+            pass
+
+        if not v2_cp_list and not v3_cp_list:
+            return mesh_data
+
+        mesh_data["is_active"] = True
+        
+        # Process v2
+        for smcp in v2_cp_list:
+            mesh_data["control_planes"].append({
+                "type": "Maistra v2",
+                "name": smcp.metadata.name,
+                "namespace": smcp.metadata.namespace,
+                "version": smcp.status.get('chartVersion', 'Unknown'),
+                "status": smcp.status.get('conditions', [{}])[0].get('type', 'Unknown'),
+                "components": [c for c in smcp.status.get('readiness', {}).get('components', {}).keys()]
+            })
+
+        # Process v3
+        for istio in v3_cp_list:
+             mesh_data["control_planes"].append({
+                "type": "Istio v3",
+                "name": istio.metadata.name,
+                "namespace": istio.metadata.namespace,
+                "version": istio.spec.get('version', 'Unknown'),
+                "status": "Active" # Simplify for now
+            })
+            
+        # --- 2. Membership (Namespaces) ---
+        member_namespaces = set()
+        
+        # v2: ServiceMeshMemberRoll (usually in same NS as CP)
+        try:
+            smmr_api = dyn_client.resources.get(api_version='maistra.io/v1', kind='ServiceMeshMemberRoll')
+            # Check all known CP namespaces
+            cp_namespaces = set([cp['namespace'] for cp in mesh_data["control_planes"] if cp['type'] == 'Maistra v2'])
+            
+            for ns in cp_namespaces:
+                try:
+                    smmr = smmr_api.get(namespace=ns, name='default') # Usually named default
+                    if smmr:
+                        member_namespaces.update(smmr.status.get('members', []))
+                        # Also add control plane namespace itself
+                        member_namespaces.add(ns) 
+                except:
+                    pass
+        except:
+            pass
+
+        # v3 & v2 (Auto Injection): Check Namespace labels
+        # v3 often uses istio-injection=enabled or istio.io/rev=xxx
+        try:
+            ns_api = dyn_client.resources.get(api_version='v1', kind='Namespace')
+            all_ns = ns_api.get().items
+            for n in all_ns:
+                lbls = n.metadata.get('labels', {})
+                if 'istio-injection' in lbls or 'istio.io/rev' in lbls or 'maistra.io/member-of' in lbls:
+                    member_namespaces.add(n.metadata.name)
+        except:
+            pass
+            
+        mesh_data["membership"] = sorted(list(member_namespaces))
+        
+        # --- 3. Traffic (Gateways & VS) ---
+        # Fetch from all member namespaces + CP namespaces
+        # Note: This could be heavy if many namespaces. For MVP, fetch from all or just CP?
+        # Let's fetch from all namespaces essentially, or use label selector if possible.
+        # Actually client.get() without namespace fetches all.
+        
+        try:
+            gw_api = dyn_client.resources.get(api_version='networking.istio.io/v1beta1', kind='Gateway')
+            gateways = gw_api.get().items
+            for gw in gateways:
+                mesh_data["traffic"]["gateways"].append({
+                    "name": gw.metadata.name,
+                    "namespace": gw.metadata.namespace,
+                    "selector": gw.spec.get('selector', {}),
+                    "servers": len(gw.spec.get('servers', []))
+                })
+        except:
+            pass # CRD might not exist if v2 not fully ready or using v1alpha3
+
+        try:
+            vs_api = dyn_client.resources.get(api_version='networking.istio.io/v1beta1', kind='VirtualService')
+            vservices = vs_api.get().items
+            for vs in vservices:
+                 mesh_data["traffic"]["virtual_services"].append({
+                    "name": vs.metadata.name,
+                    "namespace": vs.metadata.namespace,
+                    "hosts": vs.spec.get('hosts', []),
+                    "gateways": vs.spec.get('gateways', [])
+                })
+        except:
+            pass
+
+        # --- 4. Mesh Size (Proxy Count) ---
+        # Count pods with 'istio-proxy' container in member namespaces
+        # Optimization: Just count all pods with label 'security.istio.io/tlsMode' or container name
+        count = 0
+        try:
+            pod_api = dyn_client.resources.get(api_version='v1', kind='Pod')
+            # Fetching all pods is heavy. Let's try to limit if possible.
+            # But we need a count. 
+            # If we know member namespaces, we could loop them? 
+            # Or just fetch all pods (we probably already rely on caching or this is an on-demand detailed fetch)
+            # Since this is "get_detailed_stats" called usually for a single cluster view, it might be acceptable.
+            # A better way might be to ask Prometheus, but we stick to K8s API for now.
+            
+            # Filter by label selector common to proxies?
+            # 'service.istio.io/canonical-name' is common
+            pods = pod_api.get(label_selector='service.istio.io/canonical-name').items
+            count = len(pods)
+        except:
+            pass
+            
+        mesh_data["summary"]["mesh_size"] = count
+        if mesh_data["control_planes"]:
+             mesh_data["summary"]["version"] = mesh_data["control_planes"][0]['version']
+
+    except Exception as e:
+        print(f"Error fetching service mesh details for {cluster.name}: {e}")
+    
+    return mesh_data
 
 def get_ingress_details(cluster: Cluster, name: str, snapshot_data: Optional[dict] = None):
     try:

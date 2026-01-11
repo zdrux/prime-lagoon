@@ -3073,6 +3073,8 @@ async function loadServiceMesh(clusterId) {
     }
 }
 
+
+
 function renderServiceMeshPage(clusterData, meshData) {
     const cps = meshData.control_planes || [];
     const members = meshData.membership || [];
@@ -3081,17 +3083,28 @@ function renderServiceMeshPage(clusterData, meshData) {
     const meshSize = meshData.summary ? meshData.summary.mesh_size : 0;
     const clusterName = clusterData.cluster_name || (clusterData.cluster ? clusterData.cluster.name : 'Cluster');
 
+    // color fix: ensure high contrast for version
+    // Using a light purple badge to match the theme but ensure visibility
+    const versionBadgeStyle = "background:rgba(139, 92, 246, 0.2); color:#e9d5ff; border:1px solid rgba(139, 92, 246, 0.3);";
+
+    // 1. Organize Data by Namespace
+    const allNamespaces = new Set([...members]);
+    gateways.forEach(g => allNamespaces.add(g.namespace));
+    vservices.forEach(v => allNamespaces.add(v.namespace));
+    const sortedMembers = Array.from(allNamespaces).sort();
+
     const html = `
         <div class="page-header" style="margin-bottom: 2rem;">
             <div>
                  <div style="font-size:0.85rem; opacity:0.6; text-transform:uppercase; letter-spacing:1px; margin-bottom:0.2rem;">Service Mesh Dashboard</div>
                  <h1 class="page-title" style="display:flex; align-items:center; gap:0.5rem;">
-                    ${clusterName} <span class="badge-sm" style="font-size:0.9rem; padding:0.3rem 0.8rem; vertical-align:middle;">${meshData.summary.version || 'Active'}</span>
+                    ${clusterName} 
+                    <span class="badge" style="${versionBadgeStyle} font-size:0.9rem; padding:0.3rem 0.8rem; vertical-align:middle; font-weight:normal;">
+                        <i class="fas fa-code-branch" style="opacity:0.7; margin-right:4px;"></i> ${meshData.summary.version || 'Active'}
+                    </span>
                  </h1>
             </div>
-            <div>
-                <button class="btn btn-secondary" onclick="loadSummary()"><i class="fas fa-arrow-left"></i> Back to Dashboard</button>
-            </div>
+            <!-- Back button removed -->
         </div>
 
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap:1.5rem; margin-bottom:2rem;">
@@ -3104,7 +3117,7 @@ function renderServiceMeshPage(clusterData, meshData) {
                     <div style="background:rgba(255,255,255,0.03); border-radius:8px; padding:1rem; margin-bottom:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
                             <span style="font-weight:700; font-size:1.1rem;">${cp.type}</span>
-                            <span class="badge ${cp.status === 'Active' || cp.status === 'Healthy' ? 'badge-green' : 'badge-orange'}">${cp.status}</span>
+                            <span class="badge ${cp.status === 'Active' || cp.status === 'Healthy' || cp.status === 'Installed' ? 'badge-green' : 'badge-orange'}">${cp.status}</span>
                         </div>
                         <div style="display:grid; grid-template-columns: auto 1fr; gap:0.5rem 1rem; font-size:0.9rem; opacity:0.9;">
                             <span style="opacity:0.6;">Name:</span> <code>${cp.name}</code>
@@ -3122,7 +3135,7 @@ function renderServiceMeshPage(clusterData, meshData) {
                 </h3>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1.5rem; text-align:center;">
                     <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px;">
-                        <div style="font-size:2rem; font-weight:800;">${members.length}</div>
+                        <div style="font-size:2rem; font-weight:800;">${sortedMembers.length}</div>
                         <div style="text-transform:uppercase; font-size:0.7rem; opacity:0.6; letter-spacing:1px;">Namespaces</div>
                     </div>
                     <div style="background:rgba(255,255,255,0.03); padding:1rem; border-radius:12px;">
@@ -3143,76 +3156,110 @@ function renderServiceMeshPage(clusterData, meshData) {
 
         <div class="card">
              <h3 style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.5rem;">
-                <i class="fas fa-network-wired"></i> Traffic Configuration
+                <i class="fas fa-network-wired"></i> Member Namespaces
             </h3>
             
-            <h4 style="margin-top:0; margin-bottom:1rem; opacity:0.8; font-size:1rem;">Ingress Gateways</h4>
-            <div class="table-container" style="margin-bottom: 2rem;">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th style="width:20%;">Name</th>
-                            <th style="width:20%;">Namespace</th>
-                            <th style="width:30%;">Selector</th>
-                            <th style="width:30%;">Servers (Port/Host)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${gateways.length > 0 ? gateways.map(g => `
-                            <tr>
-                                <td style="font-weight:600; color:var(--accent-color);">${g.name}</td>
-                                <td>${g.namespace}</td>
-                                <td>${Object.keys(g.selector || {}).map(k => `<span class="badge badge-gray" style="font-family:monospace;">${k}=${g.selector[k]}</span>`).join(' ')}</td>
-                                <td style="font-size:0.85rem;">${(g.servers || []).map(s => `
-                                    <div style="margin-bottom:4px;">
-                                        <span style="font-weight:bold;">${s.port?.number}/${s.port?.protocol}</span>
-                                        <span style="opacity:0.7;">[${(s.hosts || []).join(', ')})}]</span>
-                                    </div>
-                                `).join('')}</td>
-                            </tr>
-                        `).join('') : '<tr><td colspan="4" style="text-align:center; padding:2rem; opacity:0.5;">No Gateways configured</td></tr>'}
-                    </tbody>
-                </table>
-            </div>
-
-            <h4 style="margin-bottom:1rem; opacity:0.8; font-size:1rem;">Virtual Services</h4>
-             <div class="table-container">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th style="width:20%;">Name</th>
-                            <th style="width:20%;">Namespace</th>
-                            <th style="width:30%;">Hosts</th>
-                            <th style="width:30%;">Gateways</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                         ${vservices.length > 0 ? vservices.map(v => `
-                            <tr>
-                                <td style="font-weight:600; color:var(--accent-color);">${v.name}</td>
-                                <td>${v.namespace}</td>
-                                <td>${(v.hosts || []).map(h => `<code style="display:block; margin-bottom:2px;">${h}</code>`).join('')}</td>
-                                <td>${(v.gateways || []).map(g => `<span class="badge badge-gray">${g}</span>`).join(' ')}</td>
-                            </tr>
-                        `).join('') : '<tr><td colspan="4" style="text-align:center; padding:2rem; opacity:0.5;">No VirtualServices configured</td></tr>'}
-                    </tbody>
-                </table>
-             </div>
-        </div>
-        
-        <!-- Members List (Collapsible) -->
-        <div class="card" style="padding:0; overflow:hidden;">
-            <div style="padding:1rem 1.5rem; background:rgba(255,255,255,0.02); display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
-                 <h4 style="margin:0;"><i class="fas fa-users"></i> Member Namespaces (${members.length})</h4>
-                 <i class="fas fa-chevron-down" style="opacity:0.5;"></i>
-            </div>
-            <div style="padding:1.5rem; display:none;">
-                 <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
-                    ${members.map(m => `<span class="badge badge-gray" style="font-size:0.85rem; padding:0.4rem 0.8rem;">${m}</span>`).join('')}
-                 </div>
+            <div class="accordion" id="sm-accordion">
+                ${sortedMembers.map((ns, idx) => {
+                    const nsGateways = gateways.filter(g => g.namespace === ns);
+                    const nsVS = vservices.filter(v => v.namespace === ns);
+                    const hasConfig = nsGateways.length > 0 || nsVS.length > 0;
+                    
+                    return `
+                    <div class="accordion-item" style="background:var(--card-bg); border:1px solid var(--border-color); margin-bottom:0.5rem; border-radius:8px; overflow:hidden;">
+                        <div class="accordion-header" onclick="this.parentElement.classList.toggle('active')" style="display:flex; justify-content:space-between; align-items:center; padding:1rem; cursor:pointer; background:rgba(255,255,255,0.02);">
+                            <div style="display:flex; align-items:center; gap:0.8rem;">
+                                <i class="fas fa-chevron-right accordion-icon" style="transition:transform 0.2s;"></i>
+                                <span style="font-weight:600; font-size:1rem;">${ns}</span>
+                                ${hasConfig ? `<span class="badge badge-purple" style="font-size:0.75rem; background:rgba(139, 92, 246, 0.2); color:#c4b5fd;">Configured</span>` : ''}
+                            </div>
+                            <div style="display:flex; gap:1rem; opacity:0.6; font-size:0.85rem;">
+                                ${nsGateways.length > 0 ? `<span><i class="fas fa-door-open"></i> ${nsGateways.length} GW</span>` : ''}
+                                ${nsVS.length > 0 ? `<span><i class="fas fa-code-branch"></i> ${nsVS.length} VS</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="accordion-body" style="display:none; padding:1.5rem; border-top:1px solid var(--border-color);">
+                            ${hasConfig ? `
+                                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:2rem;">
+                                    ${nsGateways.length > 0 ? `
+                                        <div>
+                                            <h6 style="text-transform:uppercase; font-size:0.75rem; opacity:0.7; margin-bottom:1rem; letter-spacing:0.5px;">Gateways</h6>
+                                            <table class="data-table" style="width:100%; font-size:0.9rem;">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Selector / Servers</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    ${nsGateways.map(g => `
+                                                        <tr>
+                                                            <td style="vertical-align:top; width:40%;">
+                                                                <div style="font-weight:600; color:var(--accent-color);">${g.name}</div>
+                                                            </td>
+                                                            <td style="vertical-align:top;">
+                                                                <div style="margin-bottom:0.4rem; font-family:monospace; font-size:0.8rem; opacity:0.8;">
+                                                                    ${Object.keys(g.selector || {}).map(k => `${k}=${g.selector[k]}`).join(' ')}
+                                                                </div>
+                                                                <div style="font-size:0.8rem;">
+                                                                    ${(g.servers || []).map(s => `<div>${s.port?.number}/${s.port?.protocol} [${(s.hosts||[]).join(', ')}]</div>`).join('')}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ` : ''}
+                                    
+                                    ${nsVS.length > 0 ? `
+                                        <div>
+                                            <h6 style="text-transform:uppercase; font-size:0.75rem; opacity:0.7; margin-bottom:1rem; letter-spacing:0.5px;">Virtual Services</h6>
+                                            <table class="data-table" style="width:100%; font-size:0.9rem;">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Details</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                     ${nsVS.map(v => `
+                                                        <tr>
+                                                            <td style="vertical-align:top; width:40%;">
+                                                                <div style="font-weight:600; color:var(--accent-color);">${v.name}</div>
+                                                            </td>
+                                                            <td style="vertical-align:top; font-size:0.85rem;">
+                                                                <div style="margin-bottom:2px;"><i class="fas fa-globe" style="width:16px; opacity:0.5;"></i> ${(v.hosts||[]).join(', ')}</div>
+                                                                <div><i class="fas fa-door-open" style="width:16px; opacity:0.5;"></i> ${(v.gateways||[]).join(', ')}</div>
+                                                            </td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : `<div style="text-align:center; opacity:0.5; font-style:italic;">No Traffic Configuration (Gateways/VirtualServices) found in this namespace.</div>`}
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
             </div>
         </div>
     `;
 
     document.querySelector('.main-content').innerHTML = html;
+    
+    // Simple Accordion Handler CSS
+    // We need styles for .accordion-icon
+    const styleId = 'sm-accordion-style';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.innerHTML = `
+            .accordion-item.active .accordion-body { display: block !important; }
+            .accordion-item.active .accordion-icon { transform: rotate(90deg) !important; }
+        `;
+        document.head.appendChild(style);
+    }
 }

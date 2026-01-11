@@ -24,7 +24,7 @@ RESOURCE_MAP = {
     "machinesets": {"api_version": "machine.openshift.io/v1beta1", "kind": "MachineSet"},
     "projects": {"api_version": "project.openshift.io/v1", "kind": "Project"},
     "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
-    "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
+
 }
 
 def get_snapshot_for_cluster(session: Session, cluster_id: int, target_time: datetime) -> Optional[ClusterSnapshot]:

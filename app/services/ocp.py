@@ -530,7 +530,8 @@ def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
                                next((c.message for c in o.status.conditions if c.type == "Available" and getattr(c, 'message', None)), ""))
                 } for o in operators
             ],
-            "service_mesh": get_service_mesh_details(cluster, snapshot_data=None)
+            "service_mesh": get_service_mesh_details(cluster, snapshot_data=snapshot_data),
+            "argocd": get_argocd_details(cluster, snapshot_data=snapshot_data)
         }
     except Exception as e:
         print(f"Error fetching detailed stats for {cluster.name}: {e}")
@@ -1028,3 +1029,115 @@ def get_machine_details(cluster, machine_name, snapshot_data=None):
     except Exception as e:
         print(f"Error fetching machine details for {machine_name} on {cluster.name}: {e}")
         raise e
+
+def get_argocd_details(cluster: Cluster, snapshot_data: Optional[dict] = None) -> dict:
+    """
+    Detects and inventories ArgoCD resources.
+    """
+    argocd_data = {
+        "is_active": False,
+        "instances": [],
+        "applications": [],
+        "application_sets": []
+    }
+
+    if snapshot_data:
+        return snapshot_data.get('argocd', argocd_data)
+
+    try:
+        dyn_client = get_dynamic_client(cluster)
+        
+        # 1. Start by checking for Application CRD
+        try:
+            app_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='Application')
+        except:
+             # CRD likely missing, so ArgoCD not installed standardly
+            return argocd_data
+
+        # 2. Check for ArgoCD instances (Controllers)
+        try:
+            argo_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='ArgoCD')
+            instances = argo_api.get().items
+            if instances:
+                argocd_data['is_active'] = True
+                for inst in instances:
+                    # Helper for safe access
+                    def safe_get(obj, attr, default=None):
+                        return getattr(obj, attr, default)
+                    
+                    status_phase = 'Unknown'
+                    if hasattr(inst, 'status') and inst.status:
+                         status_phase = getattr(inst.status, 'phase', 'Unknown')
+                    
+                    # Try to find version from status.server
+                    version = 'Unknown'
+                    if hasattr(inst, 'status') and hasattr(inst.status, 'server'):
+                        version = inst.status.server
+
+                    argocd_data['instances'].append({
+                        "name": inst.metadata.name,
+                        "namespace": inst.metadata.namespace,
+                        "version": version,
+                        "status": status_phase
+                    })
+        except:
+            pass
+            
+        # 3. Inventory Applications
+        try:
+            apps = app_api.get().items
+            if apps:
+                argocd_data['is_active'] = True
+                for app in apps:
+                    spec = getattr(app, 'spec', None)
+                    status = getattr(app, 'status', None)
+                    
+                    source = getattr(spec, 'source', None) if spec else None
+                    sync = getattr(status, 'sync', None) if status else None
+                    health = getattr(status, 'health', None) if status else None
+                    
+                    argocd_data['applications'].append({
+                        "name": app.metadata.name,
+                        "namespace": app.metadata.namespace,
+                        "project": getattr(spec, 'project', 'default') if spec else 'default',
+                        "sync_status": getattr(sync, 'status', 'Unknown') if sync else 'Unknown',
+                        "health_status": getattr(health, 'status', 'Unknown') if health else 'Unknown',
+                        "repo_url": getattr(source, 'repoURL', 'Unknown') if source else 'Unknown',
+                        "path": getattr(source, 'path', '') if source else '',
+                        "target_revision": getattr(source, 'targetRevision', 'HEAD') if source else 'HEAD'
+                    })
+        except:
+            pass
+
+        # 4. Inventory ApplicationSets
+        try:
+            appset_api = dyn_client.resources.get(api_version='argoproj.io/v1alpha1', kind='ApplicationSet')
+            appsets = appset_api.get().items
+            for aset in appsets:
+                spec = getattr(aset, 'spec', None)
+                gens = getattr(spec, 'generators', []) if spec else []
+                gen_types = []
+                if gens:
+                    try:
+                        first_gen = gens[0]
+                        if hasattr(first_gen, 'keys'):
+                             gen_types = list(first_gen.keys())
+                        elif isinstance(first_gen, dict):
+                             gen_types = list(first_gen.keys())
+                        else:
+                             gen_types = [d for d in dir(first_gen) if not d.startswith('_')]
+                    except:
+                        pass
+
+                argocd_data['application_sets'].append({
+                    "name": aset.metadata.name,
+                    "namespace": aset.metadata.namespace,
+                    "generators": gen_types
+                })
+        except:
+            pass
+            
+    except Exception as e:
+        print(f"Error fetching ArgoCD details for {cluster.name}: {e}")
+    
+    return argocd_data

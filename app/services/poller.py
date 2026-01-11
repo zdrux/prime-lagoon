@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlmodel import Session, select
 from app.database import engine
 from app.models import Cluster, ClusterSnapshot, LicenseUsage, LicenseRule, MapidLicenseUsage
-from app.services.ocp import fetch_resources, parse_cpu, get_val, get_service_mesh_details
+from app.services.ocp import fetch_resources, parse_cpu, get_val, get_service_mesh_details, get_argocd_details
 from app.services.license import calculate_licenses, calculate_mapid_usage
 
 logger = logging.getLogger(__name__)
@@ -281,6 +281,13 @@ def poll_cluster(
         except Exception as e:
              logger.error(f"Error checking Service Mesh for {cluster.name}: {e}")
 
+        # 1.6 Fetch ArgoCD Details
+        argocd_data = {}
+        try:
+             argocd_data = get_argocd_details(cluster)
+        except Exception as e:
+             logger.error(f"Error checking ArgoCD for {cluster.name}: {e}")
+
 
         # 2. Calculate Stats from collected resources
         nodes = snapshot_data.get("nodes", [])
@@ -337,6 +344,7 @@ def poll_cluster(
             license_count=lic_data["total_licenses"],
             licensed_node_count=lic_data["node_count"],
             service_mesh_json=json.dumps(sm_data, default=str),
+            argocd_json=json.dumps(argocd_data, default=str),
             data_json=json.dumps(snapshot_data, default=str) # default=str handles datetime objects in k8s responses
         )
         session.add(snapshot)

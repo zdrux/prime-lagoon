@@ -128,12 +128,30 @@ def _get_cluster_sm_status(session, cluster_id):
         pass
     return False
 
+def _get_cluster_argocd_status(session, cluster_id):
+    from app.models import ClusterSnapshot
+    import json
+    try:
+        snap = session.exec(select(ClusterSnapshot).where(
+            ClusterSnapshot.cluster_id == cluster_id,
+            ClusterSnapshot.status == "Success"
+        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+        
+        if snap and snap.argocd_json:
+            data = json.loads(snap.argocd_json)
+            if data.get("is_active"):
+                return True
+    except:
+        pass
+    return False
+
 def _group_clusters_with_status(clusters, session):
     by_dc = {}
     for c in clusters:
         # Convert to dict to allow adding arbitrary fields for the view
         c_dict = c.model_dump()
         c_dict['has_service_mesh'] = _get_cluster_sm_status(session, c.id)
+        c_dict['has_argocd'] = _get_cluster_argocd_status(session, c.id)
         
         # SQLModel relations (like user lazy loads) generally aren't used in these simple lists, 
         # but if `c` has methods used in template, those are lost.

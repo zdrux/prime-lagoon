@@ -108,6 +108,11 @@ def get_cluster_details(cluster_id: int, snapshot_time: Optional[str] = Query(No
                         snapshot_data['service_mesh'] = json.loads(snap.service_mesh_json)
                     except Exception:
                         pass
+                if snap.argocd_json:
+                    try:
+                        snapshot_data['argocd'] = json.loads(snap.argocd_json)
+                    except Exception:
+                        pass
         except ValueError:
             pass # Ignore invalid time format, fallback to live? Or error? Let's fallback for robustness but maybe should error.
 
@@ -300,6 +305,16 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
                             stats['has_service_mesh'] = sm_data.get('is_active', False)
                         except:
                             pass
+                    
+                    # Inject ArgoCD status from snapshot
+                    stats['has_argocd'] = False
+                    if snap.argocd_json:
+                        try:
+                            cd_data = json.loads(snap.argocd_json)
+                            stats['has_argocd'] = cd_data.get('is_active', False)
+                        except:
+                            pass
+
                     s_nodes = snapshot_data.get("nodes", [])
                     lic_data = calculate_licenses(s_nodes, rules, default_include=default_include)
                     
@@ -683,6 +698,16 @@ def get_simple_clusters(session: Session = Depends(get_session)):
                      has_sm = True
              except:
                  pass
+        
+        # Check for ArgoCD
+        has_cd = False
+        if snap and snap.argocd_json:
+             try:
+                 cd_data = json.loads(snap.argocd_json)
+                 if cd_data.get("is_active"):
+                     has_cd = True
+             except:
+                 pass
 
         results.append({
             "id": c.id,
@@ -690,6 +715,7 @@ def get_simple_clusters(session: Session = Depends(get_session)):
             "unique_id": c.unique_id,
             "datacenter": c.datacenter,
             "has_service_mesh": has_sm,
+            "has_argocd": has_cd,
             "environment": c.environment,
             "status": "yellow" # Default to loading/stale state
         })

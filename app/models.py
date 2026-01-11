@@ -145,6 +145,7 @@ class ClusterSnapshot(SQLModel, table=True):
     # Store full data dump
     data_json: str = Field(sa_column=Column(Text)) # Stores compressed/large JSON blob
     service_mesh_json: Optional[str] = Field(default=None, sa_column=Column(Text)) # Stores detected mesh details
+    argocd_json: Optional[str] = Field(default=None, sa_column=Column(Text)) # Stores detected argocd details
 
 class NamespaceExclusionRule(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

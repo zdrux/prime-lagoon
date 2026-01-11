@@ -214,11 +214,20 @@
                         {% if cluster.has_service_mesh %}
                         <span class="badge-sm">SM</span>
                         {% endif %}
+                        {% if cluster.has_argocd %}
+                        <span class="badge-cd">CD</span>
+                        {% endif %}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
                         {% if cluster.has_service_mesh %}
-                        <a href="#" class="sub-link" onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
-                             <i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh
+                        <a href="#" class="sub-link"
+                            onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
+                            <i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh
+                        </a>
+                        {% endif %}
+                        {% if cluster.has_argocd %}
+                        <a href="#" class="sub-link" onclick="loadArgoCD({{ cluster.id }}); event.stopPropagation();">
+                            <i class="fas fa-sync" style="width:14px; margin-right:4px;"></i> ArgoCD
                         </a>
                         {% endif %}
                         <a href="#" class="sub-link"
@@ -247,11 +256,20 @@
                         {% if cluster.has_service_mesh %}
                         <span class="badge-sm">SM</span>
                         {% endif %}
+                        {% if cluster.has_argocd %}
+                        <span class="badge-cd">CD</span>
+                        {% endif %}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
                         {% if cluster.has_service_mesh %}
-                         <a href="#" class="sub-link" onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
-                             <i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh
+                        <a href="#" class="sub-link"
+                            onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
+                            <i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh
+                        </a>
+                        {% endif %}
+                        {% if cluster.has_argocd %}
+                        <a href="#" class="sub-link" onclick="loadArgoCD({{ cluster.id }}); event.stopPropagation();">
+                            <i class="fas fa-sync" style="width:14px; margin-right:4px;"></i> ArgoCD
                         </a>
                         {% endif %}
                         <a href="#" class="sub-link"

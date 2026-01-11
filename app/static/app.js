@@ -6765,27 +6765,26 @@ function renderArgoCDPage(clusterData) {
                                     <tr class="clickable-row argocd-app-row" 
                                         data-name="${app.name.toLowerCase()}" 
                                         data-namespace="${app.namespace.toLowerCase()}" 
-                                        onclick="loadArgoCDAppDetails(${clusterData.id}, '${app.namespace}', '${app.name}')"
                                         style="cursor:pointer; transition:background 0.2s;">
-                                        <td style="font-weight:600; color:var(--text-primary);">
+                                        <td style="font-weight:600; color:var(--text-primary);" onclick="loadArgoCDAppDetails(${clusterData.id || clusterData.cluster.id}, '${app.namespace}', '${app.name}')">
                                             ${app.name}
                                             <div style="font-size:0.75rem; opacity:0.6; font-weight:400;">${app.namespace}</div>
                                         </td>
-                                        <td>
+                                        <td onclick="loadArgoCDAppDetails(${clusterData.id || clusterData.cluster.id}, '${app.namespace}', '${app.name}')">
                                             ${app.sync_status === 'Synced'
             ? '<span style="color:#10b981;"><i class="fas fa-check-circle"></i> Synced</span>'
             : (app.sync_status === 'OutOfSync' ? '<span style="color:#f59e0b;"><i class="fas fa-sync-alt"></i> OutOfSync</span>' : `<span style="opacity:0.7;">${app.sync_status}</span>`)}
                                         </td>
-                                        <td>
+                                        <td onclick="loadArgoCDAppDetails(${clusterData.id || clusterData.cluster.id}, '${app.namespace}', '${app.name}')">
                                                 ${app.health_status === 'Healthy'
             ? '<span style="color:#10b981;"><i class="fas fa-heart"></i> Healthy</span>'
             : (app.health_status === 'Degraded' ? '<span style="color:#ef4444;"><i class="fas fa-heart-broken"></i> Degraded</span>' : `<span style="opacity:0.7;">${app.health_status}</span>`)}
                                         </td>
                                         <td style="font-family:monospace; font-size:0.85rem; opacity:0.8;">
                                             <div style="max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${app.repo_url}">
-                                                ${app.repo_url}
+                                                <a href="${app.repo_url}" target="_blank" style="color:var(--accent-color); text-decoration:none; border-bottom:1px dotted var(--accent-color);" onclick="event.stopPropagation();">${app.repo_url}</a>
                                             </div>
-                                            <div style="color:var(--accent-color);">${app.path}</div>
+                                            <div style="color:var(--text-secondary); opacity:0.8;" onclick="loadArgoCDAppDetails(${clusterData.id || clusterData.cluster.id}, '${app.namespace}', '${app.name}')">${app.path}</div>
                                         </td>
                                     </tr>
                                 `).join('')}

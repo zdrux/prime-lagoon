@@ -67,8 +67,48 @@ def test_get_argocd_application_details():
         assert details['health']['status'] == "Healthy"
         assert len(details['history']) == 1
         
-        print("SUCCESS: get_argocd_application_details returned expected structure.")
-        print(details)
+        print("SUCCESS: Full Data test passed.")
+        
+        # --- TEST 2: Missing/None Fields ---
+        print("Testing with None/Missing fields...")
+        mock_app_none = MagicMock()
+        mock_app_none.metadata.name = "none-app"
+        mock_app_none.metadata.namespace = "test-ns"
+        mock_app_none.spec = None # None spec
+        mock_app_none.status.summary = None # None summary
+        mock_app_none.status.sync = None
+        mock_app_none.status.health = None
+        mock_app_none.status.history = None # None history
+        mock_app_none.status.conditions = None
+        mock_app_none.status.operationState = None
+
+        mock_app_api.get.return_value = mock_app_none
+
+        details_none = get_argocd_application_details(cluster, "test-ns", "none-app")
+        assert details_none['name'] == "none-app"
+        assert details_none['project'] == "default"
+        assert details_none['summary']['images'] == []
+        assert details_none['history'] == []
+        assert details_none['conditions'] == []
+        
+        print("SUCCESS: None/Missing fields test passed.")
+
+        # --- TEST 3: Partial Fields (Empty lists) ---
+        print("Testing with Empty Lists...")
+        mock_app_empty = MagicMock()
+        mock_app_empty.metadata.name = "empty-app"
+        mock_app_empty.metadata.namespace = "test-ns"
+        mock_app_empty.status.summary.images = []
+        mock_app_empty.status.history = []
+        mock_app_empty.status.conditions = []
+        
+        mock_app_api.get.return_value = mock_app_empty
+        
+        details_empty = get_argocd_application_details(cluster, "test-ns", "empty-app")
+        assert details_empty['summary']['images'] == []
+        assert details_empty['history'] == []
+        
+        print("SUCCESS: Empty Lists test passed.")
 
 if __name__ == "__main__":
     test_get_argocd_application_details()

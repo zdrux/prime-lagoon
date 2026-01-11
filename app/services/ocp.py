@@ -3,6 +3,7 @@ import re
 from typing import Optional, List, Any
 from kubernetes import client
 from openshift.dynamic import DynamicClient, exceptions as dyn_exc
+from unittest.mock import MagicMock
 from app.models import Cluster
 
 # Disable insecure request warnings for now as many internal OCP clusters use self-signed certs
@@ -1182,29 +1183,54 @@ def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) 
         
         app = app_api.get(name=name, namespace=namespace)
         
-        status = getattr(app, 'status', {})
-        spec = getattr(app, 'spec', {})
+        status = getattr(app, 'status', None) or {}
+        spec = getattr(app, 'spec', None) or {}
         
+        # Helper to get list safely
+        def get_list(obj, attr):
+            val = getattr(obj, attr, [])
+            return val if val is not None else []
+
+        summary = getattr(status, 'summary', None) or MagicMock() # Fallback for safety if not using object notation
+        # Better: handle status as potentially a dict if coming from certain client configurations, 
+        # but dynamic client usually returns objects. We will assume object access but check for None field values.
+
+        summary_images = []
+        summary_urls = []
+        if hasattr(status, 'summary') and status.summary:
+             summary_images = getattr(status.summary, 'images', []) or []
+             summary_urls = getattr(status.summary, 'externalURLs', []) or []
+
+        sync = getattr(status, 'sync', None)
+        health = getattr(status, 'health', None)
+        
+        history_items = getattr(status, 'history', []) or []
+        conditions_items = getattr(status, 'conditions', []) or []
+        
+        # Operation State
+        op_state = getattr(status, 'operationState', None)
+        op_state_dict = op_state.to_dict() if op_state else None
+
         return {
             "name": app.metadata.name,
             "namespace": app.metadata.namespace,
             "project": getattr(spec, 'project', 'default'),
             "summary": {
-                "images": getattr(status.summary, 'images', []) if hasattr(status, 'summary') else [],
-                "external_urls": getattr(status.summary, 'externalURLs', []) if hasattr(status, 'summary') else []
+                "images": summary_images,
+                "external_urls": summary_urls
             },
             "sync": {
-                "status": getattr(status.sync, 'status', 'Unknown') if hasattr(status, 'sync') else 'Unknown',
-                "revision": getattr(status.sync, 'revision', '') if hasattr(status, 'sync') else '',
-                "compared_to": getattr(status.sync, 'comparedTo', {}) if hasattr(status, 'sync') else {}
+                "status": getattr(sync, 'status', 'Unknown') if sync else 'Unknown',
+                "revision": getattr(sync, 'revision', '') if sync else '',
+                "compared_to": getattr(sync, 'comparedTo', {}) if sync else {}
             },
             "health": {
-                "status": getattr(status.health, 'status', 'Unknown') if hasattr(status, 'health') else 'Unknown',
-                "message": getattr(status.health, 'message', '') if hasattr(status, 'health') else ''
+                "status": getattr(health, 'status', 'Unknown') if health else 'Unknown',
+                "message": getattr(health, 'message', '') if health else ''
             },
-            "history": [h.to_dict() for h in getattr(status, 'history', [])][-5:], # Last 5
-            "operation_state": getattr(status, 'operationState', None).to_dict() if hasattr(status, 'operationState') else None,
-            "conditions": [c.to_dict() for c in getattr(status, 'conditions', [])]
+            "history": [h.to_dict() for h in history_items][-5:],
+            "operation_state": op_state_dict,
+            "conditions": [c.to_dict() for c in conditions_items]
         }
     except Exception as e:
         print(f"Error fetching ArgoCD app details for {name} on {cluster.name}: {e}")

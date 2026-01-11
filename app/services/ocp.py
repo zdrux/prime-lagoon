@@ -503,7 +503,9 @@ def get_detailed_stats(cluster: Cluster, snapshot_data: Optional[dict] = None):
                 "autoscaler_count": len(autoscalers),
                 "project_count": len(projects),
                 "ingress_count": len(ingress),
-                "status_message": "Snapshot View"
+                "status_message": "Snapshot View",
+                "service_mesh": get_service_mesh_details(cluster, snapshot_data=snapshot_data),
+                "argocd": get_argocd_details(cluster, snapshot_data=snapshot_data)
             }
 
         dyn_client = get_dynamic_client(cluster)

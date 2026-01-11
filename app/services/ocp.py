@@ -630,10 +630,10 @@ def get_service_mesh_details(cluster: Cluster, snapshot_data: Optional[dict] = N
                 mesh_data["traffic"]["gateways"].append({
                     "name": gw.metadata.name,
                     "namespace": gw.metadata.namespace,
-                    "selector": gw.spec.get('selector', {}),
-                    "servers": len(gw.spec.get('servers', []))
+                    "selector": dict(gw.spec.get('selector', {})) if gw.spec.get('selector') else {},
+                    "servers": [dict(s) for s in (gw.spec.get('servers') or [])]
                 })
-        except:
+        except Exception:
             pass # CRD might not exist if v2 not fully ready or using v1alpha3
 
         try:
@@ -643,8 +643,8 @@ def get_service_mesh_details(cluster: Cluster, snapshot_data: Optional[dict] = N
                  mesh_data["traffic"]["virtual_services"].append({
                     "name": vs.metadata.name,
                     "namespace": vs.metadata.namespace,
-                    "hosts": vs.spec.get('hosts', []),
-                    "gateways": vs.spec.get('gateways', [])
+                    "hosts": list(vs.spec.get('hosts') or []),
+                    "gateways": list(vs.spec.get('gateways') or [])
                 })
         except:
             pass

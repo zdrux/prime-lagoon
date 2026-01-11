@@ -6257,7 +6257,7 @@ function renderServiceMeshPage(clusterData, meshData) {
 
                  </h1>
 
-                 ${window.currentSnapshotTime ? `<div style="font-size:0.9rem; color:#f59e0b; margin-top:0.5rem; font-weight:500; display:flex; align-items:center;"><i class="fas fa-history" style="margin-right:6px;"></i>As of: ${new Date(window.currentSnapshotTime).toLocaleString()}</div>` : ''}
+                 ${window.currentSnapshotTime ? `<div style="font-size:0.9rem; color:#f59e0b; margin-top:0.5rem; font-weight:500; display:flex; align-items:center;"><i class="fas fa-history" style="margin-right:6px;"></i>As of: ${new Date(window.currentSnapshotTime.includes('Z') ? window.currentSnapshotTime : window.currentSnapshotTime + 'Z').toLocaleString()}</div>` : ''}
 
             </div>
 
@@ -6711,7 +6711,7 @@ function renderArgoCDPage(clusterData, clusterId) {
                 <div style="font-size:1.1rem; opacity:0.8; font-family:'Inter', sans-serif;">
                     Cluster: <span style="font-weight:600; color:var(--text-primary);">${clusterName}</span>
                 </div>
-                ${window.currentSnapshotTime ? `<div style="font-size:0.9rem; color:#f59e0b; margin-top:0.5rem; font-weight:500; display:flex; align-items:center;"><i class="fas fa-history" style="margin-right:6px;"></i>As of: ${new Date(window.currentSnapshotTime).toLocaleString()}</div>` : ''}
+                ${window.currentSnapshotTime ? `<div style="font-size:0.9rem; color:#f59e0b; margin-top:0.5rem; font-weight:500; display:flex; align-items:center;"><i class="fas fa-history" style="margin-right:6px;"></i>As of: ${new Date(window.currentSnapshotTime.includes('Z') ? window.currentSnapshotTime : window.currentSnapshotTime + 'Z').toLocaleString()}</div>` : ''}
             </div>
             <div>
                 <button class="btn btn-secondary" onclick="loadDashboard()"><i class="fas fa-arrow-left"></i> Dashboard</button>

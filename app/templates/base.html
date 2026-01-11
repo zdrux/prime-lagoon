@@ -219,6 +219,7 @@
                         {% endif %}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
+                        {% if user.is_admin %}
                         {% if cluster.has_service_mesh %}
                         <a href="#" class="sub-link"
                             onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
@@ -229,6 +230,7 @@
                         <a href="#" class="sub-link" onclick="loadArgoCD({{ cluster.id }}); event.stopPropagation();">
                             <i class="fas fa-sync" style="width:14px; margin-right:4px;"></i> ArgoCD
                         </a>
+                        {% endif %}
                         {% endif %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
@@ -261,6 +263,7 @@
                         {% endif %}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
+                        {% if user.is_admin %}
                         {% if cluster.has_service_mesh %}
                         <a href="#" class="sub-link"
                             onclick="loadServiceMesh({{ cluster.id }}); event.stopPropagation();">
@@ -271,6 +274,7 @@
                         <a href="#" class="sub-link" onclick="loadArgoCD({{ cluster.id }}); event.stopPropagation();">
                             <i class="fas fa-sync" style="width:14px; margin-right:4px;"></i> ArgoCD
                         </a>
+                        {% endif %}
                         {% endif %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>

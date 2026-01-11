@@ -527,12 +527,11 @@ async function loadSummary(forceRefresh = false) {
 
 
                 // Update Badge
-
                 if (clusterLink) {
-
                     let badge = clusterLink.querySelector('.badge-sm');
+                    const showBadge = hasMesh && window.isAdmin;
 
-                    if (hasMesh && !badge) {
+                    if (showBadge && !badge) {
 
                         // Add it
 
@@ -543,13 +542,9 @@ async function loadSummary(forceRefresh = false) {
                         badge.innerText = 'SM';
 
                         clusterLink.appendChild(badge);
-
-                    } else if (!hasMesh && badge) {
-
+                    } else if (!showBadge && badge) {
                         // Remove it
-
                         badge.remove();
-
                     }
 
                 }
@@ -566,9 +561,9 @@ async function loadSummary(forceRefresh = false) {
 
                     const existingLink = Array.from(submenu.querySelectorAll('a')).find(a => a.onclick && a.onclick.toString().includes('loadServiceMesh'));
 
+                    const showLink = hasMesh && window.isAdmin;
 
-
-                    if (hasMesh && !existingLink) {
+                    if (showLink && !existingLink) {
 
                         const link = document.createElement('a');
 
@@ -581,11 +576,8 @@ async function loadSummary(forceRefresh = false) {
                         link.innerHTML = '<i class="fas fa-project-diagram" style="width:14px; margin-right:4px;"></i> Service Mesh';
 
                         submenu.prepend(link); // Service Mesh usually top
-
-                    } else if (!hasMesh && existingLink) {
-
+                    } else if (!showLink && existingLink) {
                         existingLink.remove();
-
                     }
 
                 }
@@ -611,10 +603,10 @@ async function loadSummary(forceRefresh = false) {
 
 
                 if (clusterLink) {
-
                     let badge = clusterLink.querySelector('.badge-cd');
+                    const showBadge = hasCD && window.isAdmin;
 
-                    if (hasCD && !badge) {
+                    if (showBadge && !badge) {
 
                         badge = document.createElement('span');
 
@@ -623,11 +615,8 @@ async function loadSummary(forceRefresh = false) {
                         badge.innerText = 'CD';
 
                         clusterLink.appendChild(badge);
-
-                    } else if (!hasCD && badge) {
-
+                    } else if (!showBadge && badge) {
                         badge.remove();
-
                     }
 
                 }
@@ -635,10 +624,10 @@ async function loadSummary(forceRefresh = false) {
 
 
                 if (submenu) {
-
                     const existingLink = Array.from(submenu.querySelectorAll('a')).find(a => a.onclick && a.onclick.toString().includes('loadArgoCD'));
+                    const showLink = hasCD && window.isAdmin;
 
-                    if (hasCD && !existingLink) {
+                    if (showLink && !existingLink) {
 
                         const link = document.createElement('a');
 
@@ -655,11 +644,8 @@ async function loadSummary(forceRefresh = false) {
                         // Simple append is fine, or check order.
 
                         submenu.appendChild(link);
-
-                    } else if (!hasCD && existingLink) {
-
+                    } else if (!showLink && existingLink) {
                         existingLink.remove();
-
                     }
 
                 }
@@ -6080,6 +6066,7 @@ function renderServiceMesh(meshData) {
 
 
 async function loadServiceMesh(clusterId) {
+    if (!window.isAdmin) return;
 
     try {
 
@@ -6593,6 +6580,7 @@ function renderServiceMeshPage(clusterData, meshData) {
 
 
 async function loadArgoCD(clusterId) {
+    if (!window.isAdmin) return;
 
     const mainContent = document.querySelector('.main-content');
 
@@ -6910,6 +6898,7 @@ function filterArgoCDApps() {
 }
 
 async function loadArgoCDAppDetails(clusterId, namespace, name) {
+    if (!window.isAdmin) return;
     const modal = document.getElementById('argocd-app-modal');
     const body = document.getElementById('argocd-app-modal-body');
     modal.classList.add('open');
@@ -6997,6 +6986,7 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
 }
 
 async function loadArgoCDAppSetDetails(clusterId, namespace, name) {
+    if (!window.isAdmin) return;
     const modal = document.getElementById('argocd-appset-modal');
     const body = document.getElementById('argocd-appset-modal-body');
     modal.classList.add('open');

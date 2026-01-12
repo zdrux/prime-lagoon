@@ -613,7 +613,9 @@ def create_user(user: UserCreate, session: Session = Depends(get_session), admin
          raise HTTPException(status_code=400, detail="User already exists")
     
     role_val = user.role.lower() if user.role else "user"
-    new_user = User(username=user.username, role=role_val, is_admin=(role_val=="admin"))
+    new_user = User(username=user.username, role=role_val)
+    if role_val == "admin":
+        new_user.is_admin_db = True
     session.add(new_user)
     session.commit()
     session.refresh(new_user)

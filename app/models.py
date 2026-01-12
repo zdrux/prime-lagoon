@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from sqlmodel import Field, SQLModel, Column, Text
+from sqlmodel import Field, SQLModel, Column, Text, Boolean
 from pydantic import field_validator
 
 class ClusterBase(SQLModel):
@@ -117,6 +117,10 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     role: str = Field(default="user") # "admin", "operator", "user"
     
+    # Database column for is_admin (required by schema NOT NULL)
+    # We map it to a private-ish field since we want to use the property for logic
+    is_admin_db: bool = Field(default=False, sa_column=Column("is_admin", Boolean, nullable=False, default=False))
+    
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
@@ -125,12 +129,16 @@ class User(SQLModel, table=True):
     def is_admin(self, value: bool):
         if value:
             self.role = "admin"
+            self.is_admin_db = True
         elif self.role == "admin": 
             # If turning off admin, default to user? 
             # Or should we just leave it alone? 
             # Logic in settings.py sets role first, then tries to sync is_admin.
             # If we set is_admin=False, we should probably set role="user" if it was "admin"
             self.role = "user"
+            self.is_admin_db = False
+        else:
+            self.is_admin_db = False
         
     @property
     def is_operator(self) -> bool:

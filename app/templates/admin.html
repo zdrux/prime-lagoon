@@ -821,6 +821,8 @@
         const btn = document.getElementById('bulk-delete-btn');
         const countSpan = document.getElementById('selected-count');
 
+        if (!btn) return;
+
         if (selected.length > 0) {
             btn.style.display = 'flex';
             countSpan.innerText = selected.length;

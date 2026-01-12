@@ -14,6 +14,9 @@ router = APIRouter(
     tags=["audit"],
 )
 
+from app.dependencies import admin_required, operator_allowed
+from app.models import User
+
 class AuditResult(BaseModel):
     cluster_name: str
     rule_name: str
@@ -42,7 +45,7 @@ class BundleUpdate(BaseModel):
 
 # --- Bundles ---
 @router.post("/bundles", response_model=AuditBundle)
-def create_bundle(bundle: BundleCreate, session: Session = Depends(get_session)):
+def create_bundle(bundle: BundleCreate, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     db_bundle = AuditBundle.model_validate(bundle)
     session.add(db_bundle)
     session.commit()
@@ -50,11 +53,11 @@ def create_bundle(bundle: BundleCreate, session: Session = Depends(get_session))
     return db_bundle
 
 @router.get("/bundles", response_model=List[AuditBundle])
-def get_bundles(session: Session = Depends(get_session)):
+def get_bundles(session: Session = Depends(get_session), _: User = Depends(operator_allowed)):
     return session.exec(select(AuditBundle)).all()
 
 @router.put("/bundles/{bundle_id}", response_model=AuditBundle)
-def update_bundle(bundle_id: int, bundle_update: BundleUpdate, session: Session = Depends(get_session)):
+def update_bundle(bundle_id: int, bundle_update: BundleUpdate, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     db_bundle = session.get(AuditBundle, bundle_id)
     if not db_bundle:
         raise HTTPException(status_code=404, detail="Bundle not found")
@@ -69,7 +72,7 @@ def update_bundle(bundle_id: int, bundle_update: BundleUpdate, session: Session 
     return db_bundle
 
 @router.delete("/bundles/{bundle_id}")
-def delete_bundle(bundle_id: int, session: Session = Depends(get_session)):
+def delete_bundle(bundle_id: int, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     bundle = session.get(AuditBundle, bundle_id)
     if not bundle:
         raise HTTPException(status_code=404, detail="Bundle not found")
@@ -84,18 +87,18 @@ def delete_bundle(bundle_id: int, session: Session = Depends(get_session)):
 
 # --- Rules ---
 @router.post("/rules", response_model=AuditRule)
-def create_rule(rule: AuditRule, session: Session = Depends(get_session)):
+def create_rule(rule: AuditRule, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     session.add(rule)
     session.commit()
     session.refresh(rule)
     return rule
 
 @router.get("/rules", response_model=List[AuditRule])
-def get_rules(session: Session = Depends(get_session)):
+def get_rules(session: Session = Depends(get_session), _: User = Depends(operator_allowed)):
     return session.exec(select(AuditRule)).all()
 
 @router.put("/rules/{rule_id}", response_model=AuditRule)
-def update_rule(rule_id: int, rule_update: AuditRule, session: Session = Depends(get_session)):
+def update_rule(rule_id: int, rule_update: AuditRule, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     db_rule = session.get(AuditRule, rule_id)
     if not db_rule:
         raise HTTPException(status_code=404, detail="Rule not found")
@@ -110,7 +113,7 @@ def update_rule(rule_id: int, rule_update: AuditRule, session: Session = Depends
     return db_rule
 
 @router.delete("/rules/{rule_id}")
-def delete_rule(rule_id: int, session: Session = Depends(get_session)):
+def delete_rule(rule_id: int, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     rule = session.get(AuditRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
@@ -119,7 +122,7 @@ def delete_rule(rule_id: int, session: Session = Depends(get_session)):
     return {"ok": True}
 
 @router.post("/rules/{rule_id}/duplicate", response_model=AuditRule)
-def duplicate_rule(rule_id: int, session: Session = Depends(get_session)):
+def duplicate_rule(rule_id: int, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     db_rule = session.get(AuditRule, rule_id)
     if not db_rule:
         raise HTTPException(status_code=404, detail="Rule not found")
@@ -135,7 +138,7 @@ def duplicate_rule(rule_id: int, session: Session = Depends(get_session)):
     return new_rule
 
 @router.post("/rules/{rule_id}/toggle")
-def toggle_rule(rule_id: int, session: Session = Depends(get_session)):
+def toggle_rule(rule_id: int, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     db_rule = session.get(AuditRule, rule_id)
     if not db_rule:
         raise HTTPException(status_code=404, detail="Rule not found")
@@ -228,7 +231,7 @@ class ImportConfirmRequest(BaseModel):
     rules: List[ImportConfirmRow]
 
 @router.post("/import/confirm")
-def import_confirm(req: ImportConfirmRequest, session: Session = Depends(get_session)):
+def import_confirm(req: ImportConfirmRequest, session: Session = Depends(get_session), _: User = Depends(admin_required)):
     # 1. Process Bundles
     bundle_id_map = {} # Maps old (exported) ID to new DB ID
     
@@ -413,7 +416,8 @@ class RunAuditRequest(BaseModel):
 def run_audit(
     cluster_id: Optional[int] = None, 
     req: Optional[RunAuditRequest] = None,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    _: User = Depends(admin_required)
 ):
     # Determine cluster_id from query param OR body
     target_cluster_id = cluster_id or (req.cluster_id if req else None)

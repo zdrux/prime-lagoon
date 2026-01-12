@@ -531,7 +531,7 @@ async function loadSummary(forceRefresh = false) {
                     const badgeContainer = clusterLink.querySelector('.sidebar-badge-container');
                     if (badgeContainer) {
                         const badge = badgeContainer.querySelector('.badge-sm');
-                        const showBadge = hasMesh && window.isAdmin;
+                        const showBadge = hasMesh && (window.isAdmin || window.isOperator);
 
                         if (badge) {
                             badge.style.visibility = showBadge ? 'visible' : 'hidden';
@@ -551,7 +551,7 @@ async function loadSummary(forceRefresh = false) {
 
                     const existingLink = Array.from(submenu.querySelectorAll('a')).find(a => a.onclick && a.onclick.toString().includes('loadServiceMesh'));
 
-                    const showLink = hasMesh && window.isAdmin;
+                    const showLink = hasMesh && (window.isAdmin || window.isOperator);
 
                     if (showLink && !existingLink) {
 
@@ -596,7 +596,7 @@ async function loadSummary(forceRefresh = false) {
                     const badgeContainer = clusterLink.querySelector('.sidebar-badge-container');
                     if (badgeContainer) {
                         const badge = badgeContainer.querySelector('.badge-cd');
-                        const showBadge = hasCD && window.isAdmin;
+                        const showBadge = hasCD && (window.isAdmin || window.isOperator);
 
                         if (badge) {
                             badge.style.visibility = showBadge ? 'visible' : 'hidden';
@@ -608,7 +608,7 @@ async function loadSummary(forceRefresh = false) {
 
                 if (submenu) {
                     const existingLink = Array.from(submenu.querySelectorAll('a')).find(a => a.onclick && a.onclick.toString().includes('loadArgoCD'));
-                    const showLink = hasCD && window.isAdmin;
+                    const showLink = hasCD && (window.isAdmin || window.isOperator);
 
                     if (showLink && !existingLink) {
 
@@ -2932,7 +2932,7 @@ function renderTable(resourceType, data) {
 
             {
 
-                header: 'Actions', path: item => window.isAdmin ? `
+                header: 'Actions', path: item => (window.isAdmin || window.isOperator) ? `
 
                 <button class="btn btn-secondary btn-sm" onclick="showNodeDetails(${window.currentClusterId}, '${item.metadata.name}')">
 
@@ -2978,7 +2978,7 @@ function renderTable(resourceType, data) {
 
             {
 
-                header: 'Actions', path: item => window.isAdmin ? `
+                header: 'Actions', path: item => (window.isAdmin || window.isOperator) ? `
 
                 <button class="btn btn-secondary btn-sm" onclick="showMachineDetails(${window.currentClusterId}, '${item.metadata.name}')">
 
@@ -4011,7 +4011,7 @@ async function showClusterDetails(clusterId, clusterName) {
 
 
 
-            ${window.isAdmin ? `
+            ${(window.isAdmin || window.isOperator) ? `
 
             <div class="card" style="margin:0;">
 

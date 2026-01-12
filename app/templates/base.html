@@ -307,6 +307,7 @@
 
     <script>
         window.isAdmin = {{ 'true' if user and user.is_admin else 'false' }};
+        window.isOperator = {{ 'true' if user and user.is_operator else 'false' }};
     </script>
     <script src="/static/app.js"></script>
 </body>

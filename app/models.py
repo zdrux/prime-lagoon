@@ -115,7 +115,15 @@ class LicenseRule(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
-    is_admin: bool = Field(default=False)
+    role: str = Field(default="user") # "admin", "operator", "user"
+    
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+        
+    @property
+    def is_operator(self) -> bool:
+        return self.role in ["admin", "operator"]
 
 class AppConfig(SQLModel, table=True):
     key: str = Field(primary_key=True)

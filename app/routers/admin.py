@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.database import get_session
 from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, User
 from app.services.scheduler import refresh_jobs
-from app.dependencies import admin_required
+from app.dependencies import admin_required, operator_allowed
 import os
 
 class ConfigUpdate(BaseModel):
@@ -84,7 +84,7 @@ class PollManager:
 poll_manager = PollManager()
 
 @router.post("/clusters/test-connection")
-def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     """Verifies connection to the cluster using provided credentials."""
     from app.services.ocp import get_dynamic_client
     
@@ -150,7 +150,7 @@ def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_sessio
     return db_cluster
 
 @router.get("/clusters/", response_model=List[ClusterRead])
-def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     clusters = session.exec(select(Cluster).offset(offset).limit(limit)).all()
     return clusters
 
@@ -222,14 +222,14 @@ def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get
     }
 
 @router.get("/clusters/config/scheduler/run-stream")
-async def trigger_manual_poll_stream(session: Session = Depends(get_session), user: User = Depends(admin_required)):
+async def trigger_manual_poll_stream(session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     """Manually triggers the background poller and streams progress updates."""
     
     async def event_generator():
         queue = await poll_manager.subscribe()
         try:
-            # Start poller if not running
-            if not poll_manager.is_running:
+            # Start poller if not running (Only Admin)
+            if not poll_manager.is_running and user.is_admin:
                 await poll_manager.start()
             
             # Heartbeat and message loop
@@ -266,7 +266,7 @@ def trigger_manual_poll(session: Session = Depends(get_session), user: User = De
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/clusters/snapshots", response_model=dict)
-def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def list_snapshots(limit: int = 50, offset: int = 0, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     """Groups snapshots by global timestamp (run)."""
     from sqlmodel import func
 
@@ -444,7 +444,7 @@ def delete_snapshot(snapshot_id: int, session: Session = Depends(get_session), u
     return {"ok": True}
 
 @router.get("/clusters/{cluster_id}", response_model=ClusterRead)
-def read_cluster(cluster_id: int, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def read_cluster(cluster_id: int, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
@@ -460,7 +460,7 @@ def delete_cluster(cluster_id: int, session: Session = Depends(get_session), use
     return {"ok": True}
 
 @router.get("/clusters/config/db-stats")
-def get_db_stats(session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def get_db_stats(session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     """Returns database size and record counts."""
     import os
     import shutil

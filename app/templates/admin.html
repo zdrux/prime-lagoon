@@ -105,9 +105,11 @@
 <div id="tab-clusters" class="tab-content active">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
         <h3 style="margin:0;">Cluster Management</h3>
+        {% if user.is_admin %}
         <button class="btn btn-primary" onclick="openModal()">
             <i class="fas fa-plus"></i> Add Cluster
         </button>
+        {% endif %}
     </div>
 
     <div class="card fade-in">
@@ -140,12 +142,14 @@
                             {% endif %}
                         </td>
                         <td>
+                            {% if user.is_admin %}
                             <button class="btn btn-secondary" onclick="editCluster({{ cluster.id }})">
                                 <i class="fas fa-edit"></i>
                             </button>
                             <button class="btn btn-danger" onclick="deleteCluster({{ cluster.id }})">
                                 <i class="fas fa-trash"></i>
                             </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -245,12 +249,19 @@
                         </div>
                     </div>
                     <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                        {% if user.is_admin %}
                         <button class="btn btn-primary" onclick="saveSchedulerConfig()" style="flex:1;">
                             <i class="fas fa-save"></i> Save Settings
                         </button>
                         <button class="btn btn-secondary" onclick="openRunNowModal()" style="flex:1;">
                             <i class="fas fa-play"></i> Run Now
                         </button>
+                        {% else %}
+                        <div
+                            style="font-size:0.9rem; color:var(--text-secondary); padding:0.5rem; width:100%; text-align:center;">
+                            <i class="fas fa-lock"></i> Settings are read-only for Operators.
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:0.5rem; text-align:center;">
@@ -259,6 +270,7 @@
             </div>
 
             <!-- Maintenance / Danger Zone -->
+            {% if user.is_admin %}
             <div class="form-group" style="max-width:500px; margin-top: 2rem;">
                 <label class="form-label" style="color:var(--danger-color);"><i class="fas fa-exclamation-triangle"></i>
                     Maintenance</label>
@@ -274,6 +286,7 @@
                     </button>
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -297,6 +310,7 @@
                     oninput="filterSnapshotsTable(this.value)">
             </div>
 
+            {% if user.is_admin %}
             <button class="btn btn-danger btn-sm" id="bulk-delete-btn" onclick="bulkDeleteSnapshots()"
                 style="display:none;">
                 <i class="fas fa-trash"></i> Delete Selected (<span id="selected-count">0</span>)
@@ -312,6 +326,7 @@
                     <i class="fas fa-trash-sweep"></i> Mass Delete
                 </button>
             </div>
+            {% endif %}
 
             <button class="btn btn-secondary" onclick="loadSnapshotsTable()">
                 <i class="fas fa-sync"></i> Refresh
@@ -545,6 +560,7 @@
 </div>
 
 <script>
+    const IS_ADMIN = {{ 'true' if user.is_admin else 'false' }};
     // Token Help Logic
     function showTokenHelp() {
         document.getElementById('token-instructions-modal').classList.add('open');
@@ -708,9 +724,9 @@
     <td><span class="badge ${s.status === 'Success' ? 'badge-green' : 'badge-red'}">${s.status}</span></td>
     <td style="font-family:monospace; opacity:0.8;">${s.node_count} Nodes, ${s.vcpu_count} vCPU</td>
     <td>
-        <button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})" title="Delete Instance">
+        ${IS_ADMIN ? `<button class="btn btn-danger btn-sm" onclick="deleteSnapshot(${s.id})" title="Delete Instance">
             <i class="fas fa-trash"></i>
-        </button>
+        </button>` : ''}
     </td>
 </tr>
 `).join('');
@@ -739,10 +755,10 @@
         </div>
     </td>
     <td>
-        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSnapshotGroup('${g.group_id}')"
+        ${IS_ADMIN ? `<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteSnapshotGroup('${g.group_id}')"
             title="Delete Entire Run">
             Mass Delete
-        </button>
+        </button>` : ''}
     </td>
 </tr>
 <tr id="${detailsId}" style="display:none;">

@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Cluster, AuditRule, AuditBundle, User
 
-from app.dependencies import get_current_user_optional, admin_required, is_ldap_enabled
+from app.dependencies import get_current_user_optional, admin_required, is_ldap_enabled, operator_allowed
 import json
 
 templates = Jinja2Templates(directory="app/templates")
@@ -18,7 +18,7 @@ def root():
     return RedirectResponse(url="/dashboard")
 
 @router.get("/admin", response_class=HTMLResponse)
-def admin_view(request: Request, tab: str = 'clusters', session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def admin_view(request: Request, tab: str = 'clusters', session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     from app.models import AppConfig
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -213,7 +213,7 @@ def dashboard_view(request: Request, session: Session = Depends(get_session), us
     })
     
 @router.get("/operators", response_class=HTMLResponse)
-def operators_view(request: Request, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def operators_view(request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     # if is_ldap_enabled and not user, admin_required will already have handled auth via get_current_user
     
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
@@ -229,7 +229,7 @@ def operators_view(request: Request, session: Session = Depends(get_session), us
 
 
 @router.get("/license-analytics", response_class=HTMLResponse)
-def license_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+def license_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
         

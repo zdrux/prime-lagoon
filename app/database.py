@@ -70,6 +70,22 @@ def create_db_and_tables():
                 conn.execute(text("INSERT INTO appconfig (key, value) VALUES ('DASHBOARD_CACHE_TTL_MINUTES', '15')"))
                 conn.commit()
 
+            # Migration 5: Add 'role' column to user and deprecated 'is_admin' handling
+            res = conn.execute(text("PRAGMA table_info(user)"))
+            columns = [row[1] for row in res.fetchall()]
+            if columns and "role" not in columns:
+                print("MIGRATION: Adding 'role' column to user table...")
+                conn.execute(text('ALTER TABLE user ADD COLUMN "role" VARCHAR DEFAULT "user"'))
+                
+                # Backfill from is_admin if it exists
+                if "is_admin" in columns:
+                    print("MIGRATION: Backfilling roles from is_admin...")
+                    conn.execute(text("UPDATE user SET role = 'admin' WHERE is_admin = 1"))
+                    conn.execute(text("UPDATE user SET role = 'user' WHERE is_admin = 0"))
+                
+                conn.commit()
+                print("MIGRATION: Success.")
+
     except Exception as e:
         print(f"MIGRATION ERROR: {e}")
 

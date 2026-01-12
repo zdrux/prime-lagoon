@@ -15,7 +15,7 @@ def is_ldap_enabled(session: Session) -> bool:
 def get_current_user_optional(request: Request, session: Session = Depends(get_session)) -> Optional[User]:
     # If LDAP is not configured, everyone is an admin
     if not is_ldap_enabled(session):
-        return User(username="anonymous", is_admin=True)
+        return User(username="anonymous", role="admin")
         
     session_id = request.cookies.get("session_id")
     if not session_id:
@@ -36,4 +36,9 @@ def get_current_user(request: Request, user: Optional[User] = Depends(get_curren
 def admin_required(user: User = Depends(get_current_user)):
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin permissions required")
+    return user
+    
+def operator_allowed(user: User = Depends(get_current_user)):
+    if not user.is_operator:
+        raise HTTPException(status_code=403, detail="Operator or Admin permissions required")
     return user

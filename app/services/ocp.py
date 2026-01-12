@@ -1209,6 +1209,23 @@ def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) 
         # Safely extract sync options
         sync_opts = get_val(sync_policy, 'syncOptions') or []
 
+        # Extract resource-level errors
+        resources = get_val(status, 'resources') or []
+        resource_errors = []
+        for res in resources:
+            res_health = get_val(res, 'health')
+            if res_health and get_val(res_health, 'status') not in ['Healthy', 'Synced', None]:
+                res_kind = get_val(res, 'kind', 'Unknown')
+                res_name = get_val(res, 'name', 'Unknown')
+                res_msg = get_val(res_health, 'message')
+                if res_msg:
+                    resource_errors.append({
+                        "kind": res_kind,
+                        "name": res_name,
+                        "message": res_msg,
+                        "status": get_val(res_health, 'status')
+                    })
+
         return {
             "name": get_val(app, 'metadata.name'),
             "namespace": get_val(app, 'metadata.namespace'),
@@ -1239,6 +1256,7 @@ def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) 
                 "status": get_val(health, 'status', 'Unknown'),
                 "message": get_val(health, 'message', '')
             },
+            "resource_errors": resource_errors,
             "history": [h.to_dict() if hasattr(h, 'to_dict') else h for h in history_items][-5:],
             "operation_state": op_state_dict,
             "conditions": [c.to_dict() if hasattr(c, 'to_dict') else c for c in conditions_items]

@@ -6709,9 +6709,7 @@ function renderArgoCDPage(clusterData, clusterId) {
                 </div>
                 ${window.currentSnapshotTime ? `<div style="font-size:0.9rem; color:#f59e0b; margin-top:0.5rem; font-weight:500; display:flex; align-items:center;"><i class="fas fa-history" style="margin-right:6px;"></i>As of: ${new Date(window.currentSnapshotTime.includes('Z') ? window.currentSnapshotTime : window.currentSnapshotTime + 'Z').toLocaleString()}</div>` : ''}
             </div>
-            <div>
-                <button class="btn btn-secondary" onclick="loadDashboard()"><i class="fas fa-arrow-left"></i> Dashboard</button>
-            </div>
+
         </div>
 
         <!-- Top Cards -->
@@ -6925,6 +6923,70 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                     </div>
                 </div>
 
+                <!-- ERROR & HEALTH SECTION -->
+                <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                    
+                    <!-- Health Message (Warning) -->
+                    ${details.health && details.health.message ? `
+                    <div style="background:rgba(239, 68, 68, 0.1); border-radius:12px; padding:1.2rem; border:1px solid rgba(239, 68, 68, 0.2);">
+                         <div style="color:#ef4444; font-size:0.8rem; font-weight:700; margin-bottom:0.5rem; letter-spacing:0.5px; display:flex; align-items:center; gap:0.5rem;">
+                            <i class="fas fa-exclamation-circle"></i> HEALTH MESSAGE
+                         </div>
+                         <div style="font-family:monospace; font-size:0.9rem; white-space:pre-wrap; opacity:0.9; color:var(--text-primary);">${details.health.message}</div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Fallback / Generic Health Message -->
+                    ${(details.health && details.health.status === 'Degraded' && !details.health.message && (!details.resource_errors || details.resource_errors.length === 0)) ? `
+                    <div class="card" style="background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
+                        <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">HEALTH MESSAGE</div>
+                        <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">Application is Degraded but no specific health message was returned by ArgoCD. Check the resource errors below.</div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Operation State Message -->
+                     ${details.operation_state && details.operation_state.message && (details.operation_state.phase === 'Failed' || details.operation_state.phase === 'Error') ? `
+                    <div class="card" style="background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
+                        <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">OPERATION ERROR</div>
+                        <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.operation_state.message}</div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Resource Errors -->
+                    ${details.resource_errors && details.resource_errors.length > 0 ? `
+                    <div class="card" style="background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
+                        <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">RESOURCE ERRORS</div>
+                        <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                            ${details.resource_errors.map(err => `
+                                <div style="background:rgba(0,0,0,0.2); padding:0.8rem; border-radius:6px; border-left:3px solid #ef4444;">
+                                    <div style="font-size:0.85rem; font-weight:600; color:#fca5a5; margin-bottom:0.3rem;">
+                                        ${err.kind}: ${err.name} <span style="opacity:0.6; font-weight:400; font-size:0.75rem;">(${err.status})</span>
+                                    </div>
+                                    <div style="font-family:monospace; font-size:0.85rem; opacity:0.9;">${err.message}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Conditions -->
+                    ${details.conditions && details.conditions.length > 0 ? `
+                    <div class="card" style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:1.2rem;">
+                        <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">CONDITIONS</div>
+                        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                            ${details.conditions.map(c => `
+                                <div style="padding:0.6rem; background:rgba(0,0,0,0.2); border-left:3px solid ${c.type && (c.type.includes('Error') || c.type.includes('Fail')) ? '#ef4444' : '#fbbf24'}; border-radius:4px;">
+                                    <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.2rem; color:var(--text-primary);">${c.type}</div>
+                                    <div style="font-size:0.85rem; opacity:0.8; font-family:monospace;">${c.message}</div>
+                                    ${c.lastTransitionTime ? `<div style="font-size:0.75rem; opacity:0.5; margin-top:0.3rem;">${new Date(c.lastTransitionTime).toLocaleString()}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+
+                </div>
+
                 <!-- Info Grid -->
                 <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:1.5rem;">
                     
@@ -6975,47 +7037,7 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                 </div>
                 ` : ''}
 
-                <!-- Health Message (Warning) -->
-                ${details.health && details.health.message ? `
-                <div style="background:rgba(239, 68, 68, 0.1); border-radius:12px; padding:1.2rem; border:1px solid rgba(239, 68, 68, 0.2); margin-top:0.5rem;">
-                     <div style="color:#ef4444; font-size:0.8rem; font-weight:700; margin-bottom:0.5rem; letter-spacing:0.5px; display:flex; align-items:center; gap:0.5rem;">
-                        <i class="fas fa-exclamation-circle"></i> HEALTH MESSAGE
-                     </div>
-                     <div style="font-family:monospace; font-size:0.9rem; white-space:pre-wrap; opacity:0.9; color:var(--text-primary);">${details.health.message}</div>
-                </div>
-                ` : ''}
 
-                <!-- Health Message -->
-                ${(details.health && details.health.message) || (details.health && details.health.status === 'Degraded') ? `
-                <div class="card" style="margin-top:0.5rem; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
-                    <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">HEALTH MESSAGE</div>
-                    <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.health.message || 'Application is Degraded but no specific health message was returned by ArgoCD.'}</div>
-                </div>
-                ` : ''}
-
-                <!-- Operation State Message -->
-                 ${details.operation_state && details.operation_state.message && (details.operation_state.phase === 'Failed' || details.operation_state.phase === 'Error') ? `
-                <div class="card" style="margin-top:0.5rem; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
-                    <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">OPERATION ERROR</div>
-                    <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.operation_state.message}</div>
-                </div>
-                ` : ''}
-
-                <!-- Conditions -->
-                ${details.conditions && details.conditions.length > 0 ? `
-                <div class="card" style="margin-top:0.5rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:1.2rem;">
-                    <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">CONDITIONS</div>
-                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
-                        ${details.conditions.map(c => `
-                            <div style="padding:0.6rem; background:rgba(0,0,0,0.2); border-left:3px solid ${c.type && (c.type.includes('Error') || c.type.includes('Fail')) ? '#ef4444' : '#fbbf24'}; border-radius:4px;">
-                                <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.2rem; color:var(--text-primary);">${c.type}</div>
-                                <div style="font-size:0.85rem; opacity:0.8; font-family:monospace;">${c.message}</div>
-                                ${c.lastTransitionTime ? `<div style="font-size:0.75rem; opacity:0.5; margin-top:0.3rem;">${new Date(c.lastTransitionTime).toLocaleString()}</div>` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : ''}
             </div>
         `;
 

@@ -46,6 +46,10 @@ def test_admin_access():
     # View Access
     resp = client.get("/admin")
     assert resp.status_code == 200
+    
+    # Check Settings Page (ensures template syntax is correct)
+    resp = client.get("/settings/users")
+    assert resp.status_code == 200, f"Settings/Users View Failed (likely template error): {resp.text}"
     print("SUCCESS: Admin Access")
 
 def test_operator_access():

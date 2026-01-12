@@ -44,6 +44,14 @@
             <thead>
                 <tr>
                     <th>Username</th>
+                    <th style="width:150px;">Role</th>
+                    <th style="width:80px; text-align:center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="user-table-body">
+                {% for u in users %}
+                <tr class="user-row" data-username="{{ u.username | lower }}">
+                    <td style="font-weight:600;">{{ u.username }}</td>
                     <td>
                         <select class="form-input" style="padding:0.3rem;" onchange="updateRole({{ u.id }}, this.value)"
                             {% if u.id==user.id %}disabled title="Cannot change your own role" {% endif %}>
@@ -54,10 +62,6 @@
                                 endif %}>User</option>
                         </select>
                     </td>
-                    <td style="text-align:center; display:none;">
-                        <!-- Hidden column for old toggle compatibility if needed, but removing it is better -->
-                        <!-- Deprecated Admin Toggle -->
-                    </td>
                     <td style="text-align:center;">
                         <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u.id }}, '{{ u.username }}')"
                             title="Delete User">
@@ -66,7 +70,7 @@
                     </td>
                 </tr>
                 {% endfor %}
-                </tbody>
+            </tbody>
         </table>
     </div>
     <!-- Pagination Controls -->

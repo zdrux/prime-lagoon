@@ -528,25 +528,15 @@ async function loadSummary(forceRefresh = false) {
 
                 // Update Badge
                 if (clusterLink) {
-                    let badge = clusterLink.querySelector('.badge-sm');
-                    const showBadge = hasMesh && window.isAdmin;
+                    const badgeContainer = clusterLink.querySelector('.sidebar-badge-container');
+                    if (badgeContainer) {
+                        const badge = badgeContainer.querySelector('.badge-sm');
+                        const showBadge = hasMesh && window.isAdmin;
 
-                    if (showBadge && !badge) {
-
-                        // Add it
-
-                        badge = document.createElement('span');
-
-                        badge.className = 'badge-sm';
-
-                        badge.innerText = 'SM';
-
-                        clusterLink.appendChild(badge);
-                    } else if (!showBadge && badge) {
-                        // Remove it
-                        badge.remove();
+                        if (badge) {
+                            badge.style.visibility = showBadge ? 'visible' : 'hidden';
+                        }
                     }
-
                 }
 
 
@@ -603,22 +593,15 @@ async function loadSummary(forceRefresh = false) {
 
 
                 if (clusterLink) {
-                    let badge = clusterLink.querySelector('.badge-cd');
-                    const showBadge = hasCD && window.isAdmin;
+                    const badgeContainer = clusterLink.querySelector('.sidebar-badge-container');
+                    if (badgeContainer) {
+                        const badge = badgeContainer.querySelector('.badge-cd');
+                        const showBadge = hasCD && window.isAdmin;
 
-                    if (showBadge && !badge) {
-
-                        badge = document.createElement('span');
-
-                        badge.className = 'badge-cd';
-
-                        badge.innerText = 'CD';
-
-                        clusterLink.appendChild(badge);
-                    } else if (!showBadge && badge) {
-                        badge.remove();
+                        if (badge) {
+                            badge.style.visibility = showBadge ? 'visible' : 'hidden';
+                        }
                     }
-
                 }
 
 

@@ -6977,6 +6977,32 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                      </div>
                 </div>
                 ` : ''}
+
+                <!-- Health Message (Warning) -->
+                ${details.health && details.health.message ? `
+                <div style="background:rgba(239, 68, 68, 0.1); border-radius:12px; padding:1.2rem; border:1px solid rgba(239, 68, 68, 0.2); margin-top:0.5rem;">
+                     <div style="color:#ef4444; font-size:0.8rem; font-weight:700; margin-bottom:0.5rem; letter-spacing:0.5px; display:flex; align-items:center; gap:0.5rem;">
+                        <i class="fas fa-exclamation-circle"></i> HEALTH MESSAGE
+                     </div>
+                     <div style="font-family:monospace; font-size:0.9rem; white-space:pre-wrap; opacity:0.9; color:var(--text-primary);">${details.health.message}</div>
+                </div>
+                ` : ''}
+
+                <!-- Conditions -->
+                ${details.conditions && details.conditions.length > 0 ? `
+                <div class="card" style="margin-top:0.5rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:1.2rem;">
+                    <div style="opacity:0.6; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:0.4rem;">CONDITIONS</div>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        ${details.conditions.map(c => `
+                            <div style="padding:0.6rem; background:rgba(0,0,0,0.2); border-left:3px solid ${c.type && (c.type.includes('Error') || c.type.includes('Fail')) ? '#ef4444' : '#fbbf24'}; border-radius:4px;">
+                                <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.2rem; color:var(--text-primary);">${c.type}</div>
+                                <div style="font-size:0.85rem; opacity:0.8; font-family:monospace;">${c.message}</div>
+                                ${c.lastTransitionTime ? `<div style="font-size:0.75rem; opacity:0.5; margin-top:0.3rem;">${new Date(c.lastTransitionTime).toLocaleString()}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
             </div>
         `;
 

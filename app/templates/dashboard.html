@@ -190,15 +190,17 @@
                 <div style="display:flex; gap:0.25rem; margin-right: 1rem;" id="trends-filter-group">
                     <button class="filter-btn" onclick="toggleTrendsFilter(this, 'DEV')" data-filter="DEV">DEV</button>
                     <button class="filter-btn" onclick="toggleTrendsFilter(this, 'UAT')" data-filter="UAT">UAT</button>
-                    <button class="filter-btn" onclick="toggleTrendsFilter(this, 'PROD')" data-filter="PROD">PROD</button>
+                    <button class="filter-btn" onclick="toggleTrendsFilter(this, 'PROD')"
+                        data-filter="PROD">PROD</button>
                     <div style="width:1px; background:var(--border-color); margin:0 0.25rem;"></div>
-                    <button class="filter-btn" onclick="toggleTrendsFilter(this, 'AZURE')" data-filter="AZURE">AZURE</button>
+                    <button class="filter-btn" onclick="toggleTrendsFilter(this, 'AZURE')"
+                        data-filter="AZURE">AZURE</button>
                     <button class="filter-btn" onclick="toggleTrendsFilter(this, 'HCI')" data-filter="HCI">HCI</button>
                 </div>
                 <div class="scale-toggle"
                     style="display:flex; background:rgba(255,255,255,0.05); border-radius:8px; padding:2px; margin-right:0.5rem;">
                     <button id="trends-scale-linear" class="btn btn-secondary btn-sm"
-                        style="padding:0.2rem 0.5rem; font-size:0.7rem; border-radius:6px; background:transparent;"
+                        style="padding:0.2rem 0.5rem; font-size:0.7rem; border-radius:6px; background:transparent; color:var(--text-secondary);"
                         onclick="setTrendsScale('linear')">Linear</button>
                     <button id="trends-scale-log" class="btn btn-secondary btn-sm active"
                         style="padding:0.2rem 0.5rem; font-size:0.7rem; border-radius:6px; background:var(--accent-color); color:#0f172a;"

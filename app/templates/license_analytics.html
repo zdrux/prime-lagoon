@@ -63,9 +63,12 @@
             <button class="btn btn-secondary active" id="scale-log"
                 onclick="updateChartScale('logarithmic')">Logarithmic</button>
             <button class="btn btn-secondary" id="scale-linear" onclick="updateChartScale('linear')">Linear</button>
+            <button class="btn btn-secondary" id="expand-chart-btn" onclick="toggleMapidChartHeight()"
+                title="Expand Chart"><i class="fas fa-expand-alt"></i></button>
         </div>
     </div>
-    <div style="position: relative; height: 300px; width: 100%;">
+    <div id="mapid-chart-container"
+        style="position: relative; height: 0; min-height: 0; overflow: hidden; width: 100%; transition: height 0.3s ease;">
         <div id="loader-trends"
             style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; background:rgba(0,0,0,0.2); z-index:10;">
             <div style="text-align:center; color:var(--text-primary);">
@@ -156,6 +159,46 @@
             const text = row.innerText.toLowerCase();
             row.style.display = text.includes(input) ? '' : 'none';
         });
+    }
+
+    function toggleMapidChartHeight() {
+        const container = document.getElementById('mapid-chart-container');
+        const btn = document.getElementById('expand-chart-btn');
+        // Check if explicitly expanded
+        const isExpanded = container.style.height === '80vh';
+
+        if (isExpanded) {
+            container.style.height = '0px';
+            btn.innerHTML = '<i class="fas fa-expand-alt"></i>';
+            btn.title = "Expand Chart";
+            btn.classList.remove('active');
+
+            // Wait for transition then hide to prevent artifacts
+            setTimeout(() => {
+                if (container.style.height === '0px') {
+                    container.style.display = 'none';
+                }
+            }, 300);
+
+        } else {
+            container.style.display = 'block';
+            // Slight delay to allow display:block to apply before animating height
+            requestAnimationFrame(() => {
+                container.style.height = '80vh';
+            });
+
+            btn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+            btn.title = "Collapse Chart";
+            btn.classList.add('active');
+
+            // Trigger a resize after transition to ensure chart fills 
+            // (ChartJS resize observer usually handles this but good to be safe)
+            setTimeout(() => {
+                if (window.licenseChartInstance) {
+                    window.licenseChartInstance.resize();
+                }
+            }, 350);
+        }
     }
 </script>
 

@@ -4807,7 +4807,7 @@ function setTrendsScale(scale) {
 
             logBtn.style.background = 'transparent';
 
-            logBtn.style.color = 'inherit';
+            logBtn.style.color = 'var(--text-secondary)';
 
         } else {
 
@@ -4821,7 +4821,7 @@ function setTrendsScale(scale) {
 
             linBtn.style.background = 'transparent';
 
-            linBtn.style.color = 'inherit';
+            linBtn.style.color = 'var(--text-secondary)';
 
         }
 
@@ -4920,7 +4920,7 @@ function renderTrendsChart(data) {
     // 1. Extract all unique timestamps for labels
 
     const allTimestamps = new Set();
-    
+
     // Filter logic
     const activeFilters = window._activeTrendsFilters;
     const allClusters = window._allClusters || [];
@@ -4946,10 +4946,10 @@ function renderTrendsChart(data) {
 
     if (filteredEntries.length === 0) {
         // Handle empty case
-         const ctx = document.getElementById('trends-chart').getContext('2d');
-         if (trendsChart) trendsChart.destroy();
-         // Maybe clear canvas or show "No selection"
-         return;
+        const ctx = document.getElementById('trends-chart').getContext('2d');
+        if (trendsChart) trendsChart.destroy();
+        // Maybe clear canvas or show "No selection"
+        return;
     }
 
     // Rebuild timestamps from filtered data

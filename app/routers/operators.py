@@ -151,6 +151,34 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                     else:
                         # Fallback if we have currentCSV but no CSV object (maybe pending install)
                         version = status.get("currentCSV", "Pending")
+
+                    # Extract detailed status info
+                    status_detail = ""
+                    status_reason = ""
+                    
+                    # 1. Check Subscription Conditions (often contains install plan errors)
+                    sub_conditions = status.get("conditions", [])
+                    # Look for failing conditions
+                    bad_conditions = [c for c in sub_conditions if (c.get("type") == "ResolutionFailed" and c.get("status") == "True") or (c.get("type") == "CatalogSourcesUnhealthy" and c.get("status") == "True") or (c.get("type") == "InstallPlanMissing" and c.get("status") == "True")]
+                    
+                    if bad_conditions:
+                        phase = "Degraded" # Override phase if subscription is failing
+                        status_reason = bad_conditions[0].get("reason") or bad_conditions[0].get("type")
+                        status_detail = bad_conditions[0].get("message")
+                    
+                    # 2. Check CSV Status if available (override/append)
+                    if installed_csv_name and installed_csv_name in csv_map:
+                        csv_obj = csv_map[installed_csv_name]
+                        csv_status = csv_obj.get("status", {})
+                        if csv_status.get("phase") == "Failed" or csv_status.get("phase") == "Pending":
+                            # If CSV is explicitly failed, use its message
+                            phase = csv_status.get("phase")
+                            csv_msg = csv_status.get("message", "")
+                            csv_r = csv_status.get("reason", "")
+                            if csv_msg:
+                                status_detail = csv_msg
+                            if csv_r:
+                                status_reason = csv_r
                     
                     # Add to Matrix
                     if pkg_name not in matrix_data["operators"]:
@@ -167,6 +195,8 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                         "version": version,
                         "channel": channel,
                         "status": phase,
+                        "reason": status_reason,
+                        "message": status_detail,
                         "subscription_name": meta.get("name"),
                         "namespace": meta.get("namespace"),
                         "approval": spec.get("installPlanApproval", "Automatic"),

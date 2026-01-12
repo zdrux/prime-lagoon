@@ -8,6 +8,7 @@ from app.models import User, AppConfig
 from app.dependencies import admin_required, get_current_user_optional
 from typing import Optional, List, Any
 from pydantic import BaseModel
+from typing import Optional, List, Any
 import json
 from app.models import Cluster, AppConfig, LicenseRule
 from app.services.ocp import fetch_resources
@@ -18,6 +19,9 @@ templates = Jinja2Templates(directory="app/templates")
 
 class UserUpdate(BaseModel):
     is_admin: bool
+    
+class UserRoleUpdate(BaseModel):
+    role: str # admin, operator, user
 
 class LDAPConfig(BaseModel):
     host: str
@@ -132,6 +136,33 @@ def toggle_admin(user_id: int, session: Session = Depends(get_session), user: Us
     session.add(target_user)
     session.commit()
     return {"ok": True, "is_admin": target_user.is_admin}
+
+@router.post("/api/users/{user_id}/role")
+def update_user_role(user_id: int, req: UserRoleUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    target_user = session.get(User, user_id)
+    if not target_user:
+        return {"error": "User not found"}
+        
+    new_role = req.role.lower()
+    if new_role not in ["admin", "operator", "user"]:
+        return {"error": "Invalid role"}
+
+    # Safety check: Last Admin 
+    # If demoting an admin (current role is admin AND new role is NOT admin)
+    if target_user.role == "admin" and new_role != "admin":
+        other_admins = session.exec(select(User).where(User.role == "admin", User.id != target_user.id)).all()
+        if not other_admins:
+             return {"error": "Cannot demote the last administrator."}
+
+    target_user.role = new_role
+    # Sync is_admin for backward compatibility
+    target_user.is_admin = (new_role == "admin")
+    
+    session.add(target_user)
+    session.commit()
+    session.refresh(target_user)
+    
+    return {"ok": True, "user": target_user.model_dump()}
 
 @router.post("/api/ldap")
 def update_ldap(config: LDAPConfig, session: Session = Depends(get_session), user: User = Depends(admin_required)):

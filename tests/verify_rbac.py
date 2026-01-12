@@ -89,11 +89,47 @@ def test_user_access():
     
     print("SUCCESS: User Access")
 
+def test_user_management():
+    print("Testing User Management Endpoint...")
+    admin_user = User(username="admin_mgr", role="admin")
+    sess = Session(engine)
+    sess.add(admin_user)
+    sess.commit()
+    
+    # Target User
+    target_user = User(username="target_u", role="user")
+    sess.add(target_user)
+    sess.commit()
+    sess.refresh(target_user)
+    
+    app.dependency_overrides[get_current_user] = lambda: admin_user
+    
+    # 1. Update Role to Operator
+    resp = client.post(f"/settings/api/users/{target_user.id}/role", json={"role": "operator"})
+    assert resp.status_code == 200, f"Update Role Failed: {resp.text}"
+    assert resp.json()["user"]["role"] == "operator"
+    
+    # 2. Verify DB state
+    sess.refresh(target_user)
+    assert target_user.role == "operator"
+    assert target_user.is_admin == False
+    
+    # 3. Update Role to Admin
+    resp = client.post(f"/settings/api/users/{target_user.id}/role", json={"role": "admin"})
+    assert resp.status_code == 200
+    
+    sess.refresh(target_user)
+    assert target_user.role == "admin"
+    assert target_user.is_admin == True
+    
+    print("SUCCESS: User Management")
+
 if __name__ == "__main__":
     try:
         test_admin_access()
         test_operator_access()
         test_user_access()
+        test_user_management()
         print("ALL TESTS PASSED")
     except Exception as e:
         print(f"TEST FAILED: {e}")

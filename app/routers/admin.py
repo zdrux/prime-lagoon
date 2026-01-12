@@ -24,7 +24,7 @@ class CleanupRequest(BaseModel):
 
 class UserCreate(BaseModel):
     username: str
-    is_admin: bool = False
+    role: str = "user" # admin, operator, user
 
 class ClusterTestRequest(SQLModel):
     api_url: str
@@ -612,7 +612,8 @@ def create_user(user: UserCreate, session: Session = Depends(get_session), admin
     if existing:
          raise HTTPException(status_code=400, detail="User already exists")
     
-    new_user = User(username=user.username, is_admin=user.is_admin)
+    role_val = user.role.lower() if user.role else "user"
+    new_user = User(username=user.username, role=role_val, is_admin=(role_val=="admin"))
     session.add(new_user)
     session.commit()
     session.refresh(new_user)

@@ -44,28 +44,19 @@
             <thead>
                 <tr>
                     <th>Username</th>
-                    <th style="width:120px;">Role</th>
-                    <th style="width:100px; text-align:center;">Admin Toggle</th>
-                    <th style="width:80px; text-align:center;">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="user-table-body">
-                {% for u in users %}
-                <tr class="user-row" data-username="{{ u.username | lower }}">
-                    <td style="font-weight:600;">{{ u.username }}</td>
                     <td>
-                        {% if u.is_admin %}
-                        <span class="badge badge-blue">Admin</span>
-                        {% else %}
-                        <span class="badge" style="opacity:0.6;">Regular</span>
-                        {% endif %}
+                        <select class="form-input" style="padding:0.3rem;" onchange="updateRole({{ u.id }}, this.value)"
+                            {% if u.id==user.id %}disabled title="Cannot change your own role" {% endif %}>
+                            <option value="admin" {% if u.role=='admin' or u.is_admin %}selected{% endif %}>Admin
+                            </option>
+                            <option value="operator" {% if u.role=='operator' %}selected{% endif %}>Operator</option>
+                            <option value="user" {% if u.role=='user' or (not u.role and not u.is_admin) %}selected{%
+                                endif %}>User</option>
+                        </select>
                     </td>
-                    <td style="text-align:center;">
-                        <label class="switch">
-                            <input type="checkbox" {% if u.is_admin %}checked{% endif %}
-                                onchange="toggleAdmin({{ u.id }})">
-                            <span class="slider round"></span>
-                        </label>
+                    <td style="text-align:center; display:none;">
+                        <!-- Hidden column for old toggle compatibility if needed, but removing it is better -->
+                        <!-- Deprecated Admin Toggle -->
                     </td>
                     <td style="text-align:center;">
                         <button class="btn btn-danger btn-sm" onclick="deleteUser({{ u.id }}, '{{ u.username }}')"
@@ -75,7 +66,7 @@
                     </td>
                 </tr>
                 {% endfor %}
-            </tbody>
+                </tbody>
         </table>
     </div>
     <!-- Pagination Controls -->
@@ -104,10 +95,12 @@
                 <input type="text" id="new-username" class="form-input" placeholder="e.g. jdoe">
             </div>
             <div class="form-group">
-                <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
-                    <input type="checkbox" id="new-is-admin">
-                    <span>Grant Admin Privileges</span>
-                </label>
+                <label class="form-label">Role</label>
+                <select id="new-user-role" class="form-input">
+                    <option value="user">User (Read Only)</option>
+                    <option value="operator">Operator (Admin View)</option>
+                    <option value="admin">Administrator (Full Access)</option>
+                </select>
             </div>
             <div id="add-user-error"
                 style="color:var(--danger-color); font-size:0.9rem; display:none; margin-bottom:1rem;"></div>
@@ -230,7 +223,7 @@
 
     async function saveUser() {
         const username = document.getElementById('new-username').value.trim();
-        const isAdmin = document.getElementById('new-is-admin').checked;
+        const role = document.getElementById('new-user-role').value;
         const errDiv = document.getElementById('add-user-error');
 
         if (!username) {
@@ -245,7 +238,7 @@
             const res = await fetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username, is_admin: isAdmin })
+                body: JSON.stringify({ username: username, role: role })
             });
 
             const data = await res.json();
@@ -259,14 +252,22 @@
         }
     }
 
-    async function toggleAdmin(userId) {
-        const res = await fetch(`/settings/api/users/${userId}/toggle_admin`, { method: 'POST' });
-        const data = await res.json();
-        if (data.error) {
-            alert(data.error);
-            window.location.reload();
-        } else {
-            // No reload needed if we just want to toggle, but for safety reload to sync state
+    async function updateRole(userId, newRole) {
+        try {
+            const res = await fetch(`/settings/api/users/${userId}/role`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole })
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                window.location.reload();
+            } else {
+                // Success - visual feedback optional
+            }
+        } catch (e) {
+            alert("Failed to update role: " + e.message);
             window.location.reload();
         }
     }

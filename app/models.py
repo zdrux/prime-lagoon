@@ -120,6 +120,17 @@ class User(SQLModel, table=True):
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"
+
+    @is_admin.setter
+    def is_admin(self, value: bool):
+        if value:
+            self.role = "admin"
+        elif self.role == "admin": 
+            # If turning off admin, default to user? 
+            # Or should we just leave it alone? 
+            # Logic in settings.py sets role first, then tries to sync is_admin.
+            # If we set is_admin=False, we should probably set role="user" if it was "admin"
+            self.role = "user"
         
     @property
     def is_operator(self) -> bool:

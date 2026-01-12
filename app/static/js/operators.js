@@ -278,22 +278,6 @@ function openOpModal(op, clusterName) {
         statusPill.style.background = '#eab308'; // Warning
     }
 
-    // Error Details
-    const errorContainer = document.getElementById('op-modal-error-container');
-    const errorMsg = document.getElementById('op-modal-error-msg');
-
-    if (install.message || install.reason) {
-        // Decide color based on status if needed, but default red/warning style is in HTML
-        errorContainer.style.display = 'block';
-        let msg = '';
-        if (install.reason) msg += `Reason: ${install.reason}\n`;
-        if (install.message) msg += `${install.message}`;
-        errorMsg.innerText = msg;
-    } else {
-        errorContainer.style.display = 'none';
-        errorMsg.innerText = '';
-    }
-
     const crdsContainer = document.getElementById('op-modal-crds');
     if (crdsContainer) {
         crdsContainer.innerHTML = '';

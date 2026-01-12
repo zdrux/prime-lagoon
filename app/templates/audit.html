@@ -164,8 +164,8 @@
             <!-- Actions (Stopped from bubbling) -->
             <div style="display:flex; gap:0.4rem;" onclick="event.stopPropagation()">
                 {% if user.is_admin %}
-                <button class="btn btn-secondary btn-bundle-edit" data-id="{{ bundle.id }}"
-                    data-name="{{ bundle.name | replace('"', ' &quot;') }}"
+                <button class="btn btn-secondary btn-bundle-edit" onclick="handleEditBundleClick(this)"
+                    data-id="{{ bundle.id }}" data-name="{{ bundle.name | replace('"', ' &quot;') }}"
                     data-dc="{{ bundle.match_datacenter or '' }}" data-env="{{ bundle.match_environment or '' }}"
                     data-tags="{{ (bundle.tags or '{}') | replace('"', ' &quot;') }}"
                     style="padding:0.25rem 0.5rem; font-size:0.75rem;" title="Edit Bundle Details">
@@ -264,11 +264,12 @@
                             <td>
                                 <div style="display:flex; gap:0.4rem;">
                                     {% if user.is_admin %}
-                                    <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
-                                        data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name | replace('"', '
-                                        &quot;') }}" data-kind="{{ rule.resource_kind }}"
-                                        data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
-                                        data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
+                                    <button class="btn btn-secondary btn-rule-edit" onclick="handleEditRuleClick(this)"
+                                        data-id="{{ rule.id }}" data-bundle-id="{{ bundle.id }}"
+                                        data-name="{{ rule.name | replace('"', ' &quot;') }}"
+                                        data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
+                                        data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
+                                        data-op="{{ rule.operator }}"
                                         data-val="{{ (rule.expected_value or "") | replace('"', ' &quot;') }}"
                                         data-res-name="{{ rule.match_resource_name or "" }}"
                                         data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
@@ -419,9 +420,9 @@
                     <td>
                         <div style="display:flex; gap:0.4rem;">
                             {% if user.is_admin %}
-                            <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}" data-bundle-id=""
-                                data-name="{{ rule.name | replace('"', ' &quot;') }}"
-                                data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
+                            <button class="btn btn-secondary btn-rule-edit" onclick="handleEditRuleClick(this)"
+                                data-id="{{ rule.id }}" data-bundle-id="" data-name="{{ rule.name | replace('"', '
+                                &quot;') }}" data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
                                 data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
                                 data-op="{{ rule.operator }}" data-val="{{ (rule.expected_value or '') | replace('"', '
                                 &quot;') }}" data-dc="{{ rule.match_datacenter or '' }}"
@@ -1049,28 +1050,24 @@
     }
 
     // Event delegation for Edit Rule buttons
-    document.addEventListener('click', e => {
-        // Rule Edit
-        const ruleBtn = e.target.closest('.btn-rule-edit');
-        if (ruleBtn) {
-            const d = ruleBtn.dataset;
-            openRuleModalForEdit(
-                d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
-                d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
-                d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
-                d.checkType || 'VALIDATION', d.bundleId || null, d.enabled || 'true'
-            );
-            return;
-        }
+    function handleEditRuleClick(btn) {
+        // Stop propagation to prevent bundle toggle if inside a bundle header (unused now but safe) or other containers involved
+        if (event) event.stopPropagation();
 
-        // Bundle Edit
-        const bundleBtn = e.target.closest('.btn-bundle-edit');
-        if (bundleBtn) {
-            const d = bundleBtn.dataset;
-            editBundle(d.id, d.name, d.dc || null, d.env || null, JSON.parse(d.tags || '{}'));
-            return;
-        }
-    });
+        const d = btn.dataset;
+        openRuleModalForEdit(
+            d.id, d.name, d.kind, d.api, d.path, d.op, d.val,
+            d.dc || null, d.env || null, JSON.parse(d.tags || '{}'),
+            d.resName || null, d.ns || null, d.logic || 'AND', d.extras || '[]',
+            d.checkType || 'VALIDATION', d.bundleId || null, d.enabled || 'true'
+        );
+    }
+
+    function handleEditBundleClick(btn) {
+        if (event) event.stopPropagation();
+        const d = btn.dataset;
+        editBundle(d.id, d.name, d.dc || null, d.env || null, JSON.parse(d.tags || '{}'));
+    }
 
     function openRuleModalForEdit(id, name, kind, api, path, op, val, dc, env, tags, resName, ns, logic, extras, checkType, bundleId, ruleBtnEnabled) {
         // Find if this rule has a bundle_id (passed via data attributes in table)

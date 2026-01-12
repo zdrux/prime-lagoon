@@ -109,6 +109,7 @@
                 style="padding:0.35rem 0.75rem 0.35rem 2rem; border-radius:15px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.8rem; width:220px;"
                 oninput="filterRules()">
         </div>
+        {% if user.is_admin %}
         <button class="btn btn-secondary" onclick="openExportModal()">
             <i class="fas fa-file-export"></i> Export Rules
         </button>
@@ -121,6 +122,7 @@
         <button class="btn btn-secondary" onclick="openRuleModal()">
             <i class="fas fa-plus"></i> New Ad-hoc Rule
         </button>
+        {% endif %}
     </div>
 </div>
 
@@ -161,6 +163,7 @@
 
             <!-- Actions (Stopped from bubbling) -->
             <div style="display:flex; gap:0.4rem;" onclick="event.stopPropagation()">
+                {% if user.is_admin %}
                 <button class="btn btn-secondary btn-bundle-edit" data-id="{{ bundle.id }}"
                     data-name="{{ bundle.name | replace('"', ' &quot;') }}"
                     data-dc="{{ bundle.match_datacenter or '' }}" data-env="{{ bundle.match_environment or '' }}"
@@ -176,6 +179,7 @@
                     style="padding:0.25rem 0.5rem; font-size:0.75rem;" title="Delete Bundle">
                     <i class="fas fa-trash"></i>
                 </button>
+                {% endif %}
             </div>
         </div>
 
@@ -259,6 +263,7 @@
                             </td>
                             <td>
                                 <div style="display:flex; gap:0.4rem;">
+                                    {% if user.is_admin %}
                                     <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
                                         data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
                                         data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
@@ -279,12 +284,15 @@
                                         style="padding:0.2rem 0.5rem;" title="Delete Rule">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    {% endif %}
                                 </div>
                             </td>
                             <td style="text-align:center;">
-                                <button class="btn {{ 'btn-secondary' if rule.is_enabled else 'btn-danger' }}"
-                                    onclick="toggleRuleStatus({{ rule.id }})"
-                                    style="padding:0.3rem 0.75rem; min-width:80px; font-size:0.75rem;"
+                                <button class="btn {{ 'btn-secondary' if rule.is_enabled else 'btn-danger' }}" {% if
+                                    user.is_admin %} onclick="toggleRuleStatus({{ rule.id }})" {% else %} disabled
+                                    style="opacity:0.6; cursor:not-allowed; padding:0.3rem 0.75rem; min-width:80px; font-size:0.75rem;"
+                                    {% endif %} {% if user.is_admin %}
+                                    style="padding:0.3rem 0.75rem; min-width:80px; font-size:0.75rem;" {% endif %}
                                     title="{{ 'Suspend Rule' if rule.is_enabled else 'Activate Rule' }}">
                                     {% if rule.is_enabled %}
                                     <i class="fas fa-pause" style="margin-right:0.3rem;"></i> Active
@@ -409,6 +417,7 @@
                     </td>
                     <td>
                         <div style="display:flex; gap:0.4rem;">
+                            {% if user.is_admin %}
                             <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}" data-bundle-id=""
                                 data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
                                 data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
@@ -430,12 +439,15 @@
                                 style="padding:0.2rem 0.5rem;" title="Delete Rule">
                                 <i class="fas fa-trash"></i>
                             </button>
+                            {% endif %}
                         </div>
                     </td>
                     <td style="text-align:center;">
-                        <button class="btn {{ 'btn-secondary' if rule.is_enabled else 'btn-danger' }}"
-                            onclick="toggleRuleStatus({{ rule.id }})"
-                            style="padding:0.3rem 0.5rem; min-width:70px; font-size:0.75rem;"
+                        <button class="btn {{ 'btn-secondary' if rule.is_enabled else 'btn-danger' }}" {% if
+                            user.is_admin %} onclick="toggleRuleStatus({{ rule.id }})" {% else %} disabled
+                            style="opacity:0.6; cursor:not-allowed; padding:0.3rem 0.5rem; min-width:70px; font-size:0.75rem;"
+                            {% endif %} {% if user.is_admin %}
+                            style="padding:0.3rem 0.5rem; min-width:70px; font-size:0.75rem;" {% endif %}
                             title="{{ 'Suspend Rule' if rule.is_enabled else 'Activate Rule' }}">
                             {% if rule.is_enabled %}
                             <i class="fas fa-pause"></i>

@@ -3241,9 +3241,8 @@ function updateSidebarHighlighting(clusterId, resourceType) {
 
     if (clusterId) {
 
-        // Highlight the cluster header
-
-        const clusterHeader = document.querySelector(`.submenu-toggle[data-target="submenu-${clusterId}"]`);
+        // Highlight the cluster header (Fixed selector)
+        const clusterHeader = document.querySelector(`.nav-link[data-cluster-id="${clusterId}"]`);
 
         if (clusterHeader) clusterHeader.classList.add('active');
 
@@ -6959,7 +6958,7 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                             </span>
                         </div>
                         <div style="font-size:0.9rem; margin-bottom:0.5rem;">
-                             <span style="opacity:0.6;">Last Rev:</span> <code style="font-size:0.85rem;">${details.sync.revision.substring(0, 8)}</code>
+                             <span style="opacity:0.6;">Last Rev:</span> <code style="font-size:0.85rem;">${(details.sync && details.sync.revision) ? details.sync.revision.substring(0, 8) : '-'}</code>
                         </div>
                         ${details.sync_policy.sync_options && details.sync_policy.sync_options.length > 0 ? `
                              <div>

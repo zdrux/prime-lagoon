@@ -711,7 +711,14 @@ async function loadSummary(forceRefresh = false) {
 
                 <div id="summary-total-licenses" style="font-size:1.25rem; font-weight:800; color:var(--accent-color);">${global.total_licenses || 0}</div>
 
-                <div style="font-size:0.55rem; opacity:0.5; margin-top:0.2rem;">(Click for Trends)</div>
+                <div style="margin-top:0.5rem;">
+                    <button class="btn btn-sm" style="background:rgba(56, 189, 248, 0.15); border:1px solid rgba(56, 189, 248, 0.3); color:var(--accent-color); font-size:0.75rem; padding:0.3rem 0.8rem; border-radius:20px; cursor:pointer; font-weight:600; transition:all 0.2s; display:inline-flex; align-items:center; gap:0.4rem;" 
+                            onclick="event.stopPropagation(); showHistoricalModal()"
+                            onmouseover="this.style.background='rgba(56, 189, 248, 0.25)'"
+                            onmouseout="this.style.background='rgba(56, 189, 248, 0.15)'">
+                        <i class="fas fa-chart-line"></i> View Trends
+                    </button>
+                </div>
 
                 <style>
 
@@ -2206,10 +2213,23 @@ function renderGlobalMapidChart(data) {
                 tooltip: {
 
                     mode: 'index',
-
                     intersect: false,
-
-                    itemSort: (a, b) => b.raw - a.raw
+                    itemSort: (a, b) => b.raw - a.raw,
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#cbd5e1',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1,
+                    callbacks: {
+                        labelColor: function (context) {
+                            return {
+                                borderColor: context.dataset.borderColor,
+                                backgroundColor: context.dataset.borderColor,
+                                borderWidth: 0,
+                                borderRadius: 2,
+                            };
+                        }
+                    }
 
                 }
 
@@ -3740,10 +3760,18 @@ function renderClusterLicenseChart(data) {
 
                     intersect: false,
 
-                    backgroundColor: 'rgba(15, 23, 42, 0.9)'
-
+                    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                    callbacks: {
+                        labelColor: function (context) {
+                            return {
+                                borderColor: context.dataset.borderColor,
+                                backgroundColor: context.dataset.borderColor,
+                                borderWidth: 0,
+                                borderRadius: 2,
+                            };
+                        }
+                    }
                 }
-
             },
 
             scales: {
@@ -5017,19 +5045,20 @@ function renderTrendsChart(data) {
                     borderWidth: 1,
 
                     callbacks: {
-
+                        labelColor: function (context) {
+                            return {
+                                borderColor: context.dataset.borderColor,
+                                backgroundColor: context.dataset.borderColor,
+                                borderWidth: 0,
+                                borderRadius: 2,
+                            };
+                        },
                         label: function (context) {
-
                             let label = context.dataset.label || '';
-
                             if (label) label += ': ';
-
                             if (context.parsed.y !== null) label += context.parsed.y + ' Lic';
-
                             return label;
-
                         }
-
                     }
 
                 }

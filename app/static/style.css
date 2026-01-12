@@ -1130,29 +1130,32 @@ a:hover {
     vertical-align: middle;
     display: inline-block;
 }
+
 /* Realigned Sidebar Badges */
 .badge-sm {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px; 
+    width: 24px;
     height: 16px;
     padding: 0;
     margin: 0;
     font-size: 0.6rem;
     border-radius: 4px;
 }
+
 .badge-cd {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     width: 24px;
-    height: 16px; 
+    height: 16px;
     padding: 0;
     margin: 0;
     font-size: 0.6rem;
     border-radius: 4px;
 }
+
 .sidebar-badge-container {
     display: flex;
     align-items: center;
@@ -1160,5 +1163,5 @@ a:hover {
     gap: 4px;
     min-width: 56px;
     width: 56px;
-    margin-right: 10px;
+    margin-left: auto;
 }

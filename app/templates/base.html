@@ -210,13 +210,13 @@
                     data-dc="{{ cluster.datacenter }}" data-env="{{ cluster.environment }}">
                     <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
                         onclick="toggleClusterMenu({{ cluster.id }})">
+                        <i class="fas fa-server"></i> {{ cluster.name }}
                         <div class="sidebar-badge-container">
                             <span class="badge-sm" {% if not cluster.has_service_mesh %}style="visibility:hidden" {%
                                 endif %}>SM</span>
                             <span class="badge-cd" {% if not cluster.has_argocd %}style="visibility:hidden" {% endif
                                 %}>CD</span>
                         </div>
-                        <i class="fas fa-server"></i> {{ cluster.name }}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
                         {% if user.is_admin %}
@@ -254,13 +254,13 @@
                     data-dc="{{ cluster.datacenter }}" data-env="{{ cluster.environment }}">
                     <a href="#" class="nav-link cluster-link" data-cluster-id="{{ cluster.id }}"
                         onclick="toggleClusterMenu({{ cluster.id }})">
+                        <i class="fas fa-server"></i> {{ cluster.name }}
                         <div class="sidebar-badge-container">
                             <span class="badge-sm" {% if not cluster.has_service_mesh %}style="visibility:hidden" {%
                                 endif %}>SM</span>
                             <span class="badge-cd" {% if not cluster.has_argocd %}style="visibility:hidden" {% endif
                                 %}>CD</span>
                         </div>
-                        <i class="fas fa-server"></i> {{ cluster.name }}
                     </a>
                     <div class="resource-submenu" id="submenu-{{ cluster.id }}">
                         {% if user.is_admin %}

@@ -4877,6 +4877,7 @@ async function loadTrendsData() {
 
         if (data && Object.keys(data).length > 0) {
 
+            window._lastTrendsData = data; // Store for filtering
             renderTrendsChart(data);
 
         } else {
@@ -4895,19 +4896,66 @@ async function loadTrendsData() {
 
 
 
+
+/* Trends Filtering */
+window._activeTrendsFilters = new Set();
+
+function toggleTrendsFilter(btn, filter) {
+    btn.classList.toggle('active');
+
+    if (window._activeTrendsFilters.has(filter)) {
+        window._activeTrendsFilters.delete(filter);
+    } else {
+        window._activeTrendsFilters.add(filter);
+    }
+
+    // Re-render if we have data
+    if (window._lastTrendsData) {
+        renderTrendsChart(window._lastTrendsData);
+    }
+}
+
 function renderTrendsChart(data) {
 
     // 1. Extract all unique timestamps for labels
 
     const allTimestamps = new Set();
+    
+    // Filter logic
+    const activeFilters = window._activeTrendsFilters;
+    const allClusters = window._allClusters || [];
 
-    Object.values(data).forEach(clusterData => {
+    const filteredEntries = Object.entries(data).filter(([clusterName, points]) => {
+        if (activeFilters.size === 0) return true;
 
-        clusterData.forEach(d => allTimestamps.add(d.timestamp));
+        // Find cluster object to get metadata
+        const clusterObj = allClusters.find(c => c.name === clusterName);
+        if (!clusterObj) return true; // If not found, show it (fallback)
 
+        const env = (clusterObj.environment || '').toUpperCase();
+        const dc = (clusterObj.datacenter || '').toUpperCase();
+
+        const envFilters = ['DEV', 'UAT', 'PROD'].filter(f => activeFilters.has(f));
+        const dcFilters = ['AZURE', 'HCI'].filter(f => activeFilters.has(f));
+
+        const matchesEnv = envFilters.length === 0 || envFilters.includes(env);
+        const matchesDc = dcFilters.length === 0 || dcFilters.includes(dc);
+
+        return matchesEnv && matchesDc;
     });
 
+    if (filteredEntries.length === 0) {
+        // Handle empty case
+         const ctx = document.getElementById('trends-chart').getContext('2d');
+         if (trendsChart) trendsChart.destroy();
+         // Maybe clear canvas or show "No selection"
+         return;
+    }
 
+    // Rebuild timestamps from filtered data
+    filteredEntries.forEach(([_, points]) => {
+        points.forEach(d => allTimestamps.add(d.timestamp));
+    });
 
     const sortedTimestamps = Array.from(allTimestamps).sort();
 
@@ -4941,7 +4989,7 @@ function renderTrendsChart(data) {
 
 
 
-    const datasets = Object.entries(data).map(([clusterName, points], idx) => {
+    const datasets = filteredEntries.map(([clusterName, points], idx) => {
 
         const color = colors[idx % colors.length];
 
@@ -4994,6 +5042,7 @@ function renderTrendsChart(data) {
         options: {
 
             responsive: true,
+
 
             maintainAspectRatio: false,
 

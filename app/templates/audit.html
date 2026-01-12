@@ -167,8 +167,8 @@
                 <button class="btn btn-secondary btn-bundle-edit" data-id="{{ bundle.id }}"
                     data-name="{{ bundle.name | replace('"', ' &quot;') }}"
                     data-dc="{{ bundle.match_datacenter or '' }}" data-env="{{ bundle.match_environment or '' }}"
-                    data-tags="{{ bundle.tags or '{}' }}" style="padding:0.25rem 0.5rem; font-size:0.75rem;"
-                    title="Edit Bundle Details">
+                    data-tags="{{ (bundle.tags or '{}') | replace('"', ' &quot;') }}"
+                    style="padding:0.25rem 0.5rem; font-size:0.75rem;" title="Edit Bundle Details">
                     <i class="fas fa-pencil-alt"></i>
                 </button>
                 <button class="btn btn-secondary" onclick="openRuleModal({{ bundle.id }})"
@@ -265,13 +265,14 @@
                                 <div style="display:flex; gap:0.4rem;">
                                     {% if user.is_admin %}
                                     <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}"
-                                        data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name }}"
-                                        data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
-                                        data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
-                                        data-op="{{ rule.operator }}" data-val="{{ rule.expected_value or "" }}"
+                                        data-bundle-id="{{ bundle.id }}" data-name="{{ rule.name | replace('"', '
+                                        &quot;') }}" data-kind="{{ rule.resource_kind }}"
+                                        data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
+                                        data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
+                                        data-val="{{ (rule.expected_value or "") | replace('"', ' &quot;') }}"
                                         data-res-name="{{ rule.match_resource_name or "" }}"
                                         data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                        data-extras="{{ rule.extra_conditions or '[]' }}"
+                                        data-extras="{{ (rule.extra_conditions or '[]') | replace('"', ' &quot;') }}"
                                         data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
                                         style="padding:0.2rem 0.5rem;" title="Edit Rule">
                                         <i class="fas fa-edit"></i>
@@ -419,14 +420,16 @@
                         <div style="display:flex; gap:0.4rem;">
                             {% if user.is_admin %}
                             <button class="btn btn-secondary btn-rule-edit" data-id="{{ rule.id }}" data-bundle-id=""
-                                data-name="{{ rule.name }}" data-kind="{{ rule.resource_kind }}"
-                                data-api="{{ rule.api_version }}" data-ns="{{ rule.namespace or "" }}"
-                                data-path="{{ rule.field_path }}" data-op="{{ rule.operator }}"
-                                data-val="{{ rule.expected_value or '' }}" data-dc="{{ rule.match_datacenter or '' }}"
-                                data-env="{{ rule.match_environment or '' }}" data-tags="{{ rule.tags or '{}' }}"
+                                data-name="{{ rule.name | replace('"', ' &quot;') }}"
+                                data-kind="{{ rule.resource_kind }}" data-api="{{ rule.api_version }}"
+                                data-ns="{{ rule.namespace or "" }}" data-path="{{ rule.field_path }}"
+                                data-op="{{ rule.operator }}" data-val="{{ (rule.expected_value or '') | replace('"', '
+                                &quot;') }}" data-dc="{{ rule.match_datacenter or '' }}"
+                                data-env="{{ rule.match_environment or '' }}"
+                                data-tags="{{ (rule.tags or '{}') | replace('"', ' &quot;') }}"
                                 data-res-name="{{ rule.match_resource_name or '' }}"
                                 data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                data-extras="{{ rule.extra_conditions or '[]' }}"
+                                data-extras="{{ (rule.extra_conditions or '[]') | replace('"', ' &quot;') }}"
                                 data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
                                 style="padding:0.2rem 0.5rem;" title="Edit Rule">
                                 <i class="fas fa-edit"></i>

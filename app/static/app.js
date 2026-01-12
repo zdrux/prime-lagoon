@@ -7000,6 +7000,22 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                 </div>
                 ` : ''}
 
+                <!-- Health Message -->
+                ${details.health && details.health.message ? `
+                <div class="card" style="margin-top:0.5rem; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
+                    <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">HEALTH MESSAGE</div>
+                    <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.health.message}</div>
+                </div>
+                ` : ''}
+
+                <!-- Operation State Message -->
+                 ${details.operation_state && details.operation_state.message && (details.operation_state.phase === 'Failed' || details.operation_state.phase === 'Error') ? `
+                <div class="card" style="margin-top:0.5rem; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
+                    <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">OPERATION ERROR</div>
+                    <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.operation_state.message}</div>
+                </div>
+                ` : ''}
+
                 <!-- Conditions -->
                 ${details.conditions && details.conditions.length > 0 ? `
                 <div class="card" style="margin-top:0.5rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:1.2rem;">

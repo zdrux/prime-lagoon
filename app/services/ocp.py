@@ -1188,69 +1188,60 @@ def get_argocd_application_details(cluster: Cluster, namespace: str, name: str) 
         status = getattr(app, 'status', None) or {}
         spec = getattr(app, 'spec', None) or {}
         
-        # Helper to get list safely
-        def get_list(obj, attr):
-            val = getattr(obj, attr, [])
-            return val if val is not None else []
+        summary = get_val(status, 'summary')
+        summary_images = get_val(summary, 'images') or []
+        summary_urls = get_val(summary, 'externalURLs') or []
 
-        summary = getattr(status, 'summary', None) or MagicMock() # Fallback for safety if not using object notation
-        # Better: handle status as potentially a dict if coming from certain client configurations, 
-        # but dynamic client usually returns objects. We will assume object access but check for None field values.
-
-        summary_images = []
-        summary_urls = []
-        if hasattr(status, 'summary') and status.summary:
-             summary_images = getattr(status.summary, 'images', []) or []
-             summary_urls = getattr(status.summary, 'externalURLs', []) or []
-
-        sync = getattr(status, 'sync', None)
-        health = getattr(status, 'health', None)
+        sync = get_val(status, 'sync')
+        health = get_val(status, 'health')
         
-        history_items = getattr(status, 'history', []) or []
-        conditions_items = getattr(status, 'conditions', []) or []
+        history_items = get_val(status, 'history') or []
+        conditions_items = get_val(status, 'conditions') or []
         
         # Operation State
-        op_state = getattr(status, 'operationState', None)
-        op_state_dict = op_state.to_dict() if op_state else None
+        op_state = get_val(status, 'operationState')
+        op_state_dict = op_state.to_dict() if hasattr(op_state, 'to_dict') else (op_state if isinstance(op_state, dict) else {})
 
+        dest = get_val(spec, 'destination') or {}
+        source = get_val(spec, 'source') or {}
+        sync_policy = get_val(spec, 'syncPolicy') or {}
 
-        dest = getattr(spec, 'destination', None) or {}
-        source = getattr(spec, 'source', None) or {}
-        sync_policy = getattr(spec, 'syncPolicy', None) or {}
+        # Safely extract sync options
+        sync_opts = get_val(sync_policy, 'syncOptions') or []
 
         return {
-            "name": app.metadata.name,
-            "namespace": app.metadata.namespace,
-            "project": getattr(spec, 'project', 'default'),
+            "name": get_val(app, 'metadata.name'),
+            "namespace": get_val(app, 'metadata.namespace'),
+            "project": get_val(spec, 'project', 'default'),
             "destination": {
-                "server": getattr(dest, 'server', 'Unknown'),
-                "namespace": getattr(dest, 'namespace', 'Unknown')
+                "server": get_val(dest, 'server', 'Unknown'),
+                "namespace": get_val(dest, 'namespace', 'Unknown')
             },
             "source": {
-                "repoURL": getattr(source, 'repoURL', 'Unknown'),
-                "path": getattr(source, 'path', ''),
-                "targetRevision": getattr(source, 'targetRevision', 'HEAD')
+                "repoURL": get_val(source, 'repoURL', 'Unknown'),
+                "path": get_val(source, 'path', ''),
+                "targetRevision": get_val(source, 'targetRevision', 'HEAD')
             },
             "sync_policy": {
-                "automated": getattr(sync_policy, 'automated', None) is not None,
-                "sync_options": getattr(sync_policy, 'syncOptions', []) or []
+                "automated": get_val(sync_policy, 'automated') is not None,
+                "sync_options": sync_opts
             },
             "summary": {
                 "images": summary_images,
                 "external_urls": summary_urls
             },
             "sync": {
-                "status": getattr(sync, 'status', 'Unknown') if sync else 'Unknown',
-                "revision": getattr(sync, 'revision', '') if sync else '',
-                "compared_to": getattr(sync, 'comparedTo', {}) if sync else {}
+                "status": get_val(sync, 'status', 'Unknown'),
+                "revision": get_val(sync, 'revision', ''),
+                "compared_to": get_val(sync, 'comparedTo') or {}
             },
             "health": {
-                "status": getattr(health, 'status', 'Unknown') if health else 'Unknown',
-                "message": getattr(health, 'message', '') if health else ''
+                "status": get_val(health, 'status', 'Unknown'),
+                "message": get_val(health, 'message', '')
             },
-            "history": [h.to_dict() for h in history_items][-5:],
+            "history": [h.to_dict() if hasattr(h, 'to_dict') else h for h in history_items][-5:],
             "operation_state": op_state_dict,
-            "conditions": [c.to_dict() for c in conditions_items]
+            "conditions": [c.to_dict() if hasattr(c, 'to_dict') else c for c in conditions_items]
         }
     except Exception as e:
         print(f"Error fetching ArgoCD app details for {name} on {cluster.name}: {e}")

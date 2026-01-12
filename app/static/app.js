@@ -6077,7 +6077,7 @@ function renderServiceMesh(meshData) {
 
 
 async function loadServiceMesh(clusterId) {
-    if (!window.isAdmin) return;
+    if (!(window.isAdmin || window.isOperator)) return;
 
     try {
 
@@ -6593,7 +6593,7 @@ function renderServiceMeshPage(clusterData, meshData) {
 
 
 async function loadArgoCD(clusterId) {
-    if (!window.isAdmin) return;
+    if (!(window.isAdmin || window.isOperator)) return;
 
     const mainContent = document.querySelector('.main-content');
 

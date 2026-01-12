@@ -39,7 +39,13 @@
                             {{ user.username }}</div>
                         <div style="font-size: 0.65rem; opacity: 0.6; display: flex; align-items: center; gap: 0.3rem;">
                             <i class="fas fa-circle" style="font-size: 0.35rem; color: var(--success-color);"></i>
-                            {% if user.is_admin %}Administrator{% else %}Regular User{% endif %}
+                            {% if user.is_admin %}
+                            Administrator
+                            {% elif user.role == 'operator' %}
+                            Operator
+                            {% else %}
+                            Regular User
+                            {% endif %}
                         </div>
                     </div>
                     <a href="/logout" title="Logout"
@@ -51,7 +57,7 @@
                 {% endif %}
 
                 <!-- Snapshot Selector -->
-                {% if user.is_admin %}
+                {% if user.is_operator %}
                 <li
                     style="padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem;">
                     <div
@@ -72,7 +78,7 @@
                 {% endif %}
 
                 <!-- Administration Group -->
-                {% if user.is_admin %}
+                {% if user.is_operator %}
                 <li
                     style="padding: 0.4rem 0.6rem; font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.4rem; margin-bottom:0.1rem;">
                     Administration
@@ -157,14 +163,14 @@
                         <i class="fas fa-th-large"></i> All Clusters
                     </a>
                 </li>
-                {% if user.is_admin %}
+                {% if user.is_operator %}
                 <li class="nav-item">
                     <a href="/license-analytics" class="nav-link {% if page == 'license_analytics' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i> License Analytics (MAPID)
                     </a>
                 </li>
                 {% endif %}
-                {% if user.is_admin %}
+                {% if user.is_operator %}
                 <li class="nav-item">
                     <a href="/operators" class="nav-link {% if page == 'operators' %}active{% endif %}">
                         <i class="fas fa-boxes"></i> Cluster Operators

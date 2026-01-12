@@ -3264,9 +3264,11 @@ function updateSidebarHighlighting(clusterId, resourceType) {
                 const onclick = link.getAttribute('onclick') || '';
 
                 if (onclick.includes(`'${resourceType}'`)) {
-
                     link.classList.add('active');
-
+                } else if (resourceType === 'argocd' && onclick.includes('loadArgoCD')) {
+                    link.classList.add('active');
+                } else if (resourceType === 'servicemesh' && onclick.includes('loadServiceMesh')) {
+                    link.classList.add('active');
                 }
 
             });
@@ -6104,32 +6106,7 @@ async function loadServiceMesh(clusterId) {
 
 
         // Highlight logic reuse
-
-        document.querySelectorAll('.nav-link, .sub-link').forEach(l => l.classList.remove('active'));
-
-        // Find the SM link and activate it? Hard to find specific one easily without ID, 
-
-        // but let's at least highlight the cluster parent.
-
-        const clusterLink = document.querySelector(`.nav-link[data-cluster-id="${clusterId}"]`);
-
-        if (clusterLink) {
-
-            // Find parent
-
-            const clusterItem = clusterLink.closest('.cluster-item');
-
-            if (clusterItem) {
-
-                const smLink = clusterItem.querySelector('.sub-link[onclick*="loadServiceMesh"]');
-
-                if (smLink) smLink.classList.add('active');
-
-            }
-
-        }
-
-
+        updateSidebarHighlighting(clusterId, 'servicemesh');
 
         // Fetch details (reuse existing endpoint)
 
@@ -6268,7 +6245,12 @@ function renderServiceMeshPage(clusterData, meshData) {
 
                  </h1>
 
-                 ${window.currentSnapshotTime ? `<div style="font-size:0.9rem; color:#f59e0b; margin-top:0.5rem; font-weight:500; display:flex; align-items:center;"><i class="fas fa-history" style="margin-right:6px;"></i>As of: ${new Date(window.currentSnapshotTime.includes('Z') ? window.currentSnapshotTime : window.currentSnapshotTime + 'Z').toLocaleString()}</div>` : ''}
+                 <div style="font-size:0.9rem; color:var(--text-secondary); margin-top:0.5rem; font-weight:500; display:flex; align-items:center;">
+                    <i class="fas fa-clock" style="margin-right:6px; color:var(--text-secondary);"></i>
+                    As of: ${window.currentSnapshotTime
+            ? `<span style="color:#f59e0b; margin-left:4px;">${new Date(window.currentSnapshotTime.includes('Z') ? window.currentSnapshotTime : window.currentSnapshotTime + 'Z').toLocaleString()} <i class="fas fa-history"></i></span>`
+            : `<span style="color:#10b981; margin-left:4px;">${new Date().toLocaleString()} (Live)</span>`}
+                 </div>
 
             </div>
 
@@ -6386,15 +6368,15 @@ function renderServiceMeshPage(clusterData, meshData) {
 
                 ${sortedMembers.map((ns, idx) => {
 
-        const nsGateways = gateways.filter(g => g.namespace === ns);
+                const nsGateways = gateways.filter(g => g.namespace === ns);
 
-        const nsVS = vservices.filter(v => v.namespace === ns);
+                const nsVS = vservices.filter(v => v.namespace === ns);
 
-        const hasConfig = nsGateways.length > 0 || nsVS.length > 0;
+                const hasConfig = nsGateways.length > 0 || nsVS.length > 0;
 
 
 
-        return `
+                return `
 
                     <div class="accordion-item" style="background:var(--card-bg); border:1px solid var(--border-color); margin-bottom:0.5rem; border-radius:8px; overflow:hidden;">
 
@@ -6550,7 +6532,7 @@ function renderServiceMeshPage(clusterData, meshData) {
 
                     `;
 
-    }).join('')}
+            }).join('')}
 
             </div>
 
@@ -6596,6 +6578,9 @@ async function loadArgoCD(clusterId) {
     if (!(window.isAdmin || window.isOperator)) return;
 
     const mainContent = document.querySelector('.main-content');
+
+    // Highlight sidebar
+    updateSidebarHighlighting(clusterId, 'argocd');
 
     mainContent.innerHTML = '<div class="loading-spinner"></div>';
 
@@ -7001,10 +6986,10 @@ async function loadArgoCDAppDetails(clusterId, namespace, name) {
                 ` : ''}
 
                 <!-- Health Message -->
-                ${details.health && details.health.message ? `
+                ${(details.health && details.health.message) || (details.health && details.health.status === 'Degraded') ? `
                 <div class="card" style="margin-top:0.5rem; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); border-radius:12px; padding:1.2rem;">
                     <div style="color:#ef4444; font-size:0.75rem; font-weight:700; margin-bottom:0.8rem; letter-spacing:0.5px; border-bottom:1px solid rgba(239, 68, 68, 0.2); padding-bottom:0.4rem;">HEALTH MESSAGE</div>
-                    <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.health.message}</div>
+                    <div style="font-family:monospace; font-size:0.9rem; color:#fca5a5;">${details.health.message || 'Application is Degraded but no specific health message was returned by ArgoCD.'}</div>
                 </div>
                 ` : ''}
 

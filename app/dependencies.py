@@ -22,7 +22,7 @@ def get_current_user_optional(request: Request, session: Session = Depends(get_s
         return None
         
     try:
-        username = serializer.loads(session_id)
+        username = serializer.loads(session_id).lower().strip()
         user = session.exec(select(User).where(User.username == username)).first()
         return user
     except:

@@ -24,6 +24,7 @@ def login(
     password: str = Form(...),
     session: Session = Depends(get_session)
 ):
+    username = username.lower().strip()
     if not is_ldap_enabled(session):
         return RedirectResponse(url="/", status_code=303)
         

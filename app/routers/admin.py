@@ -608,6 +608,7 @@ def restart_application(user: User = Depends(admin_required)):
 @router.post("/users")
 def create_user(user: UserCreate, session: Session = Depends(get_session), admin: User = Depends(admin_required)):
     """Manually create a user."""
+    user.username = user.username.lower().strip()
     existing = session.exec(select(User).where(User.username == user.username)).first()
     if existing:
          raise HTTPException(status_code=400, detail="User already exists")

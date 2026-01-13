@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 from sqlmodel import Field, SQLModel, Column, Text, Boolean
 from pydantic import field_validator
@@ -115,6 +115,13 @@ class LicenseRule(SQLModel, table=True):
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
+    
+    @field_validator('username', mode='before')
+    @classmethod
+    def normalize_username(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.lower().strip()
+        return v
     role: str = Field(default="user") # "admin", "operator", "user"
     
     # Database column for is_admin (required by schema NOT NULL)

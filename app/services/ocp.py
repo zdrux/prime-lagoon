@@ -321,13 +321,25 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
                 if host:
                     console_url = f"https://{host}"
             
+            # Extract Service Mesh/ArgoCD info from snapshot if available
+            has_service_mesh = False
+            has_argocd = False
+            
+            if snapshot_data.get('service_mesh'):
+                has_service_mesh = snapshot_data['service_mesh'].get('is_active', False)
+            
+            if snapshot_data.get('argocd'):
+                has_argocd = snapshot_data['argocd'].get('is_active', False)
+
             return {
                 "id": cluster.id,
                 "node_count": node_count,
                 "vcpu_count": int(vcpu_count),
                 "version": cluster_version,
                 "console_url": console_url,
-                "upgrade_status": upgrade_status
+                "upgrade_status": upgrade_status,
+                "has_service_mesh": has_service_mesh,
+                "has_argocd": has_argocd
             }
 
         dyn_client = get_dynamic_client(cluster)
@@ -412,19 +424,23 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             except:
                 pass
             
-            # Check v3 (if not v2)
+            # Check v3 (Sail Operator - multiple possible groups/versions)
             if not has_service_mesh:
-                try:
-                    istio_api = dyn_client.resources.get(api_version='sail.operator.openshift.io/v1', kind='Istio')
-                    if istio_api.get().items:
-                        has_service_mesh = True
-                except:
-                     try: # Fallback
-                        istio_api = dyn_client.resources.get(api_version='istio.io/v1beta1', kind='Istio')
-                        if istio_api.get().items:
+                v3_groups = [
+                    ('sail.operator.openshift.io/v1', 'Istio'),
+                    ('sail.operator.openshift.io/v1alpha1', 'Istio'),
+                    ('sailoperator.io/v1alpha1', 'Istio'),
+                    ('istio.io/v1beta1', 'Istio'),
+                    ('istio.io/v1', 'Istio')
+                ]
+                for g_ver, g_kind in v3_groups:
+                    try:
+                        api = dyn_client.resources.get(api_version=g_ver, kind=g_kind)
+                        if api.get().items:
                             has_service_mesh = True
-                     except:
-                        pass
+                            break
+                    except:
+                        continue
         except:
             pass
 
@@ -603,18 +619,21 @@ def get_service_mesh_details(cluster: Cluster, snapshot_data: Optional[dict] = N
 
         # v3: Istio (Sail Operator)
         v3_cp_list = []
-        try:
-            istio_api = dyn_client.resources.get(api_version='sail.operator.openshift.io/v1', kind='Istio')
-            v3_cp_list = istio_api.get().items
-        except dyn_exc.ResourceNotFoundError:
-            # Fallback to upstream istio.io if sail not using own group yet or different version
+        v3_groups = [
+            ('sail.operator.openshift.io/v1', 'Istio'),
+            ('sail.operator.openshift.io/v1alpha1', 'Istio'),
+            ('sailoperator.io/v1alpha1', 'Istio'),
+            ('istio.io/v1beta1', 'Istio'),
+            ('istio.io/v1', 'Istio')
+        ]
+        for g_ver, g_kind in v3_groups:
             try:
-                istio_api = dyn_client.resources.get(api_version='istio.io/v1beta1', kind='Istio')
+                istio_api = dyn_client.resources.get(api_version=g_ver, kind=g_kind)
                 v3_cp_list = istio_api.get().items
-            except:
-                pass
-        except Exception:
-            pass
+                if v3_cp_list:
+                    break
+            except (dyn_exc.ResourceNotFoundError, Exception):
+                continue
 
         if not v2_cp_list and not v3_cp_list:
             return mesh_data

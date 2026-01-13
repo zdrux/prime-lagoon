@@ -427,6 +427,7 @@ def get_cluster_stats(cluster: Cluster, nodes: Optional[List[Any]] = None, snaps
             # Check v3 (Sail Operator - multiple possible groups/versions)
             if not has_service_mesh:
                 v3_groups = [
+                    ('sailoperator.io/v1', 'Istio'),
                     ('sail.operator.openshift.io/v1', 'Istio'),
                     ('sail.operator.openshift.io/v1alpha1', 'Istio'),
                     ('sailoperator.io/v1alpha1', 'Istio'),
@@ -620,6 +621,7 @@ def get_service_mesh_details(cluster: Cluster, snapshot_data: Optional[dict] = N
         # v3: Istio (Sail Operator)
         v3_cp_list = []
         v3_groups = [
+            ('sailoperator.io/v1', 'Istio'),
             ('sail.operator.openshift.io/v1', 'Istio'),
             ('sail.operator.openshift.io/v1alpha1', 'Istio'),
             ('sailoperator.io/v1alpha1', 'Istio'),

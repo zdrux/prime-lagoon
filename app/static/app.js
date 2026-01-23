@@ -4861,9 +4861,16 @@ function closeTrendsModal() {
 
 async function loadTrendsData() {
 
-    const days = document.getElementById('trends-days').value;
+    const daysSelect = document.getElementById('trends-days');
+    const days = daysSelect.value;
+    let url = `/api/dashboard/trends?days=${days === 'custom' ? 30 : days}`; // Default to 30 if custom but param handles overwrite
 
-    const url = `/api/dashboard/trends?days=${days}`;
+    if (days === 'custom') {
+        const customDate = document.getElementById('trends-custom-date').value;
+        if (customDate) {
+            url += `&start_date=${customDate}`;
+        }
+    }
 
 
 
@@ -4897,8 +4904,103 @@ async function loadTrendsData() {
 
 
 
+
+function toggleCustomDate(select) {
+    const dateInput = document.getElementById('trends-custom-date');
+    if (select.value === 'custom') {
+        dateInput.style.display = 'block';
+        // Set default if empty?
+        if (!dateInput.value) {
+            // Default to 1st of current month or 30 days ago
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            dateInput.value = d.toISOString().split('T')[0];
+        }
+    } else {
+        dateInput.style.display = 'none';
+        loadTrendsData(); // Reload immediately for standard options
+    }
+}
+
 /* Trends Filtering */
 window._activeTrendsFilters = new Set();
+window._trendsChangesOnly = false;
+
+function toggleTrendsChangesOnly(checkbox) {
+    window._trendsChangesOnly = checkbox.checked;
+    const diffContainer = document.getElementById('trends-diff-container');
+
+    if (window._trendsChangesOnly) {
+        if (diffContainer) diffContainer.style.display = 'block';
+        loadTrendsDiffs();
+    } else {
+        if (diffContainer) diffContainer.style.display = 'none';
+        // Resize chart back?
+    }
+
+    if (window._lastTrendsData) {
+        renderTrendsChart(window._lastTrendsData);
+    }
+}
+
+async function loadTrendsDiffs() {
+    const tbody = document.getElementById('trends-diff-body');
+    const loader = document.getElementById('trends-diff-loader');
+
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    if (loader) loader.style.display = 'block';
+
+    const daysSelect = document.getElementById('trends-days');
+    const days = daysSelect.value;
+    let url = `/api/dashboard/trends/diffs?days=${days === 'custom' ? 30 : days}`;
+
+    if (days === 'custom') {
+        const customDate = document.getElementById('trends-custom-date').value;
+        if (customDate) {
+            url += `&start_date=${customDate}`;
+        }
+    }
+
+    // Add filters
+    const activeFilters = window._activeTrendsFilters;
+    const envs = ['DEV', 'UAT', 'PROD'].filter(f => activeFilters.has(f));
+    const dcs = ['AZURE', 'HCI'].filter(f => activeFilters.has(f));
+
+    if (envs.length > 0) url += `&environment=${envs[0]}`; // TODO: Support Multi
+    if (dcs.length > 0) url += `&datacenter=${dcs[0]}`;
+
+    try {
+        const res = await fetch(url);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected contributing to license flux.</td></tr>';
+            } else {
+                tbody.innerHTML = data.map(Row => `
+                    <tr>
+                        <td style="white-space:nowrap; font-family:monospace;">${formatEST(Row.timestamp)}</td>
+                        <td style="font-weight:600;">${Row.cluster}</td>
+                        <td>
+                            <span class="badge ${Row.type === 'ADDED' ? 'badge-green' : (Row.type === 'REMOVED' ? 'badge-red' : 'badge-blue')}">
+                                ${Row.type}
+                            </span>
+                        </td>
+                        <td>${Row.detail}</td>
+                    </tr>
+                `).join('');
+            }
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--danger-color);">Failed to load changes.</td></tr>';
+        }
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger-color);">${e.message}</td></tr>`;
+    } finally {
+        if (loader) loader.style.display = 'none';
+    }
+}
 
 function toggleTrendsFilter(btn, filter) {
     btn.classList.toggle('active');
@@ -4941,7 +5043,22 @@ function renderTrendsChart(data) {
         const matchesEnv = envFilters.length === 0 || envFilters.includes(env);
         const matchesDc = dcFilters.length === 0 || dcFilters.includes(dc);
 
-        return matchesEnv && matchesDc;
+        if (!matchesEnv || !matchesDc) return false;
+
+        // Changes Only Filter
+        if (window._trendsChangesOnly) {
+            // Check if license count changes across the points
+            // Points array might need sorting by timestamp first to be sure, 
+            // but usually backend sends ordered.
+            if (points.length < 2) return false; // Can't show change with 1 point? Or maybe show if > 0? Let's say flat line = constant.
+
+            const firstVal = points[0].licenses;
+            // Check if ANY point is different from first
+            const hasChange = points.some(p => p.licenses !== firstVal);
+            if (!hasChange) return false;
+        }
+
+        return true;
     });
 
     if (filteredEntries.length === 0) {

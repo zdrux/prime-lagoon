@@ -771,6 +771,7 @@ def get_resource_trends(
     datacenter: Optional[str] = Query(None),
     cluster_id: Optional[int] = Query(None),
     days: int = Query(30),
+    start_date: Optional[str] = Query(None),
     session: Session = Depends(get_session)
 ):
     """
@@ -793,8 +794,16 @@ def get_resource_trends(
     if not filtered_cluster_ids:
         return [] if cluster_id else {}
 
-    # 2. Get Snapshots for these clusters in the last X days
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    # 2. Get Snapshots for these clusters
+    # Logic: Start Date > Days priority
+    if start_date:
+        try:
+             cutoff = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+             # Fallback
+             cutoff = datetime.utcnow() - timedelta(days=days)
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=days)
     
     if cluster_id:
         # Single cluster summary (used by cluster details modal)
@@ -1296,3 +1305,140 @@ def get_mapid_resources(cluster_id: int, mapid: str, snapshot_time: Optional[str
         "nodes": filtered_nodes,
         "projects": filtered_projects
     }
+
+@router.get("/trends/diffs")
+def get_resource_trends_diffs(
+    environment: Optional[str] = Query(None),
+    datacenter: Optional[str] = Query(None),
+    cluster_id: Optional[int] = Query(None),
+    days: int = Query(30),
+    start_date: Optional[str] = Query(None),
+    session: Session = Depends(get_session)
+):
+    """
+    Returns a list of specific changes (Added/Removed nodes) that caused license count shifts.
+    """
+    # 1. Base Query
+    cluster_query = select(Cluster.id, Cluster.name)
+    if cluster_id:
+        cluster_query = cluster_query.where(Cluster.id == cluster_id)
+    if environment:
+        cluster_query = cluster_query.where(Cluster.environment == environment)
+    if datacenter:
+        cluster_query = cluster_query.where(Cluster.datacenter == datacenter)
+    
+    clusters = session.exec(cluster_query).all()
+    filtered_cluster_ids = [c.id for c in clusters]
+    cluster_map = {c.id: c.name for c in clusters}
+
+    if not filtered_cluster_ids:
+        return []
+
+    # 2. Cutoff
+    if start_date:
+        try:
+             cutoff = datetime.strptime(start_date, "%Y-%m-%d")
+        except ValueError:
+             cutoff = datetime.utcnow() - timedelta(days=days)
+    else:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+
+    # 3. Fetch Snapshots
+    # We need strictly ordered snapshots per cluster
+    statement = select(
+        ClusterSnapshot.cluster_id, 
+        ClusterSnapshot.timestamp, 
+        ClusterSnapshot.license_count,
+        ClusterSnapshot.data_json
+    ).where(
+        ClusterSnapshot.cluster_id.in_(filtered_cluster_ids),
+        ClusterSnapshot.timestamp >= cutoff,
+        ClusterSnapshot.status == "Success"
+    ).order_by(
+        ClusterSnapshot.cluster_id,
+        ClusterSnapshot.timestamp.asc()
+    )
+    
+    rows = session.exec(statement).all()
+    
+    # Group by cluster
+    grouped = {}
+    for r in rows:
+        if r.cluster_id not in grouped: grouped[r.cluster_id] = []
+        grouped[r.cluster_id].append(r)
+
+    changes = []
+    
+    from app.services.license import calculate_licenses
+    from app.models import LicenseRule, AppConfig
+
+    # Optimization: Cache rules since they don't change per loop
+    rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
+    default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
+
+    for cid, snaps in grouped.items():
+        if len(snaps) < 2: continue
+        
+        c_name = cluster_map.get(cid, "Unknown")
+        
+        # Compare i with i-1
+        for i in range(1, len(snaps)):
+            curr = snaps[i]
+            prev = snaps[i-1]
+            
+            if curr.license_count != prev.license_count:
+                # DRILL DOWN
+                try:
+                    prev_data = json.loads(prev.data_json) if prev.data_json else {}
+                    curr_data = json.loads(curr.data_json) if curr.data_json else {}
+                    
+                    prev_nodes = prev_data.get("nodes", [])
+                    curr_nodes = curr_data.get("nodes", [])
+                    
+                    # Calculate licenses to know WHICH nodes are licensed
+                    # We only care about Licensed nodes being added/removed
+                    prev_lic = calculate_licenses(prev_nodes, rules, default_include)
+                    curr_lic = calculate_licenses(curr_nodes, rules, default_include)
+                    
+                    prev_licensed_names = set(d['name'] for d in prev_lic['details'] if d['status'] == 'INCLUDED')
+                    curr_licensed_names = set(d['name'] for d in curr_lic['details'] if d['status'] == 'INCLUDED')
+                    
+                    added = curr_licensed_names - prev_licensed_names
+                    removed = prev_licensed_names - curr_licensed_names
+                    
+                    timestamp = curr.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+                    for node in added:
+                        changes.append({
+                            "timestamp": timestamp,
+                            "cluster": c_name,
+                            "type": "ADDED",
+                            "detail": f"Node {node} (Licensed)",
+                            "diff": curr.license_count - prev.license_count
+                        })
+                        
+                    for node in removed:
+                        changes.append({
+                            "timestamp": timestamp,
+                            "cluster": c_name,
+                            "type": "REMOVED",
+                            "detail": f"Node {node} (Licensed)",
+                            "diff": curr.license_count - prev.license_count
+                        })
+
+                    # If count changed but no nodes added/removed (maybe CPU count changed on existing node?)
+                    if not added and not removed:
+                         changes.append({
+                            "timestamp": timestamp,
+                            "cluster": c_name,
+                            "type": "MODIFIED",
+                            "detail": "License count changed but set of licensed nodes matches. Likely vCPU adjustment.",
+                            "diff": curr.license_count - prev.license_count
+                        })
+
+                except Exception as e:
+                    print(f"Error diffing snapshots for {c_name}: {e}")
+                    
+    # Sort by timestamp desc
+    changes.sort(key=lambda x: x["timestamp"], reverse=True)
+    return changes

@@ -4885,7 +4885,13 @@ async function loadTrendsData() {
         if (data && Object.keys(data).length > 0) {
 
             window._lastTrendsData = data; // Store for filtering
-            renderTrendsChart(data);
+            let allowedClusters = null;
+            if (window._trendsChangesOnly) {
+                // Refresh diffs for the new date range
+                allowedClusters = await loadTrendsDiffs();
+            }
+
+            renderTrendsChart(data, allowedClusters);
 
         } else {
 

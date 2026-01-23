@@ -430,6 +430,7 @@ a:hover {
 
 
 
+
 .form-input:focus {
 
     outline: none;
@@ -438,6 +439,20 @@ a:hover {
 
     box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1);
 
+}
+
+input[type="date"] {
+    color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
 }
 
 

@@ -4995,26 +4995,32 @@ async function loadTrendsDiffs() {
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected.</td></tr>';
             } else {
-                // Grouping Logic
+                // Grouping Logic: Aggregate by Cluster
                 const groups = {};
 
                 data.forEach(row => {
                     changedClusters.add(row.cluster);
-                    const key = `${row.timestamp}__${row.cluster}`;
+                    const key = row.cluster; // Group by Cluster Name only
                     if (!groups[key]) {
                         groups[key] = {
-                            ts: row.timestamp,
                             cluster: row.cluster,
                             net: 0,
-                            items: []
+                            items: [],
+                            minTs: row.timestamp,
+                            maxTs: row.timestamp
                         };
                     }
                     groups[key].net += row.diff; // diff comes from backend
                     groups[key].items.push(row);
+                    
+                    if (row.timestamp < groups[key].minTs) groups[key].minTs = row.timestamp;
+                    if (row.timestamp > groups[key].maxTs) groups[key].maxTs = row.timestamp;
                 });
 
                 // Render Groups
-                Object.values(groups).forEach((g, idx) => {
+                // Sort by cluster name or absolute net change? 
+                // Let's sort by Cluster Name for now
+                Object.values(groups).sort((a,b) => a.cluster.localeCompare(b.cluster)).forEach((g, idx) => {
                     const groupId = `diff-group-${idx}`;
 
                     // Determine Net Badge
@@ -5038,16 +5044,24 @@ async function loadTrendsDiffs() {
                         }
                     };
 
+                    // Format Date Range
+                    let dateDisplay = formatEST(g.maxTs, false).split(',')[0]; 
+                    if (g.minTs !== g.maxTs) {
+                        const d1 = formatEST(g.minTs, false).split(',')[0];
+                         // Simplistic range
+                        dateDisplay = `${d1} - ${dateDisplay}`;
+                    }
+
                     parentRow.innerHTML = `
                         <td style="text-align:center;"><i class="fas fa-chevron-right" style="transition:transform 0.2s; font-size:0.7rem; opacity:0.7;"></i></td>
-                        <td style="font-family:monospace; font-weight:bold; color:var(--text-primary); font-size:0.85rem;">
-                            ${formatEST(g.ts)}
+                        <td style="font-family:monospace; color:var(--text-secondary); font-size:0.8rem;">
+                            ${dateDisplay}
                         </td>
                         <td>
                             <div style="font-weight:600;">${g.cluster}</div>
                         </td>
                         <td>
-                             <span class="badge ${badgeClass}" style="font-size:0.8rem;">${sign}${g.net}</span>
+                             <span class="badge ${badgeClass}" style="font-size:0.85rem;">${sign}${g.net}</span>
                         </td>
                         <td style="font-size:0.75rem; opacity:0.5;">
                             ${g.items.length} event(s)
@@ -5059,17 +5073,22 @@ async function loadTrendsDiffs() {
                     childRow.style.display = 'none';
                     childRow.style.background = 'rgba(0,0,0,0.1)';
 
-                    const childContent = g.items.map(item => `
-                        <div style="padding:0.2rem 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:0.5rem; align-items:center;">
+                    const childContent = g.items
+                        .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)) // Newest first
+                        .map(item => `
+                        <div style="padding:0.4rem 0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:1rem; align-items:center;">
+                             <div style="font-family:monospace; font-size:0.75rem; opacity:0.7; min-width:140px;">${formatEST(item.timestamp)}</div>
                              <span class="badge ${item.type === 'ADDED' ? 'badge-green' : 'badge-red'}" style="font-size:0.65rem; width:50px; text-align:center;">${item.type}</span>
-                             <span style="font-family:monospace; font-size:0.75rem;">${item.detail}</span>
+                             <span style="font-family:monospace; font-size:0.75rem; flex:1;">${item.detail}</span>
                              ${item.vcpu ? `<span class="badge badge-purple" style="font-size:0.65rem;">${item.vcpu} vCPU</span>` : ''}
                         </div>
                    `).join('');
 
                     childRow.innerHTML = `
-                        <td colspan="5" style="padding:0.5rem 1rem 1rem 3rem;">
-                            ${childContent}
+                        <td colspan="5" style="padding:0;">
+                            <div style="max-height:300px; overflow-y:auto; padding:0.5rem 1rem 1rem 3rem;">
+                                ${childContent}
+                            </div>
                         </td>
                    `;
 
@@ -5078,11 +5097,11 @@ async function loadTrendsDiffs() {
                 });
             }
         } else {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--danger-color);">Failed to load changes.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--danger-color);">Failed to load changes.</td></tr>';
         }
     } catch (e) {
         console.error(e);
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--danger-color);">${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger-color);">${e.message}</td></tr>`;
     } finally {
         if (loader) loader.style.display = 'none';
     }

@@ -2224,7 +2224,7 @@ function renderGlobalMapidChart(data) {
 
                     type: currentScale,
 
-                    beginAtZero: true,
+                    beginAtZero: false,
 
                     title: { display: true, text: 'Total Licenses' }
 

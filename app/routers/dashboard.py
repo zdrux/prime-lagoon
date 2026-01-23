@@ -1343,9 +1343,18 @@ def get_resource_trends_diffs(
     else:
         cutoff = datetime.utcnow() - timedelta(days=days)
 
+
+    # Global Cache for Diff Results (Simple In-Memory)
+    # Key: f"{prev_id}-{curr_id}", Value: List[ChangeDict]
+    # Since snapshots are immutable, this is safe.
+    global DIFF_CACHE
+    if 'DIFF_CACHE' not in globals():
+        DIFF_CACHE = {}
+    
     # 3. Fetch Snapshots
     # We need strictly ordered snapshots per cluster
     statement = select(
+        ClusterSnapshot.id,
         ClusterSnapshot.cluster_id, 
         ClusterSnapshot.timestamp, 
         ClusterSnapshot.license_count,
@@ -1376,6 +1385,16 @@ def get_resource_trends_diffs(
     rules = session.exec(select(LicenseRule).where(LicenseRule.is_active == True).order_by(LicenseRule.order, LicenseRule.id)).all()
     default_include = (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
 
+    # Helper to find vCPU
+    def get_vcpu(name, nodes_list):
+        n = next((x for x in nodes_list if x['metadata']['name'] == name), None)
+        if n:
+            try:
+                return n['status']['capacity'].get('cpu', '?')
+            except:
+                return '?'
+        return '?'
+
     for cid, snaps in grouped.items():
         if len(snaps) < 2: continue
         
@@ -1387,7 +1406,15 @@ def get_resource_trends_diffs(
             prev = snaps[i-1]
             
             if curr.license_count != prev.license_count:
-                # DRILL DOWN
+                # CACHE CHECK
+                cache_key = f"{prev.id}-{curr.id}"
+                if cache_key in DIFF_CACHE:
+                    # Cache Hit
+                    changes.extend(DIFF_CACHE[cache_key])
+                    continue
+
+                # CACHE MISS - Calculate
+                local_changes = []
                 try:
                     prev_data = json.loads(prev.data_json) if prev.data_json else {}
                     curr_data = json.loads(curr.data_json) if curr.data_json else {}
@@ -1396,7 +1423,6 @@ def get_resource_trends_diffs(
                     curr_nodes = curr_data.get("nodes", [])
                     
                     # Calculate licenses to know WHICH nodes are licensed
-                    # We only care about Licensed nodes being added/removed
                     prev_lic = calculate_licenses(prev_nodes, rules, default_include)
                     curr_lic = calculate_licenses(curr_nodes, rules, default_include)
                     
@@ -1408,33 +1434,42 @@ def get_resource_trends_diffs(
                     
                     timestamp = curr.timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-                    for node in added:
-                        changes.append({
+                    for node_name in added:
+                        vcpu = get_vcpu(node_name, curr_nodes)
+                        local_changes.append({
                             "timestamp": timestamp,
                             "cluster": c_name,
                             "type": "ADDED",
-                            "detail": f"Node {node} (Licensed)",
+                            "detail": f"Node {node_name} (Licensed)",
+                            "vcpu": vcpu,
                             "diff": curr.license_count - prev.license_count
                         })
                         
-                    for node in removed:
-                        changes.append({
+                    for node_name in removed:
+                        vcpu = get_vcpu(node_name, prev_nodes)
+                        local_changes.append({
                             "timestamp": timestamp,
                             "cluster": c_name,
                             "type": "REMOVED",
-                            "detail": f"Node {node} (Licensed)",
+                            "detail": f"Node {node_name} (Licensed)",
+                            "vcpu": vcpu,
                             "diff": curr.license_count - prev.license_count
                         })
 
                     # If count changed but no nodes added/removed (maybe CPU count changed on existing node?)
                     if not added and not removed:
-                         changes.append({
+                         local_changes.append({
                             "timestamp": timestamp,
                             "cluster": c_name,
                             "type": "MODIFIED",
                             "detail": "License count changed but set of licensed nodes matches. Likely vCPU adjustment.",
+                            "vcpu": "-", # N/A or find changed?
                             "diff": curr.license_count - prev.license_count
                         })
+                    
+                    # STORE IN CACHE
+                    DIFF_CACHE[cache_key] = local_changes
+                    changes.extend(local_changes)
 
                 except Exception as e:
                     print(f"Error diffing snapshots for {c_name}: {e}")

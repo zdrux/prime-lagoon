@@ -5050,6 +5050,7 @@ async function loadTrendsDiffs() {
                         <div style="padding:0.2rem 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:0.5rem; align-items:center;">
                              <span class="badge ${item.type === 'ADDED' ? 'badge-green' : 'badge-red'}" style="font-size:0.65rem; width:50px; text-align:center;">${item.type}</span>
                              <span style="font-family:monospace; font-size:0.75rem;">${item.detail}</span>
+                             ${item.vcpu ? `<span class="badge badge-purple" style="font-size:0.65rem;">${item.vcpu} vCPU</span>` : ''}
                         </div>
                    `).join('');
 

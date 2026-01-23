@@ -4885,6 +4885,13 @@ async function loadTrendsData() {
         if (data && Object.keys(data).length > 0) {
 
             window._lastTrendsData = data; // Store for filtering
+
+            // Fix persistence bug: Explicitly check DOM in case global state drifted or wasn't set on initial load if triggered by date change
+            const changesOnlyCheckbox = document.getElementById('trends-changes-only');
+            if (changesOnlyCheckbox && changesOnlyCheckbox.checked) {
+                window._trendsChangesOnly = true;
+            }
+
             let allowedClusters = null;
             if (window._trendsChangesOnly) {
                 // Refresh diffs for the new date range
@@ -4906,8 +4913,6 @@ async function loadTrendsData() {
     }
 
 }
-
-
 
 
 
@@ -4988,7 +4993,7 @@ async function loadTrendsDiffs() {
             const data = await res.json();
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected.</td></tr>';
             } else {
                 // Grouping Logic
                 const groups = {};
@@ -5035,9 +5040,11 @@ async function loadTrendsDiffs() {
 
                     parentRow.innerHTML = `
                         <td style="text-align:center;"><i class="fas fa-chevron-right" style="transition:transform 0.2s; font-size:0.7rem; opacity:0.7;"></i></td>
+                        <td style="font-family:monospace; font-weight:bold; color:var(--text-primary); font-size:0.85rem;">
+                            ${formatEST(g.ts)}
+                        </td>
                         <td>
                             <div style="font-weight:600;">${g.cluster}</div>
-                            <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${formatEST(g.ts)}</div>
                         </td>
                         <td>
                              <span class="badge ${badgeClass}" style="font-size:0.8rem;">${sign}${g.net}</span>
@@ -5061,7 +5068,7 @@ async function loadTrendsDiffs() {
                    `).join('');
 
                     childRow.innerHTML = `
-                        <td colspan="4" style="padding:0.5rem 1rem 1rem 3rem;">
+                        <td colspan="5" style="padding:0.5rem 1rem 1rem 3rem;">
                             ${childContent}
                         </td>
                    `;

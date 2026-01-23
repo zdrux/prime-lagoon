@@ -5315,10 +5315,7 @@ function renderTrendsChart(data, allowedClusters = null) {
                 y: {
 
                     type: window.currentTrendsScale || 'logarithmic',
-
-                    beginAtZero: (window.currentTrendsScale || 'logarithmic') === 'linear',
-
-                    min: (window.currentTrendsScale || 'logarithmic') === 'logarithmic' ? 1 : undefined,
+                    beginAtZero: false,
 
                     ticks: {
 

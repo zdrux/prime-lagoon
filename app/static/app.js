@@ -4926,20 +4926,22 @@ function toggleCustomDate(select) {
 window._activeTrendsFilters = new Set();
 window._trendsChangesOnly = false;
 
-function toggleTrendsChangesOnly(checkbox) {
+async function toggleTrendsChangesOnly(checkbox) {
     window._trendsChangesOnly = checkbox.checked;
     const diffContainer = document.getElementById('trends-diff-container');
 
+    let allowedClusters = null;
+
     if (window._trendsChangesOnly) {
         if (diffContainer) diffContainer.style.display = 'block';
-        loadTrendsDiffs();
+        allowedClusters = await loadTrendsDiffs(); // Wait for this to populate the set
     } else {
         if (diffContainer) diffContainer.style.display = 'none';
         // Resize chart back?
     }
 
     if (window._lastTrendsData) {
-        renderTrendsChart(window._lastTrendsData);
+        renderTrendsChart(window._lastTrendsData, allowedClusters);
     }
 }
 
@@ -4947,7 +4949,10 @@ async function loadTrendsDiffs() {
     const tbody = document.getElementById('trends-diff-body');
     const loader = document.getElementById('trends-diff-loader');
 
-    if (!tbody) return;
+    // Return set of cluster names found in diffs for strict graph filtering
+    const changedClusters = new Set();
+
+    if (!tbody) return changedClusters;
 
     tbody.innerHTML = '';
     if (loader) loader.style.display = 'block';
@@ -4968,28 +4973,95 @@ async function loadTrendsDiffs() {
     const envs = ['DEV', 'UAT', 'PROD'].filter(f => activeFilters.has(f));
     const dcs = ['AZURE', 'HCI'].filter(f => activeFilters.has(f));
 
-    if (envs.length > 0) url += `&environment=${envs[0]}`; // TODO: Support Multi
+    if (envs.length > 0) url += `&environment=${envs[0]}`;
     if (dcs.length > 0) url += `&datacenter=${dcs[0]}`;
 
     try {
         const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();
+
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected contributing to license flux.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected.</td></tr>';
             } else {
-                tbody.innerHTML = data.map(Row => `
-                    <tr>
-                        <td style="white-space:nowrap; font-family:monospace;">${formatEST(Row.timestamp)}</td>
-                        <td style="font-weight:600;">${Row.cluster}</td>
+                // Grouping Logic
+                const groups = {};
+
+                data.forEach(row => {
+                    changedClusters.add(row.cluster);
+                    const key = `${row.timestamp}__${row.cluster}`;
+                    if (!groups[key]) {
+                        groups[key] = {
+                            ts: row.timestamp,
+                            cluster: row.cluster,
+                            net: 0,
+                            items: []
+                        };
+                    }
+                    groups[key].net += row.diff; // diff comes from backend
+                    groups[key].items.push(row);
+                });
+
+                // Render Groups
+                Object.values(groups).forEach((g, idx) => {
+                    const groupId = `diff-group-${idx}`;
+
+                    // Determine Net Badge
+                    let badgeClass = 'badge-gray';
+                    let sign = '';
+                    if (g.net > 0) { badgeClass = 'badge-green'; sign = '+'; }
+                    if (g.net < 0) { badgeClass = 'badge-red'; sign = ''; } // negative number has sign already
+
+                    const parentRow = document.createElement('tr');
+                    parentRow.style.background = 'rgba(255,255,255,0.02)';
+                    parentRow.style.cursor = 'pointer';
+                    parentRow.onclick = function () {
+                        const child = document.getElementById(groupId);
+                        const icon = this.querySelector('.fa-chevron-right');
+                        if (child.style.display === 'none') {
+                            child.style.display = 'table-row';
+                            if (icon) icon.style.transform = 'rotate(90deg)';
+                        } else {
+                            child.style.display = 'none';
+                            if (icon) icon.style.transform = 'rotate(0deg)';
+                        }
+                    };
+
+                    parentRow.innerHTML = `
+                        <td style="text-align:center;"><i class="fas fa-chevron-right" style="transition:transform 0.2s; font-size:0.7rem; opacity:0.7;"></i></td>
                         <td>
-                            <span class="badge ${Row.type === 'ADDED' ? 'badge-green' : (Row.type === 'REMOVED' ? 'badge-red' : 'badge-blue')}">
-                                ${Row.type}
-                            </span>
+                            <div style="font-weight:600;">${g.cluster}</div>
+                            <div style="font-size:0.75rem; opacity:0.6; font-family:monospace;">${formatEST(g.ts)}</div>
                         </td>
-                        <td>${Row.detail}</td>
-                    </tr>
-                `).join('');
+                        <td>
+                             <span class="badge ${badgeClass}" style="font-size:0.8rem;">${sign}${g.net}</span>
+                        </td>
+                        <td style="font-size:0.75rem; opacity:0.5;">
+                            ${g.items.length} event(s)
+                        </td>
+                   `;
+
+                    const childRow = document.createElement('tr');
+                    childRow.id = groupId;
+                    childRow.style.display = 'none';
+                    childRow.style.background = 'rgba(0,0,0,0.1)';
+
+                    const childContent = g.items.map(item => `
+                        <div style="padding:0.2rem 0; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:0.5rem; align-items:center;">
+                             <span class="badge ${item.type === 'ADDED' ? 'badge-green' : 'badge-red'}" style="font-size:0.65rem; width:50px; text-align:center;">${item.type}</span>
+                             <span style="font-family:monospace; font-size:0.75rem;">${item.detail}</span>
+                        </div>
+                   `).join('');
+
+                    childRow.innerHTML = `
+                        <td colspan="4" style="padding:0.5rem 1rem 1rem 3rem;">
+                            ${childContent}
+                        </td>
+                   `;
+
+                    tbody.appendChild(parentRow);
+                    tbody.appendChild(childRow);
+                });
             }
         } else {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--danger-color);">Failed to load changes.</td></tr>';
@@ -5000,6 +5072,8 @@ async function loadTrendsDiffs() {
     } finally {
         if (loader) loader.style.display = 'none';
     }
+
+    return changedClusters;
 }
 
 function toggleTrendsFilter(btn, filter) {
@@ -5017,7 +5091,7 @@ function toggleTrendsFilter(btn, filter) {
     }
 }
 
-function renderTrendsChart(data) {
+function renderTrendsChart(data, allowedClusters = null) {
 
     // 1. Extract all unique timestamps for labels
 
@@ -5028,6 +5102,11 @@ function renderTrendsChart(data) {
     const allClusters = window._allClusters || [];
 
     const filteredEntries = Object.entries(data).filter(([clusterName, points]) => {
+        // Strict Sync Check (Phase 3 improvements)
+        if (allowedClusters !== null) {
+            if (!allowedClusters.has(clusterName)) return false;
+        }
+
         if (activeFilters.size === 0) return true;
 
         // Find cluster object to get metadata

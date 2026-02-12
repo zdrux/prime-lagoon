@@ -228,10 +228,13 @@
         <div class="modal-body">
             <div id="trends-layout" style="display:flex; flex-direction:column; gap:1rem;">
                 <!-- Left Panel: Change Log (hidden by default, shown when Changes Only is checked) -->
-                <div id="trends-diff-container" style="display:none; flex:0 0 40%; min-width:0; border:1px solid var(--border-color); border-radius:8px; background:rgba(0,0,0,0.1); padding:1rem; overflow:hidden; flex-direction:column;">
+                <div id="trends-diff-container"
+                    style="display:none; flex:0 0 40%; min-width:0; border:1px solid var(--border-color); border-radius:8px; background:rgba(0,0,0,0.1); padding:1rem; overflow:hidden; flex-direction:column;">
                     <!-- MAPID Tally Summary -->
-                    <div id="trends-mapid-tally" style="margin-bottom:0.75rem; padding:0.6rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px;">
-                        <h5 style="margin:0 0 0.5rem 0; font-size:0.8rem; opacity:0.6; text-transform:uppercase; letter-spacing:0.5px;">
+                    <div id="trends-mapid-tally"
+                        style="margin-bottom:0.75rem; padding:0.6rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px;">
+                        <h5
+                            style="margin:0 0 0.5rem 0; font-size:0.8rem; opacity:0.6; text-transform:uppercase; letter-spacing:0.5px;">
                             <i class="fas fa-tags"></i> MAPID Summary
                         </h5>
                         <div id="trends-mapid-tally-body" style="display:flex; flex-wrap:wrap; gap:0.4rem;">
@@ -263,7 +266,7 @@
                     </div>
                 </div>
                 <!-- Right Panel: Chart -->
-                <div id="trends-chart-container" style="flex:1; min-width:0; height:500px; padding:1rem;">
+                <div id="trends-chart-container" style="flex:1; min-width:0; min-height:550px; padding:1rem;">
                     <canvas id="trends-chart"></canvas>
                 </div>
             </div>

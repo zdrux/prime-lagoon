@@ -4894,6 +4894,11 @@ async function loadTrendsData() {
 
             let allowedClusters = null;
             if (window._trendsChangesOnly) {
+                // Ensure layout is in 2-column mode
+                const layout = document.getElementById('trends-layout');
+                const diffContainer = document.getElementById('trends-diff-container');
+                if (layout) layout.style.flexDirection = 'row';
+                if (diffContainer) { diffContainer.style.display = 'flex'; diffContainer.style.flexDirection = 'column'; }
                 // Refresh diffs for the new date range
                 allowedClusters = await loadTrendsDiffs();
             }
@@ -4940,15 +4945,27 @@ window._trendsChangesOnly = false;
 async function toggleTrendsChangesOnly(checkbox) {
     window._trendsChangesOnly = checkbox.checked;
     const diffContainer = document.getElementById('trends-diff-container');
+    const layout = document.getElementById('trends-layout');
 
     let allowedClusters = null;
 
     if (window._trendsChangesOnly) {
-        if (diffContainer) diffContainer.style.display = 'block';
+        // Switch to 2-column layout
+        if (layout) layout.style.flexDirection = 'row';
+        if (diffContainer) {
+            diffContainer.style.display = 'flex';
+            diffContainer.style.flexDirection = 'column';
+        }
         allowedClusters = await loadTrendsDiffs(); // Wait for this to populate the set
     } else {
+        // Revert to single-column (chart only)
+        if (layout) layout.style.flexDirection = 'column';
         if (diffContainer) diffContainer.style.display = 'none';
-        // Resize chart back?
+    }
+
+    // Resize chart after layout change
+    if (trendsChart) {
+        setTimeout(() => trendsChart.resize(), 50);
     }
 
     if (window._lastTrendsData) {
@@ -4993,10 +5010,15 @@ async function loadTrendsDiffs() {
             const data = await res.json();
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; opacity:0.6; padding:1.5rem;">No specific node changes detected.</td></tr>';
+                // Clear MAPID tally
+                const tallyBody = document.getElementById('trends-mapid-tally-body');
+                if (tallyBody) tallyBody.innerHTML = '<span style="opacity:0.5; font-size:0.75rem;">No changes detected.</span>';
             } else {
                 // Grouping Logic: Aggregate by Cluster
                 const groups = {};
+                // Global MAPID tally: mapid -> { added: N, removed: N }
+                const mapidTally = {};
 
                 data.forEach(row => {
                     changedClusters.add(row.cluster);
@@ -5007,20 +5029,50 @@ async function loadTrendsDiffs() {
                             net: 0,
                             items: [],
                             minTs: row.timestamp,
-                            maxTs: row.timestamp
+                            maxTs: row.timestamp,
+                            mapids: new Set()
                         };
                     }
                     groups[key].net += row.diff; // diff comes from backend
                     groups[key].items.push(row);
-                    
+                    if (row.mapid && row.mapid !== '-') groups[key].mapids.add(row.mapid);
+
                     if (row.timestamp < groups[key].minTs) groups[key].minTs = row.timestamp;
                     if (row.timestamp > groups[key].maxTs) groups[key].maxTs = row.timestamp;
+
+                    // Build global MAPID tally
+                    const mid = row.mapid || '-';
+                    if (!mapidTally[mid]) mapidTally[mid] = { added: 0, removed: 0 };
+                    if (row.type === 'ADDED') mapidTally[mid].added++;
+                    else if (row.type === 'REMOVED') mapidTally[mid].removed++;
                 });
 
+                // Render MAPID Tally Summary
+                const tallyBody = document.getElementById('trends-mapid-tally-body');
+                if (tallyBody) {
+                    const tallyEntries = Object.entries(mapidTally).sort((a, b) => {
+                        const aNet = a[1].added - a[1].removed;
+                        const bNet = b[1].added - b[1].removed;
+                        return Math.abs(bNet) - Math.abs(aNet); // Largest absolute change first
+                    });
+
+                    tallyBody.innerHTML = tallyEntries.map(([mid, counts]) => {
+                        const net = counts.added - counts.removed;
+                        let color = 'rgba(255,255,255,0.1)';
+                        let textColor = 'var(--text-secondary)';
+                        let sign = '';
+                        if (net > 0) { color = 'rgba(16,185,129,0.15)'; textColor = '#10b981'; sign = '+'; }
+                        if (net < 0) { color = 'rgba(239,68,68,0.15)'; textColor = '#ef4444'; }
+                        return `<span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.2rem 0.5rem; background:${color}; border-radius:6px; font-size:0.75rem; border:1px solid rgba(255,255,255,0.05);">
+                            <span style="font-family:monospace; font-weight:600;">${mid}</span>
+                            <span style="color:${textColor}; font-weight:700;">${sign}${net}</span>
+                            <span style="opacity:0.4; font-size:0.65rem;">(+${counts.added}/-${counts.removed})</span>
+                        </span>`;
+                    }).join('');
+                }
+
                 // Render Groups
-                // Sort by cluster name or absolute net change? 
-                // Let's sort by Cluster Name for now
-                Object.values(groups).sort((a,b) => a.cluster.localeCompare(b.cluster)).forEach((g, idx) => {
+                Object.values(groups).sort((a, b) => a.cluster.localeCompare(b.cluster)).forEach((g, idx) => {
                     const groupId = `diff-group-${idx}`;
 
                     // Determine Net Badge
@@ -5028,6 +5080,15 @@ async function loadTrendsDiffs() {
                     let sign = '';
                     if (g.net > 0) { badgeClass = 'badge-green'; sign = '+'; }
                     if (g.net < 0) { badgeClass = 'badge-red'; sign = ''; } // negative number has sign already
+
+                    // MAPID display for parent row
+                    const mapidArr = Array.from(g.mapids);
+                    let mapidDisplay = '-';
+                    if (mapidArr.length === 1) {
+                        mapidDisplay = `<span style="font-family:monospace; font-size:0.8rem;">${mapidArr[0]}</span>`;
+                    } else if (mapidArr.length > 1) {
+                        mapidDisplay = `<span style="font-size:0.75rem; opacity:0.8;">${mapidArr.length} MAPIDs</span>`;
+                    }
 
                     const parentRow = document.createElement('tr');
                     parentRow.style.background = 'rgba(255,255,255,0.02)';
@@ -5045,10 +5106,9 @@ async function loadTrendsDiffs() {
                     };
 
                     // Format Date Range
-                    let dateDisplay = formatEST(g.maxTs, false).split(',')[0]; 
+                    let dateDisplay = formatEST(g.maxTs, false).split(',')[0];
                     if (g.minTs !== g.maxTs) {
                         const d1 = formatEST(g.minTs, false).split(',')[0];
-                         // Simplistic range
                         dateDisplay = `${d1} - ${dateDisplay}`;
                     }
 
@@ -5060,6 +5120,7 @@ async function loadTrendsDiffs() {
                         <td>
                             <div style="font-weight:600;">${g.cluster}</div>
                         </td>
+                        <td>${mapidDisplay}</td>
                         <td>
                              <span class="badge ${badgeClass}" style="font-size:0.85rem;">${sign}${g.net}</span>
                         </td>
@@ -5074,19 +5135,20 @@ async function loadTrendsDiffs() {
                     childRow.style.background = 'rgba(0,0,0,0.1)';
 
                     const childContent = g.items
-                        .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)) // Newest first
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)) // Newest first
                         .map(item => `
-                        <div style="padding:0.4rem 0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:1rem; align-items:center;">
-                             <div style="font-family:monospace; font-size:0.75rem; opacity:0.7; min-width:140px;">${formatEST(item.timestamp)}</div>
+                        <div style="padding:0.4rem 0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                             <div style="font-family:monospace; font-size:0.75rem; opacity:0.7; min-width:130px;">${formatEST(item.timestamp)}</div>
                              <span class="badge ${item.type === 'ADDED' ? 'badge-green' : 'badge-red'}" style="font-size:0.65rem; width:50px; text-align:center;">${item.type}</span>
-                             <span style="font-family:monospace; font-size:0.75rem; flex:1;">${item.detail}</span>
+                             <span style="font-family:monospace; font-size:0.75rem; flex:1; min-width:120px;">${item.detail}</span>
+                             ${item.mapid && item.mapid !== '-' ? `<span class="badge badge-blue" style="font-size:0.65rem;" title="MAPID">${item.mapid}</span>` : ''}
                              ${item.vcpu ? `<span class="badge badge-purple" style="font-size:0.65rem;">${item.vcpu} vCPU</span>` : ''}
                         </div>
                    `).join('');
 
                     childRow.innerHTML = `
-                        <td colspan="5" style="padding:0;">
-                            <div style="max-height:300px; overflow-y:auto; padding:0.5rem 1rem 1rem 3rem;">
+                        <td colspan="6" style="padding:0;">
+                            <div style="max-height:300px; overflow-y:auto; padding:0.5rem 1rem 1rem 2rem;">
                                 ${childContent}
                             </div>
                         </td>
@@ -5097,11 +5159,11 @@ async function loadTrendsDiffs() {
                 });
             }
         } else {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--danger-color);">Failed to load changes.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--danger-color);">Failed to load changes.</td></tr>';
         }
     } catch (e) {
         console.error(e);
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger-color);">${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger-color);">${e.message}</td></tr>`;
     } finally {
         if (loader) loader.style.display = 'none';
     }

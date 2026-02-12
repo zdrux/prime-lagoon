@@ -1395,6 +1395,13 @@ def get_resource_trends_diffs(
                 return '?'
         return '?'
 
+    # Helper to find MAPID label
+    def get_mapid(name, nodes_list):
+        n = next((x for x in nodes_list if x['metadata']['name'] == name), None)
+        if n:
+            return n.get('metadata', {}).get('labels', {}).get('mapid', '-')
+        return '-'
+
     for cid, snaps in grouped.items():
         if len(snaps) < 2: continue
         
@@ -1436,23 +1443,27 @@ def get_resource_trends_diffs(
 
                     for node_name in added:
                         vcpu = get_vcpu(node_name, curr_nodes)
+                        mapid = get_mapid(node_name, curr_nodes)
                         local_changes.append({
                             "timestamp": timestamp,
                             "cluster": c_name,
                             "type": "ADDED",
                             "detail": f"Node {node_name} (Licensed)",
                             "vcpu": vcpu,
+                            "mapid": mapid,
                             "diff": curr.license_count - prev.license_count
                         })
                         
                     for node_name in removed:
                         vcpu = get_vcpu(node_name, prev_nodes)
+                        mapid = get_mapid(node_name, prev_nodes)
                         local_changes.append({
                             "timestamp": timestamp,
                             "cluster": c_name,
                             "type": "REMOVED",
                             "detail": f"Node {node_name} (Licensed)",
                             "vcpu": vcpu,
+                            "mapid": mapid,
                             "diff": curr.license_count - prev.license_count
                         })
 
@@ -1463,7 +1474,8 @@ def get_resource_trends_diffs(
                             "cluster": c_name,
                             "type": "MODIFIED",
                             "detail": "License count changed but set of licensed nodes matches. Likely vCPU adjustment.",
-                            "vcpu": "-", # N/A or find changed?
+                            "vcpu": "-",
+                            "mapid": "-",
                             "diff": curr.license_count - prev.license_count
                         })
                     

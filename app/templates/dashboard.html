@@ -182,7 +182,7 @@
 
 <!-- Historical Trends Modal -->
 <div id="trends-modal" class="modal">
-    <div class="modal-content" style="max-width: 1100px;">
+    <div class="modal-content" style="max-width: 1400px;">
         <div class="modal-header">
             <h3><i class="fas fa-chart-line"></i> Per-Cluster License Trends</h3>
             <div style="display:flex; gap:0.5rem; margin-left:auto; margin-right:1.5rem; align-items:center;">
@@ -226,33 +226,45 @@
             <span class="close-btn" onclick="closeTrendsModal()">&times;</span>
         </div>
         <div class="modal-body">
-            <div style="height: 400px; padding: 1rem; margin-bottom: 1rem;">
-                <canvas id="trends-chart"></canvas>
-            </div>
-
-            <div id="trends-diff-container"
-                style="display:none; border-top:1px solid var(--border-color); padding:1rem; background:rgba(0,0,0,0.1);">
-                <h4 style="margin-top:0; margin-bottom:1rem; color:var(--accent-color); font-size:1rem;">
-                    <i class="fas fa-history"></i> Detailed Change Log
-                </h4>
-                <div style="max-height: 250px; overflow-y: auto;">
-                    <table class="data-table" id="trends-diff-table" style="font-size:0.85rem;">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;"></th>
-                                <th>Date (EST)</th>
-                                <th>Cluster</th>
-                                <th>Net Change</th>
-                                <th>Details</th>
-                            </tr>
-                        </thead>
-                        <tbody id="trends-diff-body">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
-                    <div id="trends-diff-loader" style="text-align:center; padding:2rem; display:none;">
-                        <i class="fas fa-circle-notch fa-spin"></i> Analyzing history...
+            <div id="trends-layout" style="display:flex; flex-direction:column; gap:1rem;">
+                <!-- Left Panel: Change Log (hidden by default, shown when Changes Only is checked) -->
+                <div id="trends-diff-container" style="display:none; flex:0 0 40%; min-width:0; border:1px solid var(--border-color); border-radius:8px; background:rgba(0,0,0,0.1); padding:1rem; overflow:hidden; flex-direction:column;">
+                    <!-- MAPID Tally Summary -->
+                    <div id="trends-mapid-tally" style="margin-bottom:0.75rem; padding:0.6rem; background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px;">
+                        <h5 style="margin:0 0 0.5rem 0; font-size:0.8rem; opacity:0.6; text-transform:uppercase; letter-spacing:0.5px;">
+                            <i class="fas fa-tags"></i> MAPID Summary
+                        </h5>
+                        <div id="trends-mapid-tally-body" style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+                            <span style="opacity:0.5; font-size:0.75rem;">No changes detected.</span>
+                        </div>
                     </div>
+                    <h4 style="margin-top:0; margin-bottom:0.75rem; color:var(--accent-color); font-size:0.95rem;">
+                        <i class="fas fa-history"></i> Detailed Change Log
+                    </h4>
+                    <div style="flex:1; overflow-y:auto; max-height:420px;">
+                        <table class="data-table" id="trends-diff-table" style="font-size:0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30px;"></th>
+                                    <th>Date (EST)</th>
+                                    <th>Cluster</th>
+                                    <th>MAPID</th>
+                                    <th>Net Change</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trends-diff-body">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                        <div id="trends-diff-loader" style="text-align:center; padding:2rem; display:none;">
+                            <i class="fas fa-circle-notch fa-spin"></i> Analyzing history...
+                        </div>
+                    </div>
+                </div>
+                <!-- Right Panel: Chart -->
+                <div id="trends-chart-container" style="flex:1; min-width:0; height:500px; padding:1rem;">
+                    <canvas id="trends-chart"></canvas>
                 </div>
             </div>
         </div>

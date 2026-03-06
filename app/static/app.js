@@ -5479,6 +5479,8 @@ let reportColumns = [
 
     { name: "Node MAPID", included: true },
 
+    { name: "TO Intake Number", included: true },
+
     { name: "LOB", included: true },
 
     { name: "Licenses Consumed", included: true },
@@ -5575,7 +5577,15 @@ function loadReportSettings() {
 
             if (savedCols.length > 0) {
 
-                reportColumns = savedCols;
+                // Merge: start with saved columns, then append any NEW default columns not yet saved
+                const savedNames = new Set(savedCols.map(c => c.name));
+                const merged = [...savedCols];
+                for (const def of reportColumns) {
+                    if (!savedNames.has(def.name)) {
+                        merged.push({ ...def }); // New column added since last save
+                    }
+                }
+                reportColumns = merged;
 
             }
 

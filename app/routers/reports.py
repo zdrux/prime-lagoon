@@ -126,6 +126,7 @@ def generate_report_data(filters: ReportFilter, session: Session = Depends(get_s
                             "Node vCPU": capacity_info.get("cpu", 0),
                             "Node Memory (GB)": round(capacity_info.get("memory_gb", 0), 1),
                             "Node MAPID": labels.get("mapid", "-"),
+                            "TO Intake Number": labels.get("intake_number", "-"),
                             "LOB": labels.get("lob", "-"),
                             "Licenses Consumed": lic_info["licenses"],
                             "License Status": lic_info["status"]

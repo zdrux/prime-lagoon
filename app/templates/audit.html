@@ -244,7 +244,7 @@
                                         {% endif %}
                                         {% endif %}
                                     </div>
-                                    {% if rule.check_type == 'VALIDATION' and rule.extra_conditions %}
+                                    {% if rule.extra_conditions %}
                                     {% set extras = rule.extra_conditions | fromjson %}
                                     {% for cond in extras %}
                                     <div
@@ -273,7 +273,7 @@
                                         data-val="{{ (rule.expected_value or "") | replace('"', ' &quot;') }}"
                                         data-res-name="{{ rule.match_resource_name or "" }}"
                                         data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                        data-extras="{{ (rule.extra_conditions or '[]') | replace('"', ' &quot;') }}"
+                                        data-extras='{{ rule.extra_conditions or "[]" }}'
                                         data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
                                         style="padding:0.2rem 0.5rem;" title="Edit Rule">
                                         <i class="fas fa-edit"></i>
@@ -385,7 +385,7 @@
                                 {% endif %}
                                 {% endif %}
                             </div>
-                            {% if rule.check_type == 'VALIDATION' and rule.extra_conditions %}
+                            {% if rule.extra_conditions %}
                             {% set extras = rule.extra_conditions | fromjson %}
                             {% for cond in extras %}
                             <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; opacity:0.8;">
@@ -430,7 +430,7 @@
                                 data-tags="{{ (rule.tags or '{}') | replace('"', ' &quot;') }}"
                                 data-res-name="{{ rule.match_resource_name or '' }}"
                                 data-logic="{{ rule.condition_logic }}" data-check-type="{{ rule.check_type }}"
-                                data-extras="{{ (rule.extra_conditions or '[]') | replace('"', ' &quot;') }}"
+                                data-extras='{{ rule.extra_conditions or "[]" }}'
                                 data-enabled="{{ 'true' if rule.is_enabled else 'false' }}"
                                 style="padding:0.2rem 0.5rem;" title="Edit Rule">
                                 <i class="fas fa-edit"></i>

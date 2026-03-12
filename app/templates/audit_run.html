@@ -340,6 +340,7 @@
     let allClusters = [];
     let currentScores = [];
     let activeFilters = [];
+    let currentAuditView = 'cluster';
 
     async function loadData() {
         const [clusters, bundles, rules, scores] = await Promise.all([
@@ -369,16 +370,23 @@
         filterAuditTables();
     }
 
+    function clusterMatchesSearch(c, query) {
+        return !query ||
+            c.name.toLowerCase().includes(query) ||
+            (c.datacenter && c.datacenter.toLowerCase().includes(query)) ||
+            (c.environment && c.environment.toLowerCase().includes(query)) ||
+            (c.tags && c.tags.toLowerCase().includes(query));
+    }
+
+    function updateAuditSearchPlaceholder() {
+        const searchInput = document.getElementById('audit-search');
+        searchInput.placeholder = currentAuditView === 'rule' ? 'Search rules...' : 'Search clusters...';
+    }
+
     function filterAuditTables() {
-        const query = document.getElementById('audit-search').value.toLowerCase();
-        
+        const query = document.getElementById('audit-search').value.toLowerCase().trim();
+
         const filteredClusters = allClusters.filter(c => {
-            const matchQuery = !query || 
-                               c.name.toLowerCase().includes(query) || 
-                               (c.datacenter && c.datacenter.toLowerCase().includes(query)) || 
-                               (c.environment && c.environment.toLowerCase().includes(query)) ||
-                               (c.tags && c.tags.toLowerCase().includes(query));
-            
             let matchFilter = true;
             if (activeFilters.length > 0) {
                 const envFilters = activeFilters.filter(f => ['DEV', 'UAT', 'PROD'].includes(f));
@@ -389,14 +397,17 @@
                 
                 matchFilter = envMatch && dcMatch;
             }
-            return matchQuery && matchFilter;
+            return matchFilter;
         });
 
-        renderClusters(filteredClusters, currentScores);
-        renderRules(filteredClusters, currentScores);
+        const queryFilteredClusters = filteredClusters.filter(c => clusterMatchesSearch(c, query));
+
+        renderClusters(queryFilteredClusters, currentScores);
+        renderRules(filteredClusters, currentScores, query);
     }
     
     function switchView(mode) {
+        currentAuditView = mode;
         if (mode === 'cluster') {
             document.getElementById('tab-cluster').className = 'breakdown-tab active';
             document.getElementById('tab-cluster').style = 'padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s; font-weight: 600; background: var(--accent-color); color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
@@ -412,6 +423,8 @@
             document.getElementById('view-cluster').style.display = 'none';
             document.getElementById('view-rule').style.display = 'block';
         }
+        updateAuditSearchPlaceholder();
+        filterAuditTables();
     }
 
     function toggleRuleDetails(ruleIdSafe) {
@@ -429,7 +442,7 @@
         }
     }
 
-    function renderRules(clustersToInclude, scores) {
+    function renderRules(clustersToInclude, scores, query = '') {
         const tbody = document.getElementById('rule-table-body');
         
         const clusterIdSet = new Set(clustersToInclude.map(c => c.id));
@@ -481,7 +494,14 @@
             return;
         }
 
-        const sortedRules = Array.from(ruleMap.values()).sort((a, b) => a.rule_name.localeCompare(b.rule_name));
+        const sortedRules = Array.from(ruleMap.values())
+            .filter(r => !query || r.rule_name.toLowerCase().includes(query))
+            .sort((a, b) => a.rule_name.localeCompare(b.rule_name));
+
+        if (sortedRules.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:2rem;">No rules found matching the current filters.</td></tr>';
+            return;
+        }
         
         let html = '';
         sortedRules.forEach((r, idx) => {

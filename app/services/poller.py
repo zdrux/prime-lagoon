@@ -220,6 +220,9 @@ def poll_cluster(
                          resource_list = [item.to_dict() if hasattr(item, 'to_dict') else dict(item) for item in items]
                          minified_csvs = []
                          for csv in resource_list:
+                             install_spec = csv.get("spec", {}).get("install", {}).get("spec", {})
+                             permissions = install_spec.get("permissions", []) or []
+                             cluster_permissions = install_spec.get("clusterPermissions", []) or []
                              minified_csvs.append({
                                  "metadata": {
                                      "name": csv.get("metadata", {}).get("name"),
@@ -231,6 +234,34 @@ def poll_cluster(
                                      "version": csv.get("spec", {}).get("version"),
                                      "displayName": csv.get("spec", {}).get("displayName"),
                                      "provider": csv.get("spec", {}).get("provider"),
+                                     "maturity": csv.get("spec", {}).get("maturity"),
+                                     "keywords": csv.get("spec", {}).get("keywords", []),
+                                     "links": csv.get("spec", {}).get("links", []),
+                                     "maintainers": csv.get("spec", {}).get("maintainers", []),
+                                     "installModes": csv.get("spec", {}).get("installModes", []),
+                                     "install": {
+                                         "strategy": csv.get("spec", {}).get("install", {}).get("strategy"),
+                                         "spec": {
+                                             "permissions": [
+                                                 {
+                                                     "serviceAccountName": p.get("serviceAccountName"),
+                                                     "rules_count": len(p.get("rules", []) or [])
+                                                 }
+                                                 for p in permissions
+                                             ],
+                                             "clusterPermissions": [
+                                                 {
+                                                     "serviceAccountName": p.get("serviceAccountName"),
+                                                     "rules_count": len(p.get("rules", []) or [])
+                                                 }
+                                                 for p in cluster_permissions
+                                             ]
+                                         }
+                                     },
+                                     "relatedImages": [
+                                         {"name": img.get("name"), "image": img.get("image")}
+                                         for img in (csv.get("spec", {}).get("relatedImages", []) or [])[:20]
+                                     ],
                                      "customresourcedefinitions": {
                                          "owned": [
                                              {

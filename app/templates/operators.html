@@ -62,6 +62,10 @@
                 <span class="compat-dot compat-blocked" style="cursor:default;"></span>
                 <span style="color:var(--text-secondary);">OCP Blocked</span>
             </div>
+            <div style="display:flex; align-items:center; gap: 0.4rem;">
+                <span class="headroom-badge headroom-urgent" style="cursor:default;">+0</span>
+                <span style="color:var(--text-secondary);">Upgrade Now</span>
+            </div>
         </div>
     </div>
 
@@ -154,6 +158,12 @@
                         </div>
                         <div class="detail-item">
                             <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">OCP Minor
+                                Headroom</label>
+                            <span id="op-modal-compat-headroom" style="font-family:monospace; font-size:0.9rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
                                 style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Max OCP</label>
                             <span id="op-modal-compat-max" style="font-family:monospace; font-size:0.9rem;">-</span>
                         </div>
@@ -172,6 +182,37 @@
                                 style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Compatibility
                                 Reason</label>
                             <span id="op-modal-compat-reason" style="font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Namespace
+                                Support</label>
+                            <span id="op-modal-namespace-support" style="font-family:monospace; font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Install Strategy</label>
+                            <span id="op-modal-install-strategy" style="font-family:monospace; font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">RBAC</label>
+                            <span id="op-modal-rbac-summary" style="font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Service Accounts</label>
+                            <span id="op-modal-service-accounts" style="font-family:monospace; font-size:0.8rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Owned CRDs</label>
+                            <span id="op-modal-owned-crds" style="font-weight:600;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Related Images</label>
+                            <span id="op-modal-related-images" style="font-weight:600;">-</span>
                         </div>
                     </div>
                 </div>
@@ -308,6 +349,44 @@
     .compat-unknown {
         background: var(--text-secondary);
         opacity: 0.5;
+    }
+
+    .headroom-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 800;
+        margin-left: 0.35rem;
+        border: 1px solid transparent;
+    }
+
+    .headroom-ok {
+        background: rgba(34, 197, 94, 0.14);
+        color: var(--success-color);
+        border-color: rgba(34, 197, 94, 0.25);
+    }
+
+    .headroom-warning {
+        background: rgba(245, 158, 11, 0.16);
+        color: var(--warning-color);
+        border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    .headroom-urgent,
+    .headroom-blocked {
+        background: rgba(239, 68, 68, 0.16);
+        color: var(--danger-color);
+        border-color: rgba(239, 68, 68, 0.25);
+    }
+
+    .headroom-unknown {
+        background: rgba(148, 163, 184, 0.12);
+        color: var(--text-secondary);
+        border-color: rgba(148, 163, 184, 0.2);
     }
 
     /* Search Box Styles matching Bootstrap-ish feel but custom */

@@ -23,6 +23,15 @@ def _minor_version(version: Optional[str]) -> Optional[tuple]:
     except ValueError:
         return None
 
+def _minor_headroom(cluster_version: str, max_ocp: Optional[str]) -> Optional[int]:
+    cluster_minor = _minor_version(cluster_version)
+    max_minor = _minor_version(max_ocp)
+    if not cluster_minor or not max_minor:
+        return None
+
+    # OCP is currently a major-4 stream, but keep major math sane if that changes.
+    return ((max_minor[0] - cluster_minor[0]) * 100) + (max_minor[1] - cluster_minor[1])
+
 def _extract_cluster_version(clusterversions: List[Dict[str, Any]]) -> str:
     version_obj = next((cv for cv in clusterversions if cv.get("metadata", {}).get("name") == "version"), None)
     if not version_obj:
@@ -64,6 +73,7 @@ def _extract_csv_compatibility(csv_obj: Dict[str, Any], cluster_version: str) ->
     cluster_minor = _minor_version(cluster_version)
     max_minor = _minor_version(max_ocp)
     min_minor = _minor_version(min_ocp)
+    headroom = _minor_headroom(cluster_version, max_ocp)
 
     if max_ocp:
         status = "compatible"
@@ -79,13 +89,61 @@ def _extract_csv_compatibility(csv_obj: Dict[str, Any], cluster_version: str) ->
         status = "blocked"
         reason = f"Cluster {cluster_version} is older than CSV min OpenShift {min_ocp}."
 
+    risk = "unknown"
+    if status == "blocked":
+        risk = "blocked"
+    elif headroom is not None:
+        if headroom < 0:
+            risk = "blocked"
+        elif headroom == 0:
+            risk = "urgent"
+        elif headroom == 1:
+            risk = "warning"
+        else:
+            risk = "ok"
+
     return {
         "status": status,
+        "risk": risk,
         "reason": reason,
         "max_openshift_version": max_ocp or "-",
         "min_openshift_version": min_ocp or "-",
+        "minor_headroom": headroom,
         "openshift_versions": distribution_range or "-",
         "properties_found": bool(properties),
+    }
+
+def _extract_csv_details(csv_obj: Dict[str, Any]) -> Dict[str, Any]:
+    spec = csv_obj.get("spec", {}) or {}
+    install = spec.get("install", {}) or {}
+    install_spec = install.get("spec", {}) or {}
+    install_modes = spec.get("installModes", []) or []
+    supported_modes = [mode.get("type") for mode in install_modes if mode.get("supported") and mode.get("type")]
+
+    permissions = install_spec.get("permissions", []) or []
+    cluster_permissions = install_spec.get("clusterPermissions", []) or []
+    service_accounts = sorted({
+        p.get("serviceAccountName")
+        for p in permissions + cluster_permissions
+        if p.get("serviceAccountName")
+    })
+
+    owned_crds = spec.get("customresourcedefinitions", {}).get("owned", []) or []
+    related_images = spec.get("relatedImages", []) or []
+
+    return {
+        "namespace_support": ", ".join(supported_modes) if supported_modes else "-",
+        "install_strategy": install.get("strategy") or "-",
+        "namespaced_permission_sets": len(permissions),
+        "cluster_permission_sets": len(cluster_permissions),
+        "namespaced_rule_count": sum(int(p.get("rules_count", 0) or 0) for p in permissions),
+        "cluster_rule_count": sum(int(p.get("rules_count", 0) or 0) for p in cluster_permissions),
+        "service_accounts": service_accounts,
+        "owned_crd_count": len(owned_crds),
+        "related_image_count": len(related_images),
+        "maturity": spec.get("maturity") or "-",
+        "keywords": spec.get("keywords", []) or [],
+        "links": spec.get("links", []) or [],
     }
 
 @router.get("/matrix")
@@ -219,6 +277,7 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                     phase = "Unknown"
                     
                     managed_crds = []
+                    csv_details = {}
                     if installed_csv_name and installed_csv_name in csv_map:
                         csv_obj = csv_map[installed_csv_name]
                         version = csv_obj.get("spec", {}).get("version", "Unknown")
@@ -226,6 +285,7 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                         provider = csv_obj.get("spec", {}).get("provider", {}).get("name", "Unknown") if isinstance(csv_obj.get("spec", {}).get("provider"), dict) else csv_obj.get("spec", {}).get("provider", "Unknown")
                         phase = csv_obj.get("status", {}).get("phase", "Unknown")
                         compatibility = _extract_csv_compatibility(csv_obj, cluster_version)
+                        csv_details = _extract_csv_details(csv_obj)
                         
                         # Extract owned CRDs
                         owned = csv_obj.get("spec", {}).get("customresourcedefinitions", {}).get("owned", [])
@@ -240,6 +300,8 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                             "min_openshift_version": "-",
                             "openshift_versions": "-",
                             "properties_found": False,
+                            "minor_headroom": None,
+                            "risk": "unknown",
                         }
                     
                     # Add to Matrix
@@ -262,7 +324,8 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                         "approval": spec.get("installPlanApproval", "Automatic"),
                         "source": spec.get("source"),
                         "managed_crds": managed_crds,
-                        "openshift_compatibility": compatibility
+                        "openshift_compatibility": compatibility,
+                        "csv_details": csv_details
                     }
                     
                     # Update display name if it was just the package name before

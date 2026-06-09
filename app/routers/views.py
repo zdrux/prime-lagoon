@@ -276,7 +276,7 @@ def cluster_storage_analytics_view(cluster_id: int, request: Request, session: S
         "request": request,
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
-        "page": "storage_analytics",
+        "page": "cluster_storage",
         "storage_cluster_id": cluster.id,
         "storage_cluster_name": cluster.name,
         "user": user

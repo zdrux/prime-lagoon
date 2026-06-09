@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from app.database import get_session
 from app.models import Cluster, LicenseUsage, AppConfig, LicenseRule, ClusterSnapshot, User
-from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu, get_detailed_stats, parse_memory_to_gb, get_dynamic_client, get_argocd_application_details, get_argocd_applicationset_details
+from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu, get_detailed_stats, parse_memory_to_gb, get_dynamic_client, get_argocd_application_details, get_argocd_applicationset_details, get_val
 
 # Consolidated license calculation logic is now in poller, but for realtime we still might need it
 # Or we can reuse the logic

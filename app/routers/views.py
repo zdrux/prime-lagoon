@@ -261,7 +261,7 @@ def storage_analytics_view(request: Request, session: Session = Depends(get_sess
     })
 
 @router.get("/storage-analytics/{cluster_id}", response_class=HTMLResponse)
-def cluster_storage_analytics_view(cluster_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
+def cluster_storage_analytics_view(cluster_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
 

@@ -96,12 +96,8 @@ function renderMatrix(data) {
         // Name Cell
         const tdName = document.createElement('td');
         tdName.className = 'op-name-col';
-        const fleetRisk = getOperatorFleetRisk(op, data.clusters);
         tdName.innerHTML = `
             <div style="font-weight:600;">${op.displayName}</div>
-            <div style="font-size:0.72rem; opacity:0.78; margin-top:0.35rem;">
-                Fleet OCP headroom ${renderHeadroomBadge(fleetRisk.headroom, fleetRisk.risk)}
-            </div>
         `;
         tr.appendChild(tdName);
 
@@ -133,11 +129,10 @@ function renderMatrix(data) {
                 const compat = install.openshift_compatibility || { status: 'unknown', reason: 'No compatibility metadata found.' };
                 const compatClass = `compat-${compat.status || 'unknown'}`;
                 const compatTitle = `OCP compatibility: ${compat.status || 'unknown'} - ${compat.reason || ''}`;
-                const headroomHtml = renderHeadroomBadge(compat.minor_headroom, compat.risk || compat.status);
 
                 td.innerHTML = `
                     <div class="ver-pill ${pillClass}" title="${matchTitle}">${install.version}<span class="compat-dot ${compatClass}" title="${compatTitle}"></span></div>
-                    <div style="font-size: 0.7rem; opacity: 0.75; margin-top: 4px;">${install.channel} ${headroomHtml}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 2px;">${install.channel}</div>
                 `;
                 td.onclick = () => openOpModal(op, c.name);
             } else {
@@ -148,38 +143,6 @@ function renderMatrix(data) {
         });
         tableBody.appendChild(tr);
     });
-}
-
-function getOperatorFleetRisk(op, clusters) {
-    const values = [];
-    let hasBlocked = false;
-    let hasUrgent = false;
-    let hasWarning = false;
-    let hasUnknown = false;
-
-    clusters.forEach(c => {
-        const install = op.installations[c.name];
-        if (!install) return;
-        const compat = install.openshift_compatibility || {};
-        if (compat.risk === 'blocked') hasBlocked = true;
-        if (compat.risk === 'urgent') hasUrgent = true;
-        if (compat.risk === 'warning') hasWarning = true;
-        if (compat.risk === 'unknown' || compat.minor_headroom === null || compat.minor_headroom === undefined) hasUnknown = true;
-        if (Number.isFinite(Number(compat.minor_headroom))) values.push(Number(compat.minor_headroom));
-    });
-
-    if (hasBlocked) return { risk: 'blocked', headroom: values.length ? Math.min(...values) : null };
-    if (hasUrgent) return { risk: 'urgent', headroom: values.length ? Math.min(...values) : 0 };
-    if (hasWarning) return { risk: 'warning', headroom: values.length ? Math.min(...values) : 1 };
-    if (values.length) return { risk: 'ok', headroom: Math.min(...values) };
-    return { risk: hasUnknown ? 'unknown' : 'unknown', headroom: null };
-}
-
-function renderHeadroomBadge(value, risk = 'unknown') {
-    const normalizedRisk = ['ok', 'warning', 'urgent', 'blocked'].includes(risk) ? risk : 'unknown';
-    const label = (value === null || value === undefined || value === '') ? '?' : `${Number(value) >= 0 ? '+' : ''}${value}`;
-    const title = label === '?' ? 'No CSV max OpenShift version declared' : `${label} OpenShift minor releases of declared compatibility headroom`;
-    return `<span class="headroom-badge headroom-${normalizedRisk}" title="${title}">${label}</span>`;
 }
 
 function getMode(array) {
@@ -312,19 +275,8 @@ function openOpModal(op, clusterName) {
     compatStatusEl.style.color = compatStatus === 'blocked' ? 'var(--danger-color)' : (compatStatus === 'compatible' ? 'var(--success-color)' : 'var(--text-secondary)');
     document.getElementById('op-modal-compat-max').innerText = compat.max_openshift_version || '-';
     document.getElementById('op-modal-compat-min').innerText = compat.min_openshift_version || '-';
-    document.getElementById('op-modal-compat-headroom').innerText = (compat.minor_headroom === null || compat.minor_headroom === undefined) ? 'Unknown' : `${compat.minor_headroom} minor release(s)`;
     document.getElementById('op-modal-compat-range').innerText = compat.openshift_versions || '-';
     document.getElementById('op-modal-compat-reason').innerText = compat.reason || '-';
-
-    const csvDetails = install.csv_details || {};
-    document.getElementById('op-modal-namespace-support').innerText = csvDetails.namespace_support || '-';
-    document.getElementById('op-modal-install-strategy').innerText = csvDetails.install_strategy || '-';
-    document.getElementById('op-modal-rbac-summary').innerText =
-        `${csvDetails.namespaced_rule_count || 0} namespaced rule(s), ${csvDetails.cluster_rule_count || 0} cluster rule(s)`;
-    const serviceAccounts = csvDetails.service_accounts || [];
-    document.getElementById('op-modal-service-accounts').innerText = serviceAccounts.length ? serviceAccounts.join(', ') : '-';
-    document.getElementById('op-modal-owned-crds').innerText = csvDetails.owned_crd_count ?? '-';
-    document.getElementById('op-modal-related-images').innerText = csvDetails.related_image_count ?? '-';
 
     const statusPill = document.getElementById('op-modal-status-pill');
     const statusText = document.getElementById('op-modal-status-text');

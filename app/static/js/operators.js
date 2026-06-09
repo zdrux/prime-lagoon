@@ -266,13 +266,8 @@ function renderUpgradeAlert(data) {
         alert.style.display = 'block';
         alert.innerHTML = `
             <div class="operator-upgrade-card ok">
-                <div>
-                    <div style="font-weight:700; color:#10b981;">
-                        <i class="fas fa-check-circle"></i> No operator upgrades pending
-                    </div>
-                    <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
-                        No Subscription reports a newer current CSV than the installed CSV.
-                    </div>
+                <div style="font-weight:700; color:#10b981; font-size:0.8rem; white-space:nowrap;">
+                    <i class="fas fa-check-circle"></i> No upgrades pending
                 </div>
             </div>
         `;
@@ -282,30 +277,18 @@ function renderUpgradeAlert(data) {
     const operatorCount = summary.operator_count || new Set(pending.map(p => p.operatorKey)).size;
     const clusterCount = summary.cluster_count || new Set(pending.map(p => p.cluster)).size;
     const installCount = summary.pending_installations || pending.length;
-    const preview = pending.slice(0, 5).map(item => `
-        <div>
-            <strong>${escapeHtml(item.operator)}</strong> on ${escapeHtml(item.cluster)}:
-            ${escapeHtml(item.installedCsv || 'installed unknown')} &rarr; ${escapeHtml(item.availableCsv || 'available unknown')}
-        </div>
-    `).join('');
-    const extra = pending.length > 5 ? `<div>+ ${pending.length - 5} more pending upgrade${pending.length - 5 === 1 ? '' : 's'}</div>` : '';
+    const title = `${installCount} pending upgrade${installCount === 1 ? '' : 's'} across ${operatorCount} operator${operatorCount === 1 ? '' : 's'} and ${clusterCount} cluster${clusterCount === 1 ? '' : 's'}`;
 
     alert.style.display = 'block';
     alert.innerHTML = `
-        <div class="operator-upgrade-card">
+        <div class="operator-upgrade-card" title="${escapeHtml(title)}">
             <div>
-                <div style="font-weight:700; color:#f59e0b;">
-                    <i class="fas fa-exclamation-triangle"></i> Operator upgrades pending approval
+                <div style="font-weight:700; color:#f59e0b; font-size:0.8rem; white-space:nowrap;">
+                    <i class="fas fa-exclamation-triangle"></i> ${installCount} upgrade${installCount === 1 ? '' : 's'} pending
                 </div>
-                <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
-                    ${installCount} installation${installCount === 1 ? '' : 's'}
-                    across ${operatorCount} operator${operatorCount === 1 ? '' : 's'}
-                    and ${clusterCount} cluster${clusterCount === 1 ? '' : 's'}.
-                </div>
-                <div class="operator-upgrade-list">${preview}${extra}</div>
             </div>
             <button class="filter-btn ${showUpgradesOnly ? 'active' : ''}" onclick="toggleUpgradeOnlyFilter()" style="white-space:nowrap;">
-                ${showUpgradesOnly ? 'Show All Operators' : 'Show Pending Only'}
+                ${showUpgradesOnly ? 'All' : 'Pending'}
             </button>
         </div>
     `;

@@ -129,7 +129,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
         if pvc:
             claimed_keys.add((claim_namespace, claim_name))
 
-        pv_capacity = get_val(pv, "spec.capacity.storage") or get_val(pv, "status.capacity.storage")
+        pv_capacity = get_val(pv, "spec.capacity.storage")
         pvc_capacity = get_val(pvc, "spec.resources.requests.storage") if pvc else None
         storage_class = get_val(pv, "spec.storageClassName") or (get_val(pvc, "spec.storageClassName") if pvc else "") or ""
         sc_details = storage_class_map.get(storage_class) or {}
@@ -146,8 +146,8 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
             "namespace_mapid": namespace_mapid_map.get(claim_namespace, "-"),
             "pv_phase": get_val(pv, "status.phase") or "-",
             "pvc_phase": get_val(pvc, "status.phase") if pvc else "-",
-            "capacity": pv_capacity or pvc_capacity or "-",
-            "capacity_gib": round(parse_storage_to_gib(pv_capacity or pvc_capacity), 2),
+            "capacity": pv_capacity or "-",
+            "capacity_gib": round(parse_storage_to_gib(pv_capacity), 2),
             "requested": pvc_capacity or "-",
             "access_modes": ", ".join(get_val(pv, "spec.accessModes") or get_val(pvc, "spec.accessModes") or []) or "-",
             "storage_class": storage_class or "-",
@@ -169,7 +169,6 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
         if pvc_key in claimed_keys:
             continue
         pvc_namespace, pvc_name = pvc_key
-        capacity = get_val(pvc, "spec.resources.requests.storage")
         storage_class = get_val(pvc, "spec.storageClassName") or ""
         sc_details = storage_class_map.get(storage_class) or {}
 
@@ -184,9 +183,9 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
             "namespace_mapid": namespace_mapid_map.get(pvc_namespace, "-"),
             "pv_phase": "-",
             "pvc_phase": get_val(pvc, "status.phase") or "-",
-            "capacity": capacity or "-",
-            "capacity_gib": round(parse_storage_to_gib(capacity), 2),
-            "requested": capacity or "-",
+            "capacity": "-",
+            "capacity_gib": 0,
+            "requested": get_val(pvc, "spec.resources.requests.storage") or "-",
             "access_modes": ", ".join(get_val(pvc, "spec.accessModes") or []) or "-",
             "storage_class": storage_class or "-",
             "reclaim_policy": sc_details.get("reclaim_policy") or "-",
@@ -246,12 +245,15 @@ def get_available_snapshots(session: Session = Depends(get_session)):
 @router.get("/storage")
 def get_storage_analytics(
     snapshot_time: Optional[str] = Query(None),
+    cluster_id: Optional[int] = Query(None),
     environment: Optional[str] = Query(None),
     datacenter: Optional[str] = Query(None),
     azure_files: bool = Query(False),
     session: Session = Depends(get_session)
 ):
     query = select(Cluster)
+    if cluster_id:
+        query = query.where(Cluster.id == cluster_id)
     if environment:
         query = query.where(func.upper(Cluster.environment) == environment.upper())
     if datacenter:
@@ -295,6 +297,7 @@ def get_storage_analytics(
                 snapshot_data["persistentvolumes"] = fetch_resources(cluster, "v1", "PersistentVolume", timeout=120)
                 snapshot_data["persistentvolumeclaims"] = fetch_resources(cluster, "v1", "PersistentVolumeClaim", timeout=120)
                 snapshot_data["storageclasses"] = fetch_resources(cluster, "storage.k8s.io/v1", "StorageClass", timeout=120)
+                snapshot_data["projects"] = fetch_resources(cluster, "project.openshift.io/v1", "Project", timeout=120)
                 cluster_status.append({"cluster": cluster.name, "status": "live", "message": "No snapshot found; live data fetched"})
             except Exception as e:
                 cluster_status.append({"cluster": cluster.name, "status": "error", "message": str(e)})

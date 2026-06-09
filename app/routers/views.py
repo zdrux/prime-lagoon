@@ -259,3 +259,25 @@ def storage_analytics_view(request: Request, session: Session = Depends(get_sess
         "page": "storage_analytics",
         "user": user
     })
+
+@router.get("/storage-analytics/{cluster_id}", response_class=HTMLResponse)
+def cluster_storage_analytics_view(cluster_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+
+    cluster = session.get(Cluster, cluster_id)
+    if not cluster:
+        return RedirectResponse(url="/storage-analytics")
+
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
+
+    return templates.TemplateResponse(request, "storage_analytics.html", {
+        "request": request,
+        "clusters": clusters,
+        "clusters_by_dc": clusters_by_dc,
+        "page": "storage_analytics",
+        "storage_cluster_id": cluster.id,
+        "storage_cluster_name": cluster.name,
+        "user": user
+    })

@@ -803,7 +803,7 @@ async function loadSummary(forceRefresh = false) {
 
                             <th class="sortable-header" onclick="sortTable('cluster-inventory-table', 2)">
 
-                                <div style="display:flex; align-items:center; gap:0.5rem;">App Nodes <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
+                                <div style="display:flex; align-items:center; gap:0.5rem;">Licensed Nodes <i class="fas fa-sort sort-icon" style="opacity:0.3; font-size:0.7rem;"></i></div>
 
                             </th>
 

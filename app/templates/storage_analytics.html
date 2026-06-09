@@ -55,7 +55,7 @@
         </div>
         <div style="display:flex; gap:0.5rem; align-items:center;">
             <span id="storage-data-as-of" style="font-size:0.8rem; color:var(--text-secondary); white-space:nowrap;"></span>
-            <input id="storage-search" class="form-input" type="text" placeholder="Search storage..." style="width:240px; padding:0.45rem 0.65rem; font-size:0.85rem;" oninput="renderStorageTable()">
+            <input id="storage-search" class="form-input" type="text" placeholder="Search storage..." style="width:240px; padding:0.45rem 0.65rem; font-size:0.85rem;" oninput="handleStorageSearch()">
         </div>
     </div>
 
@@ -92,6 +92,28 @@
             </tbody>
         </table>
     </div>
+
+    <div id="storage-pagination" style="display:none; justify-content:space-between; gap:1rem; align-items:center; margin-top:1rem; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span style="font-size:0.8rem; color:var(--text-secondary);">Items per page</span>
+            <select id="storage-page-size" class="form-input" style="width:auto; padding:0.35rem 0.55rem; font-size:0.8rem;" onchange="changeStoragePageSize(this.value)">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+                <option value="all">All</option>
+            </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+            <span id="storage-pagination-info" style="font-size:0.8rem; color:var(--text-secondary); white-space:nowrap;">Showing 0-0 of 0</span>
+            <button id="storage-prev-page" class="btn btn-secondary btn-sm" onclick="changeStoragePage(-1)" title="Previous page">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+            <button id="storage-next-page" class="btn btn-secondary btn-sm" onclick="changeStoragePage(1)" title="Next page">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -100,7 +122,9 @@
         filters: { env: new Set(), dc: new Set(), azure: false },
         forceRefresh: false,
         clusterId: {{ storage_cluster_id if storage_cluster_id is defined else 'null' }},
-        hideClusterColumn: {{ 'true' if storage_cluster_name else 'false' }}
+        hideClusterColumn: {{ 'true' if storage_cluster_name else 'false' }},
+        page: 1,
+        pageSize: 50
     };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -125,6 +149,12 @@
             }
         }
 
+        storageState.page = 1;
+        renderStorageTable();
+    }
+
+    function handleStorageSearch() {
+        storageState.page = 1;
         renderStorageTable();
     }
 
@@ -148,6 +178,7 @@
             const data = await res.json();
 
             storageState.rows = data.rows || [];
+            storageState.page = 1;
             renderStorageSummaryFromRows(storageState.rows);
             renderStorageStatus(data.status || [], data.timestamp);
             renderStorageTable();
@@ -217,11 +248,16 @@
         if (!filtered.length) {
             renderStorageSummaryFromRows(filtered);
             body.innerHTML = `<tr><td colspan="${storageTableColspan()}" style="text-align:center; padding:2rem; color:var(--text-secondary);">No matching PVs or PVCs found.</td></tr>`;
+            renderStoragePagination(filtered.length);
             return;
         }
 
         renderStorageSummaryFromRows(filtered);
-        body.innerHTML = filtered.map(row => `
+        const totalPages = storageTotalPages(filtered.length);
+        storageState.page = Math.min(Math.max(storageState.page, 1), totalPages);
+        const pageRows = storagePageRows(filtered);
+
+        body.innerHTML = pageRows.map(row => `
             <tr>
                 ${storageState.hideClusterColumn ? '' : `<td style="font-weight:600;">${escapeHtml(row.cluster_name)}</td>`}
                 <td>${badge(row.environment, 'blue')}</td>
@@ -239,6 +275,52 @@
                 <td style="font-family:monospace; font-size:0.85rem;">${row.azure_file ? escapeHtml(row.azure_storage_account_name || row.azure_secret_name) : '-'}</td>
             </tr>
         `).join('');
+        renderStoragePagination(filtered.length);
+    }
+
+    function changeStoragePageSize(value) {
+        storageState.pageSize = value === 'all' ? 'all' : Number(value);
+        storageState.page = 1;
+        renderStorageTable();
+    }
+
+    function changeStoragePage(delta) {
+        const total = Number(document.getElementById('storage-pagination')?.dataset.total || 0);
+        const totalPages = storageTotalPages(total);
+        storageState.page = Math.min(Math.max(storageState.page + delta, 1), totalPages);
+        renderStorageTable();
+    }
+
+    function storageTotalPages(total) {
+        if (storageState.pageSize === 'all') return 1;
+        return Math.max(1, Math.ceil(total / storageState.pageSize));
+    }
+
+    function storagePageRows(rows) {
+        if (storageState.pageSize === 'all') return rows;
+        const start = (storageState.page - 1) * storageState.pageSize;
+        return rows.slice(start, start + storageState.pageSize);
+    }
+
+    function renderStoragePagination(total) {
+        const pagination = document.getElementById('storage-pagination');
+        const info = document.getElementById('storage-pagination-info');
+        const prev = document.getElementById('storage-prev-page');
+        const next = document.getElementById('storage-next-page');
+        if (!pagination || !info || !prev || !next) return;
+
+        pagination.dataset.total = String(total);
+        pagination.style.display = 'flex';
+
+        const totalPages = storageTotalPages(total);
+        const start = total === 0 ? 0 : (storageState.pageSize === 'all' ? 1 : (storageState.page - 1) * storageState.pageSize + 1);
+        const end = storageState.pageSize === 'all' ? total : Math.min(storageState.page * storageState.pageSize, total);
+        info.innerText = total === 0
+            ? 'Showing 0-0 of 0'
+            : `Showing ${start}-${end} of ${total} (page ${storageState.page} of ${totalPages})`;
+
+        prev.disabled = storageState.page <= 1 || total === 0 || storageState.pageSize === 'all';
+        next.disabled = storageState.page >= totalPages || total === 0 || storageState.pageSize === 'all';
     }
 
     function storageColumnIndex(indexWithoutCluster) {

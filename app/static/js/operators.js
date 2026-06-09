@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let allData = null; // Store for filtering
+let showBlockedOnly = false;
 
 async function loadMatrix() {
     try {
@@ -13,6 +14,7 @@ async function loadMatrix() {
         const response = await fetch(url);
         const data = await response.json();
         allData = data;
+        renderCompatibilityAlert(data);
         renderMatrix(data);
 
         if (data.snapshot_time) {
@@ -150,6 +152,72 @@ function renderMatrix(data) {
     });
 }
 
+function getBlockedInstallations(data) {
+    const blocked = [];
+    if (!data || !data.operators || !data.clusters) return blocked;
+
+    data.operators.forEach(op => {
+        data.clusters.forEach(cluster => {
+            const install = op.installations[cluster.name];
+            const compat = install && install.openshift_compatibility;
+            if (compat && compat.risk === 'blocked') {
+                blocked.push({
+                    operator: op,
+                    cluster,
+                    install,
+                    compatibility: compat
+                });
+            }
+        });
+    });
+
+    return blocked;
+}
+
+function renderCompatibilityAlert(data) {
+    const alert = document.getElementById('operator-compat-alert');
+    const title = document.getElementById('operator-compat-alert-title');
+    const desc = document.getElementById('operator-compat-alert-desc');
+    const list = document.getElementById('operator-compat-alert-list');
+    const btn = document.getElementById('operator-compat-filter-btn');
+    if (!alert || !title || !desc || !list || !btn) return;
+
+    const blocked = getBlockedInstallations(data);
+    const operators = new Set(blocked.map(item => item.operator.name));
+    const clusters = new Set(blocked.map(item => item.cluster.name));
+
+    alert.style.display = 'block';
+    btn.style.display = blocked.length ? 'inline-flex' : 'none';
+    btn.innerText = showBlockedOnly ? 'Show All Operators' : 'Show Blocked Only';
+
+    if (!blocked.length) {
+        alert.style.borderColor = 'rgba(34, 197, 94, 0.35)';
+        alert.style.background = 'rgba(34, 197, 94, 0.08)';
+        title.style.color = 'var(--success-color)';
+        title.innerHTML = '<i class="fas fa-check-circle"></i> No declared operator compatibility blockers found';
+        desc.innerText = 'No installed operator CSV with declared OpenShift compatibility metadata is outside its supported range.';
+        list.innerHTML = '';
+        return;
+    }
+
+    alert.style.borderColor = 'rgba(239, 68, 68, 0.45)';
+    alert.style.background = 'rgba(239, 68, 68, 0.08)';
+    title.style.color = 'var(--danger-color)';
+    title.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Operator compatibility blockers detected';
+    desc.innerText = `${blocked.length} installed operator instance(s) across ${operators.size} operator(s) and ${clusters.size} cluster(s) are outside declared CSV OpenShift compatibility.`;
+
+    list.innerHTML = blocked.slice(0, 5).map(item => {
+        const compat = item.compatibility;
+        return `<div><strong>${escapeHtml(item.operator.displayName)}</strong> on <strong>${escapeHtml(item.cluster.name)}</strong>: ${escapeHtml(compat.reason || 'Outside declared compatibility')}</div>`;
+    }).join('') + (blocked.length > 5 ? `<div style="margin-top:0.25rem;">...and ${blocked.length - 5} more.</div>` : '');
+}
+
+function toggleBlockedOnlyFilter() {
+    showBlockedOnly = !showBlockedOnly;
+    renderCompatibilityAlert(allData);
+    applyFilters();
+}
+
 function getOperatorFleetRisk(op, clusters) {
     const values = [];
     let hasBlocked = false;
@@ -237,8 +305,17 @@ function applyFilters() {
     // 2. Determine Visible Operators
     let filteredOps = allData.operators;
 
+    if (showBlockedOnly) {
+        filteredOps = filteredOps.filter(op =>
+            filteredClusters.some(c => {
+                const install = op.installations[c.name];
+                return install && install.openshift_compatibility && install.openshift_compatibility.risk === 'blocked';
+            })
+        );
+    }
+
     if (term) {
-        const opMatches = allData.operators.filter(op =>
+        const opMatches = filteredOps.filter(op =>
             op.displayName.toLowerCase().includes(term) ||
             op.name.toLowerCase().includes(term)
         );
@@ -260,7 +337,7 @@ function applyFilters() {
                 // User is likely searching for a specific cluster/environment
                 filteredClusters = clusterMatches;
                 // Since no ops matched, we show all ops (standard behavior for cluster search)
-                filteredOps = allData.operators;
+                filteredOps = filteredOps;
             } else {
                 // Matches nothing
                 filteredOps = [];
@@ -272,6 +349,15 @@ function applyFilters() {
         clusters: filteredClusters,
         operators: filteredOps
     });
+}
+
+function escapeHtml(value) {
+    return String(value ?? '-')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 
 function formatTimestamp(isoStr) {

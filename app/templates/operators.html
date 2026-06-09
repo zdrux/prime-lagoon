@@ -74,6 +74,21 @@
         <p style="margin-top:1rem; opacity:0.7;">Loading Operator Matrix...</p>
     </div>
 
+    <div id="operator-compat-alert"
+        style="display:none; margin-bottom:1rem; border-radius:8px; border:1px solid var(--border-color); background:rgba(255,255,255,0.03); padding:1rem 1.25rem;">
+        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start;">
+            <div>
+                <div id="operator-compat-alert-title" style="font-weight:800; margin-bottom:0.35rem;">Compatibility Summary</div>
+                <div id="operator-compat-alert-desc" style="font-size:0.85rem; color:var(--text-secondary);"></div>
+                <div id="operator-compat-alert-list" style="font-size:0.8rem; margin-top:0.6rem; color:var(--text-secondary);"></div>
+            </div>
+            <button id="operator-compat-filter-btn" class="btn btn-secondary btn-sm" onclick="toggleBlockedOnlyFilter()"
+                style="white-space:nowrap; display:none;">
+                Show Blocked Only
+            </button>
+        </div>
+    </div>
+
     <div id="matrix-container"
         style="display:none; overflow-x: auto; background: var(--bg-secondary); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
         <table class="table" style="margin:0; min-width: 100%;">

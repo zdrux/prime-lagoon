@@ -126,6 +126,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
         pvc_capacity = get_val(pvc, "spec.resources.requests.storage") if pvc else None
         storage_class = get_val(pv, "spec.storageClassName") or (get_val(pvc, "spec.storageClassName") if pvc else "") or ""
         sc_details = storage_class_map.get(storage_class) or {}
+        azure_secret_name = get_val(pv, "spec.azureFile.secretName") or "-"
 
         rows.append({
             "cluster_id": cluster.id,
@@ -148,7 +149,8 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
             "allow_expansion": sc_details.get("allow_expansion"),
             "azure_file": _is_azure_file_volume(pv, pvc, storage_class_map),
             "backend": "Azure Files" if _is_azure_file_volume(pv, pvc, storage_class_map) else "-",
-            "azure_secret_name": get_val(pv, "spec.azureFile.secretName") or "-",
+            "azure_secret_name": azure_secret_name,
+            "azure_storage_account_name": azure_secret_name,
             "azure_secret_namespace": get_val(pv, "spec.azureFile.secretNamespace") or "-",
             "azure_share_name": get_val(pv, "spec.azureFile.shareName") or "-",
             "csi_driver": get_val(pv, "spec.csi.driver") or "-",
@@ -185,6 +187,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
             "azure_file": _storage_class_is_azure_file(storage_class, storage_class_map),
             "backend": "Azure Files" if _storage_class_is_azure_file(storage_class, storage_class_map) else "-",
             "azure_secret_name": "-",
+            "azure_storage_account_name": "-",
             "azure_secret_namespace": "-",
             "azure_share_name": "-",
             "csi_driver": "-",

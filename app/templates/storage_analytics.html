@@ -74,17 +74,15 @@
                     <th class="sortable-header" onclick="sortTable('storage-table', 6)">Capacity <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
                     <th>Access Modes</th>
                     <th>StorageClass</th>
-                    <th>Backend</th>
                     <th>PV/PVC Phase</th>
                     <th>Reclaim</th>
-                    <th>Volume Mode</th>
                     <th>Share Name</th>
                     <th>Storage Account</th>
                 </tr>
             </thead>
             <tbody id="storage-table-body">
                 <tr>
-                    <td colspan="15" style="text-align:center; padding:2rem;">
+                    <td colspan="13" style="text-align:center; padding:2rem;">
                         <i class="fas fa-circle-notch fa-spin"></i> Loading storage inventory...
                     </td>
                 </tr>
@@ -128,7 +126,7 @@
     async function loadStorageAnalytics(forceRefresh = false) {
         const body = document.getElementById('storage-table-body');
         if (body) {
-            body.innerHTML = '<tr><td colspan="15" style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading storage inventory...</td></tr>';
+            body.innerHTML = '<tr><td colspan="13" style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading storage inventory...</td></tr>';
         }
 
         try {
@@ -149,7 +147,7 @@
             renderStorageTable();
         } catch (e) {
             if (body) {
-                body.innerHTML = `<tr><td colspan="15" style="text-align:center; padding:2rem; color:var(--danger-color);">${e.message}</td></tr>`;
+                body.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:2rem; color:var(--danger-color);">${e.message}</td></tr>`;
             }
         }
     }
@@ -212,7 +210,7 @@
 
         if (!filtered.length) {
             renderStorageSummaryFromRows(filtered);
-            body.innerHTML = '<tr><td colspan="15" style="text-align:center; padding:2rem; color:var(--text-secondary);">No matching PVs or PVCs found.</td></tr>';
+            body.innerHTML = '<tr><td colspan="13" style="text-align:center; padding:2rem; color:var(--text-secondary);">No matching PVs or PVCs found.</td></tr>';
             return;
         }
 
@@ -231,17 +229,10 @@
                 </td>
                 <td>${escapeHtml(row.access_modes)}</td>
                 <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(row.storage_class)}</td>
-                <td>${row.azure_file ? badge('Azure Files', 'blue') : escapeHtml(row.backend || '-')}</td>
                 <td>${escapeHtml(row.pv_phase)} / ${escapeHtml(row.pvc_phase)}</td>
                 <td>${escapeHtml(row.reclaim_policy)}</td>
-                <td>${escapeHtml(row.volume_mode)}</td>
                 <td style="font-family:monospace; font-size:0.85rem;">${row.azure_file ? escapeHtml(row.azure_share_name) : '-'}</td>
-                <td style="font-family:monospace; font-size:0.85rem;">
-                    ${row.azure_file ? `
-                        <div>${escapeHtml(row.azure_storage_account_name || row.azure_secret_name)}</div>
-                        <div style="color:var(--text-secondary);">${escapeHtml(row.azure_secret_namespace)}</div>
-                    ` : '-'}
-                </td>
+                <td style="font-family:monospace; font-size:0.85rem;">${row.azure_file ? escapeHtml(row.azure_storage_account_name || row.azure_secret_name) : '-'}</td>
             </tr>
         `).join('');
     }

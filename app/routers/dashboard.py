@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from app.database import get_session
 from app.models import Cluster, LicenseUsage, AppConfig, LicenseRule, ClusterSnapshot, User
+from app.dependencies import operator_allowed
 from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu, get_detailed_stats, parse_memory_to_gb, get_dynamic_client, get_argocd_application_details, get_argocd_applicationset_details, get_val
 
 # Consolidated license calculation logic is now in poller, but for realtime we still might need it
@@ -249,7 +250,8 @@ def get_storage_analytics(
     environment: Optional[str] = Query(None),
     datacenter: Optional[str] = Query(None),
     azure_files: bool = Query(False),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    user: User = Depends(operator_allowed)
 ):
     query = select(Cluster)
     if cluster_id:

@@ -253,9 +253,11 @@
                             onclick="loadResource({{ cluster.id }}, 'machinesets', '{{ cluster.name }}')">MachineSets</a>
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'projects', '{{ cluster.name }}')">Projects</a>
+                        {% if user.is_operator %}
                         <a href="/storage-analytics/{{ cluster.id }}" class="sub-link {% if page == 'cluster_storage' and storage_cluster_id == cluster.id %}active{% endif %}">
                             PV/PVC Storage
                         </a>
+                        {% endif %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'machineautoscalers', '{{ cluster.name }}')">Autoscalers</a>
                     </div>
@@ -300,9 +302,11 @@
                             onclick="loadResource({{ cluster.id }}, 'machinesets', '{{ cluster.name }}')">MachineSets</a>
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'projects', '{{ cluster.name }}')">Projects</a>
+                        {% if user.is_operator %}
                         <a href="/storage-analytics/{{ cluster.id }}" class="sub-link {% if page == 'cluster_storage' and storage_cluster_id == cluster.id %}active{% endif %}">
                             PV/PVC Storage
                         </a>
+                        {% endif %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'machineautoscalers', '{{ cluster.name }}')">Autoscalers</a>
                     </div>

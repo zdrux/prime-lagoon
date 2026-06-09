@@ -58,10 +58,6 @@
                 <b style="color:var(--text-secondary);">-</b>
                 <span style="color:var(--text-secondary); font-style: italic;">Not Installed</span>
             </div>
-            <div style="display:flex; align-items:center; gap: 0.4rem;">
-                <span class="compat-dot compat-blocked" style="cursor:default;"></span>
-                <span style="color:var(--text-secondary);">OCP Blocked</span>
-            </div>
         </div>
     </div>
 
@@ -145,33 +141,6 @@
                                 style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Catalog
                                 Source</label>
                             <span id="op-modal-source" style="font-size:0.85rem;">-</span>
-                        </div>
-                        <div class="detail-item">
-                            <label
-                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">OCP
-                                Compatibility</label>
-                            <span id="op-modal-compat-status" style="font-weight:600;">-</span>
-                        </div>
-                        <div class="detail-item">
-                            <label
-                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Max OCP</label>
-                            <span id="op-modal-compat-max" style="font-family:monospace; font-size:0.9rem;">-</span>
-                        </div>
-                        <div class="detail-item">
-                            <label
-                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Min OCP</label>
-                            <span id="op-modal-compat-min" style="font-family:monospace; font-size:0.9rem;">-</span>
-                        </div>
-                        <div class="detail-item">
-                            <label
-                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">OCP Range</label>
-                            <span id="op-modal-compat-range" style="font-family:monospace; font-size:0.85rem;">-</span>
-                        </div>
-                        <div class="detail-item" style="grid-column: span 2;">
-                            <label
-                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Compatibility
-                                Reason</label>
-                            <span id="op-modal-compat-reason" style="font-size:0.85rem;">-</span>
                         </div>
                     </div>
                 </div>
@@ -286,28 +255,6 @@
         background: rgba(234, 179, 8, 0.1);
         color: #eab308;
         border: 1px solid rgba(234, 179, 8, 0.2);
-    }
-
-    .compat-dot {
-        display: inline-block;
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        margin-left: 0.3rem;
-        vertical-align: middle;
-    }
-
-    .compat-compatible {
-        background: var(--success-color);
-    }
-
-    .compat-blocked {
-        background: var(--danger-color);
-    }
-
-    .compat-unknown {
-        background: var(--text-secondary);
-        opacity: 0.5;
     }
 
     /* Search Box Styles matching Bootstrap-ish feel but custom */

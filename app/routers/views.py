@@ -5,7 +5,8 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Cluster, AuditRule, AuditBundle, User
 
-from app.dependencies import get_current_user_optional, admin_required, is_ldap_enabled, operator_allowed
+from app.dependencies import get_current_user_optional, is_ldap_enabled
+from app.services.page_access import require_page_access, template_page_access
 import json
 
 templates = Jinja2Templates(directory="app/templates")
@@ -18,7 +19,10 @@ def root():
     return RedirectResponse(url="/dashboard")
 
 @router.get("/admin", response_class=HTMLResponse)
-def admin_view(request: Request, tab: str = 'clusters', session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
+def admin_view(request: Request, tab: str = 'clusters', session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+    require_page_access("admin", user, session)
     from app.models import AppConfig
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -54,13 +58,15 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "collect_olm": collect_olm,
         "run_compliance": run_compliance,
         "enable_db_vacuum": enable_vacuum,
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
 
 @router.get("/audit", response_class=HTMLResponse)
 def audit_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
+    require_page_access("audit_rules", user, session)
         
     rules = session.exec(select(AuditRule)).all()
     bundles = session.exec(select(AuditBundle)).all()
@@ -75,13 +81,15 @@ def audit_view(request: Request, session: Session = Depends(get_session), user: 
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
         "page": "audit_rules",
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
 
 @router.get("/compliance", response_class=HTMLResponse)
 def compliance_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
+    require_page_access("compliance", user, session)
         
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -91,7 +99,8 @@ def compliance_view(request: Request, session: Session = Depends(get_session), u
         "page": "compliance",
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
 
 def _group_clusters(clusters):
@@ -200,6 +209,7 @@ def _group_clusters_with_status(clusters, session):
 def dashboard_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
+    require_page_access("dashboard", user, session)
 
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -209,12 +219,15 @@ def dashboard_view(request: Request, session: Session = Depends(get_session), us
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
         "page": "dashboard",
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
     
 @router.get("/operators", response_class=HTMLResponse)
-def operators_view(request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
-    # if is_ldap_enabled and not user, admin_required will already have handled auth via get_current_user
+def operators_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+    require_page_access("operators", user, session)
     
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -224,14 +237,16 @@ def operators_view(request: Request, session: Session = Depends(get_session), us
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
         "page": "operators",
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
 
 
 @router.get("/license-analytics", response_class=HTMLResponse)
-def license_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
+def license_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
+    require_page_access("license_analytics", user, session)
         
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -241,13 +256,15 @@ def license_analytics_view(request: Request, session: Session = Depends(get_sess
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
         "page": "license_analytics",
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
 
 @router.get("/storage-analytics", response_class=HTMLResponse)
-def storage_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
+def storage_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
+    require_page_access("storage_analytics", user, session)
 
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
@@ -257,13 +274,15 @@ def storage_analytics_view(request: Request, session: Session = Depends(get_sess
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
         "page": "storage_analytics",
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })
 
 @router.get("/storage-analytics/{cluster_id}", response_class=HTMLResponse)
 def cluster_storage_analytics_view(cluster_id: int, request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
     if is_ldap_enabled(session) and not user:
         return RedirectResponse(url="/login")
+    require_page_access("cluster_storage", user, session)
 
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
@@ -279,5 +298,6 @@ def cluster_storage_analytics_view(cluster_id: int, request: Request, session: S
         "page": "cluster_storage",
         "storage_cluster_id": cluster.id,
         "storage_cluster_name": cluster.name,
-        "user": user
+        "user": user,
+        "page_access": template_page_access(user, session)
     })

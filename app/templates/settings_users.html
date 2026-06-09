@@ -8,9 +8,14 @@
     </div>
     <div style="display:flex; gap:0.5rem;">
         <a href="/settings/users"
-            class="btn {% if page == 'settings_users' %}btn-primary{% else %}btn-secondary{% endif %}"
+            class="btn {% if active_tab != 'page-access' %}btn-primary{% else %}btn-secondary{% endif %}"
             style="font-size:0.85rem; padding:0.5rem 1rem;">
             <i class="fas fa-users"></i> Users
+        </a>
+        <a href="/settings/users?tab=page-access"
+            class="btn {% if active_tab == 'page-access' %}btn-primary{% else %}btn-secondary{% endif %}"
+            style="font-size:0.85rem; padding:0.5rem 1rem;">
+            <i class="fas fa-lock"></i> Page Access
         </a>
         <a href="/settings/ldap"
             class="btn {% if page == 'settings_ldap' %}btn-primary{% else %}btn-secondary{% endif %}"
@@ -20,6 +25,48 @@
     </div>
 </div>
 
+{% if active_tab == 'page-access' %}
+<div class="card fade-in">
+    <div class="resource-header"
+        style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <i class="fas fa-lock" style="margin-right:0.5rem; color:var(--accent-color);"></i> Page Access Requirements
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="savePageAccess()">
+            <i class="fas fa-save"></i> Save Requirements
+        </button>
+    </div>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Page</th>
+                    <th>Description</th>
+                    <th style="width:180px;">Minimum Role</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in page_definitions %}
+                <tr>
+                    <td style="font-weight:700;">{{ p.label }}</td>
+                    <td style="color:var(--text-secondary); font-size:0.85rem;">{{ p.description }}</td>
+                    <td>
+                        <select class="form-input page-access-select" data-page-key="{{ p.key }}" style="padding:0.35rem;">
+                            {% for role_key, role_label in role_labels.items() %}
+                            <option value="{{ role_key }}" {% if page_access_config[p.key] == role_key %}selected{% endif %}>{{ role_label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="padding:0.8rem 1rem; border-top:1px solid var(--border-color); color:var(--text-secondary); font-size:0.85rem;">
+        Only administrators can view or change these requirements. API endpoints that back broad fleet pages may still enforce their own permissions where needed.
+    </div>
+</div>
+{% else %}
 <div class="card fade-in">
     <div class="resource-header"
         style="padding:1rem; border-bottom:1px solid var(--border-color); font-weight:700; display:flex; justify-content:space-between; align-items:center;">
@@ -85,6 +132,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Add User Modal -->
 <div id="add-user-modal" class="modal">
@@ -291,6 +339,26 @@
 
             window.location.reload();
 
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    async function savePageAccess() {
+        const access = {};
+        document.querySelectorAll('.page-access-select').forEach(select => {
+            access[select.dataset.pageKey] = select.value;
+        });
+
+        try {
+            const res = await fetch('/settings/api/page-access', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access })
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) throw new Error(data.detail || data.error || 'Failed to save page access');
+            window.location.reload();
         } catch (e) {
             alert(e.message);
         }

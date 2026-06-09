@@ -7,6 +7,7 @@ import json
 from app.database import get_session
 from app.models import Cluster, LicenseUsage, AppConfig, LicenseRule, ClusterSnapshot, User
 from app.dependencies import get_current_user_optional
+from app.services.page_access import require_page_access
 from app.services.ocp import fetch_resources, get_cluster_stats, parse_cpu, get_detailed_stats, parse_memory_to_gb, get_dynamic_client, get_argocd_application_details, get_argocd_applicationset_details, get_val
 
 # Consolidated license calculation logic is now in poller, but for realtime we still might need it
@@ -253,8 +254,7 @@ def get_storage_analytics(
     session: Session = Depends(get_session),
     user: Optional[User] = Depends(get_current_user_optional)
 ):
-    if not cluster_id and (not user or not user.is_operator):
-        raise HTTPException(status_code=403, detail="Operator or Admin permissions required")
+    require_page_access("cluster_storage" if cluster_id else "storage_analytics", user, session)
 
     query = select(Cluster)
     if cluster_id:
@@ -344,7 +344,8 @@ def get_storage_analytics(
     }
 
 @router.get("/{cluster_id}/resources/{resource_type}")
-def get_cluster_resources(cluster_id: int, resource_type: str, snapshot_time: Optional[str] = Query(None), session: Session = Depends(get_session)):
+def get_cluster_resources(cluster_id: int, resource_type: str, snapshot_time: Optional[str] = Query(None), session: Session = Depends(get_session), user: Optional[User] = Depends(get_current_user_optional)):
+    require_page_access("cluster_resources", user, session)
     if resource_type not in RESOURCE_MAP:
         raise HTTPException(status_code=400, detail="Invalid resource type")
     

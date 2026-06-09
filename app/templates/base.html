@@ -15,6 +15,7 @@
 </head>
 
 <body>
+    {% set access = page_access if page_access is defined else {} %}
     <div class="app-container">
         <!-- Sidebar -->
         <nav class="sidebar">
@@ -57,7 +58,7 @@
                 {% endif %}
 
                 <!-- Snapshot Selector -->
-                {% if user.is_operator %}
+                {% if access.get('admin', user.is_operator) %}
                 <li
                     style="padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem;">
                     <div
@@ -78,11 +79,12 @@
                 {% endif %}
 
                 <!-- Administration Group -->
-                {% if user.is_operator %}
+                {% if access.get('admin', user.is_operator) or access.get('audit_rules', true) or access.get('compliance', true) or user.is_admin %}
                 <li
                     style="padding: 0.4rem 0.6rem; font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.4rem; margin-bottom:0.1rem;">
                     Administration
                 </li>
+                {% if access.get('admin', user.is_operator) %}
                 <li class="nav-item">
                     <a href="/admin?tab=clusters"
                         class="nav-link {% if page == 'admin' and active_tab == 'clusters' %}active{% endif %}">
@@ -113,6 +115,8 @@
                         </a>
                     </div>
                 </li>
+                {% endif %}
+                {% if access.get('audit_rules', true) or access.get('compliance', true) %}
                 <li class="nav-item">
                     <a href="#"
                         class="nav-link submenu-toggle {% if page in ['audit_rules', 'compliance'] %}active{% endif %}"
@@ -123,14 +127,20 @@
                     </a>
                     <div class="resource-submenu {% if page in ['audit_rules', 'compliance'] %}open{% endif %}"
                         id="submenu-compliance">
+                        {% if access.get('audit_rules', true) %}
                         <a href="/audit" class="sub-link {% if page == 'audit_rules' %}active{% endif %}">
                             <i class="fas fa-clipboard-list" style="width:16px;"></i> Compliance Rules
                         </a>
+                        {% endif %}
+                        {% if access.get('compliance', true) %}
                         <a href="/compliance" class="sub-link {% if page == 'compliance' %}active{% endif %}">
                             <i class="fas fa-check-circle" style="width:16px;"></i> Run Compliance
                         </a>
+                        {% endif %}
                     </div>
                 </li>
+                {% endif %}
+                {% if user.is_admin %}
                 <a href="#"
                     class="nav-link submenu-toggle {% if page and page.startswith('settings_') and page != 'settings_db_stats' %}active{% endif %}"
                     data-target="submenu-app-config"
@@ -156,28 +166,31 @@
                 </div>
                 </li>
                 {% endif %}
+                {% endif %}
 
+                {% if access.get('dashboard', true) %}
                 <li class="nav-item"
                     style="margin-top: 0.5rem; border-top: 1px solid var(--border-color); padding: 0.25rem 0 0 0;">
                     <a href="/dashboard" class="nav-link {% if page == 'dashboard' %}active{% endif %}">
                         <i class="fas fa-th-large"></i> All Clusters
                     </a>
                 </li>
-                {% if user.is_operator %}
+                {% endif %}
+                {% if access.get('license_analytics', user.is_operator) %}
                 <li class="nav-item">
                     <a href="/license-analytics" class="nav-link {% if page == 'license_analytics' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i> License Analytics (MAPID)
                     </a>
                 </li>
                 {% endif %}
-                {% if user.is_operator %}
+                {% if access.get('storage_analytics', user.is_operator) %}
                 <li class="nav-item">
                     <a href="/storage-analytics" class="nav-link {% if page == 'storage_analytics' and not storage_cluster_id %}active{% endif %}">
                         <i class="fas fa-hard-drive"></i> Storage Analytics
                     </a>
                 </li>
                 {% endif %}
-                {% if user.is_operator %}
+                {% if access.get('operators', user.is_operator) %}
                 <li class="nav-item">
                     <a href="/operators" class="nav-link {% if page == 'operators' %}active{% endif %}">
                         <i class="fas fa-boxes"></i> Cluster Operators
@@ -245,6 +258,7 @@
                         </a>
                         {% endif %}
                         {% endif %}
+                        {% if access.get('cluster_resources', true) %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
                         <a href="#" class="sub-link"
@@ -253,11 +267,16 @@
                             onclick="loadResource({{ cluster.id }}, 'machinesets', '{{ cluster.name }}')">MachineSets</a>
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'projects', '{{ cluster.name }}')">Projects</a>
+                        {% endif %}
+                        {% if access.get('cluster_storage', true) %}
                         <a href="/storage-analytics/{{ cluster.id }}" class="sub-link {% if page == 'cluster_storage' and storage_cluster_id == cluster.id %}active{% endif %}">
                             PV/PVC Storage
                         </a>
+                        {% endif %}
+                        {% if access.get('cluster_resources', true) %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'machineautoscalers', '{{ cluster.name }}')">Autoscalers</a>
+                        {% endif %}
                     </div>
                 </li>
                 {% endfor %}
@@ -292,6 +311,7 @@
                         </a>
                         {% endif %}
                         {% endif %}
+                        {% if access.get('cluster_resources', true) %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'nodes', '{{ cluster.name }}')">Nodes</a>
                         <a href="#" class="sub-link"
@@ -300,11 +320,16 @@
                             onclick="loadResource({{ cluster.id }}, 'machinesets', '{{ cluster.name }}')">MachineSets</a>
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'projects', '{{ cluster.name }}')">Projects</a>
+                        {% endif %}
+                        {% if access.get('cluster_storage', true) %}
                         <a href="/storage-analytics/{{ cluster.id }}" class="sub-link {% if page == 'cluster_storage' and storage_cluster_id == cluster.id %}active{% endif %}">
                             PV/PVC Storage
                         </a>
+                        {% endif %}
+                        {% if access.get('cluster_resources', true) %}
                         <a href="#" class="sub-link"
                             onclick="loadResource({{ cluster.id }}, 'machineautoscalers', '{{ cluster.name }}')">Autoscalers</a>
+                        {% endif %}
                     </div>
                 </li>
                 {% endfor %}

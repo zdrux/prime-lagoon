@@ -13,6 +13,7 @@ import json
 from app.models import Cluster, AppConfig, LicenseRule
 from app.services.ocp import fetch_resources
 from app.services.license import calculate_licenses
+from app.services.page_access import PAGE_DEFINITIONS, ROLE_LABELS, get_page_access_config, set_page_access_config, template_page_access
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 templates = Jinja2Templates(directory="app/templates")
@@ -22,6 +23,9 @@ class UserUpdate(BaseModel):
     
 class UserRoleUpdate(BaseModel):
     role: str # admin, operator, user
+
+class PageAccessUpdate(BaseModel):
+    access: dict[str, str]
 
 class LDAPConfig(BaseModel):
     host: str
@@ -41,6 +45,7 @@ def settings_redirect():
 @router.get("/users", response_class=HTMLResponse)
 def user_management_page(
     request: Request, 
+    tab: str = "users",
     session: Session = Depends(get_session),
     user: User = Depends(admin_required)
 ):
@@ -60,6 +65,11 @@ def user_management_page(
         "users": users,
         "user": user,
         "page": "settings_users",
+        "active_tab": tab,
+        "page_definitions": PAGE_DEFINITIONS,
+        "page_access_config": get_page_access_config(session),
+        "role_labels": ROLE_LABELS,
+        "page_access": template_page_access(user, session),
         "clusters_by_dc": clusters_by_dc
     })
 
@@ -91,6 +101,7 @@ def ldap_settings_page(
         "ldap_domain": cfg_dict.get("LDAP_USER_DOMAIN", ""),
         "user": user,
         "page": "settings_ldap",
+        "page_access": template_page_access(user, session),
         "clusters_by_dc": clusters_by_dc
     })
 
@@ -113,6 +124,7 @@ def db_stats_page(
         "request": request,
         "user": user,
         "page": "settings_db_stats",
+        "page_access": template_page_access(user, session),
         "clusters_by_dc": clusters_by_dc
     })
 
@@ -163,6 +175,10 @@ def update_user_role(user_id: int, req: UserRoleUpdate, session: Session = Depen
     session.refresh(target_user)
     
     return {"ok": True, "user": target_user.model_dump()}
+
+@router.post("/api/page-access")
+def update_page_access(req: PageAccessUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    return {"ok": True, "access": set_page_access_config(session, req.access)}
 
 @router.post("/api/ldap")
 def update_ldap(config: LDAPConfig, session: Session = Depends(get_session), user: User = Depends(admin_required)):
@@ -270,6 +286,7 @@ def license_settings_page(
         "rules": rules,
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
+        "page_access": template_page_access(user, session),
         "default_include": (session.get(AppConfig, "LICENSE_DEFAULT_INCLUDE") or AppConfig(value="False")).value.lower() == "true"
     })
 
@@ -410,6 +427,7 @@ def namespace_settings_page(
         "user": user,
         "page": "settings_namespaces",
         "rules": rules,
+        "page_access": template_page_access(user, session),
         "clusters_by_dc": clusters_by_dc
     })
 

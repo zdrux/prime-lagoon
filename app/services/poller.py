@@ -162,8 +162,9 @@ def poll_cluster(
                 
                 timeout = 600 if key in ["csvs", "subscriptions"] else 120
                 
-                # Fetch CSVs as Table to reduced payload size
-                use_table = (key == "csvs")
+                # CSV compatibility metadata is stored in annotations, so fetch full CSVs
+                # and then minify before saving the snapshot.
+                use_table = False
                 items = fetch_resources(cluster, meta["api_version"], meta["kind"], timeout=timeout, use_table=use_table)
                 
                 if use_table and key == "csvs":
@@ -194,7 +195,8 @@ def poll_cluster(
                                  "metadata": {
                                      "name": metadata.get("name"),
                                      "namespace": metadata.get("namespace"),
-                                     "creationTimestamp": metadata.get("creationTimestamp")
+                                     "creationTimestamp": metadata.get("creationTimestamp"),
+                                     "annotations": metadata.get("annotations", {})
                                  },
                                  "spec": {
                                      "version": version,
@@ -222,7 +224,8 @@ def poll_cluster(
                                  "metadata": {
                                      "name": csv.get("metadata", {}).get("name"),
                                      "namespace": csv.get("metadata", {}).get("namespace"),
-                                     "creationTimestamp": csv.get("metadata", {}).get("creationTimestamp")
+                                     "creationTimestamp": csv.get("metadata", {}).get("creationTimestamp"),
+                                     "annotations": csv.get("metadata", {}).get("annotations", {})
                                  },
                                  "spec": {
                                      "version": csv.get("spec", {}).get("version"),

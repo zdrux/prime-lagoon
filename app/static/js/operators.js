@@ -126,9 +126,12 @@ function renderMatrix(data) {
                 const isMatch = install.version === consensus;
                 const pillClass = isMatch ? 'ver-match' : 'ver-mismatch';
                 const matchTitle = isMatch ? 'Matches fleet consensus' : `Differs from fleet consensus (most common: ${consensus})`;
+                const compat = install.openshift_compatibility || { status: 'unknown', reason: 'No compatibility metadata found.' };
+                const compatClass = `compat-${compat.status || 'unknown'}`;
+                const compatTitle = `OCP compatibility: ${compat.status || 'unknown'} - ${compat.reason || ''}`;
 
                 td.innerHTML = `
-                    <div class="ver-pill ${pillClass}" title="${matchTitle}">${install.version}</div>
+                    <div class="ver-pill ${pillClass}" title="${matchTitle}">${install.version}<span class="compat-dot ${compatClass}" title="${compatTitle}"></span></div>
                     <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 2px;">${install.channel}</div>
                 `;
                 td.onclick = () => openOpModal(op, c.name);
@@ -264,6 +267,16 @@ function openOpModal(op, clusterName) {
     document.getElementById('op-modal-version').innerText = install.version || '-';
     document.getElementById('op-modal-channel').innerText = install.channel || '-';
     document.getElementById('op-modal-source').innerText = install.source || '-';
+
+    const compat = install.openshift_compatibility || {};
+    const compatStatus = compat.status || 'unknown';
+    const compatStatusEl = document.getElementById('op-modal-compat-status');
+    compatStatusEl.innerText = compatStatus.toUpperCase();
+    compatStatusEl.style.color = compatStatus === 'blocked' ? 'var(--danger-color)' : (compatStatus === 'compatible' ? 'var(--success-color)' : 'var(--text-secondary)');
+    document.getElementById('op-modal-compat-max').innerText = compat.max_openshift_version || '-';
+    document.getElementById('op-modal-compat-min').innerText = compat.min_openshift_version || '-';
+    document.getElementById('op-modal-compat-range').innerText = compat.openshift_versions || '-';
+    document.getElementById('op-modal-compat-reason').innerText = compat.reason || '-';
 
     const statusPill = document.getElementById('op-modal-status-pill');
     const statusText = document.getElementById('op-modal-status-text');

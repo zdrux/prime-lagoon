@@ -243,3 +243,19 @@ def license_analytics_view(request: Request, session: Session = Depends(get_sess
         "page": "license_analytics",
         "user": user
     })
+
+@router.get("/storage-analytics", response_class=HTMLResponse)
+def storage_analytics_view(request: Request, session: Session = Depends(get_session), user: User = Depends(operator_allowed)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
+
+    return templates.TemplateResponse("storage_analytics.html", {
+        "request": request,
+        "clusters": clusters,
+        "clusters_by_dc": clusters_by_dc,
+        "page": "storage_analytics",
+        "user": user
+    })

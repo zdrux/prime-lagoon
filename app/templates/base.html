@@ -172,6 +172,13 @@
                 {% endif %}
                 {% if user.is_operator %}
                 <li class="nav-item">
+                    <a href="/storage-analytics" class="nav-link {% if page == 'storage_analytics' %}active{% endif %}">
+                        <i class="fas fa-hard-drive"></i> Storage Analytics
+                    </a>
+                </li>
+                {% endif %}
+                {% if user.is_operator %}
+                <li class="nav-item">
                     <a href="/operators" class="nav-link {% if page == 'operators' %}active{% endif %}">
                         <i class="fas fa-boxes"></i> Cluster Operators
                     </a>

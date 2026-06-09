@@ -23,9 +23,183 @@ RESOURCE_MAP = {
     "machines": {"api_version": "machine.openshift.io/v1beta1", "kind": "Machine"},
     "machinesets": {"api_version": "machine.openshift.io/v1beta1", "kind": "MachineSet"},
     "projects": {"api_version": "project.openshift.io/v1", "kind": "Project"},
+    "persistentvolumes": {"api_version": "v1", "kind": "PersistentVolume"},
+    "persistentvolumeclaims": {"api_version": "v1", "kind": "PersistentVolumeClaim"},
+    "storageclasses": {"api_version": "storage.k8s.io/v1", "kind": "StorageClass"},
     "machineautoscalers": {"api_version": "autoscaling.openshift.io/v1beta1", "kind": "MachineAutoscaler"},
 
 }
+
+def parse_storage_to_gib(storage_val: Any) -> float:
+    """Parse Kubernetes storage quantities into GiB."""
+    if storage_val is None:
+        return 0.0
+
+    s = str(storage_val).strip()
+    if not s:
+        return 0.0
+
+    units = {
+        "Ki": 1024,
+        "Mi": 1024 ** 2,
+        "Gi": 1024 ** 3,
+        "Ti": 1024 ** 4,
+        "Pi": 1024 ** 5,
+        "K": 1000,
+        "M": 1000 ** 2,
+        "G": 1000 ** 3,
+        "T": 1000 ** 4,
+        "P": 1000 ** 5,
+    }
+
+    try:
+        for unit, multiplier in units.items():
+            if s.endswith(unit):
+                return float(s[:-len(unit)]) * multiplier / (1024 ** 3)
+        return float(s) / (1024 ** 3)
+    except Exception:
+        return 0.0
+
+def _storage_class_is_azure_file(name: Optional[str], storage_class_map: Dict[str, Dict[str, Any]]) -> bool:
+    if not name:
+        return False
+
+    storage_class = storage_class_map.get(name) or {}
+    provisioner = str(storage_class.get("provisioner") or "").lower()
+    normalized_name = str(name).lower().replace("_", "-")
+    return (
+        "azure-file" in normalized_name
+        or "azurefile" in normalized_name
+        or "file.csi.azure.com" in provisioner
+        or "kubernetes.io/azure-file" in provisioner
+    )
+
+def _is_azure_file_volume(pv: Dict[str, Any], pvc: Optional[Dict[str, Any]], storage_class_map: Dict[str, Dict[str, Any]]) -> bool:
+    pv_spec = pv.get("spec", {}) if pv else {}
+    pvc_spec = pvc.get("spec", {}) if pvc else {}
+
+    if pv_spec.get("azureFile"):
+        return True
+
+    csi_driver = str(get_val(pv, "spec.csi.driver") or "").lower()
+    if csi_driver == "file.csi.azure.com":
+        return True
+
+    pv_class = pv_spec.get("storageClassName")
+    pvc_class = pvc_spec.get("storageClassName")
+    return _storage_class_is_azure_file(pv_class, storage_class_map) or _storage_class_is_azure_file(pvc_class, storage_class_map)
+
+def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapshot_time: Optional[datetime]) -> Dict[str, Any]:
+    pvs = snapshot_data.get("persistentvolumes", []) or []
+    pvcs = snapshot_data.get("persistentvolumeclaims", []) or []
+    storageclasses = snapshot_data.get("storageclasses", []) or []
+    errors = snapshot_data.get("__errors", {}) or {}
+
+    storage_class_map = {
+        get_val(sc, "metadata.name"): {
+            "provisioner": get_val(sc, "provisioner"),
+            "reclaim_policy": get_val(sc, "reclaimPolicy"),
+            "volume_binding_mode": get_val(sc, "volumeBindingMode"),
+            "allow_expansion": get_val(sc, "allowVolumeExpansion"),
+        }
+        for sc in storageclasses
+        if get_val(sc, "metadata.name")
+    }
+
+    pvc_map = {}
+    for pvc in pvcs:
+        pvc_namespace = get_val(pvc, "metadata.namespace") or "-"
+        pvc_name = get_val(pvc, "metadata.name") or "-"
+        pvc_map[(pvc_namespace, pvc_name)] = pvc
+
+    claimed_keys = set()
+    rows = []
+
+    for pv in pvs:
+        claim_namespace = get_val(pv, "spec.claimRef.namespace") or "-"
+        claim_name = get_val(pv, "spec.claimRef.name") or "-"
+        pvc = pvc_map.get((claim_namespace, claim_name))
+        if pvc:
+            claimed_keys.add((claim_namespace, claim_name))
+
+        pv_capacity = get_val(pv, "spec.capacity.storage") or get_val(pv, "status.capacity.storage")
+        pvc_capacity = get_val(pvc, "spec.resources.requests.storage") if pvc else None
+        storage_class = get_val(pv, "spec.storageClassName") or (get_val(pvc, "spec.storageClassName") if pvc else "") or ""
+        sc_details = storage_class_map.get(storage_class) or {}
+
+        rows.append({
+            "cluster_id": cluster.id,
+            "cluster_name": cluster.name,
+            "environment": cluster.environment or "-",
+            "datacenter": cluster.datacenter or "-",
+            "pv_name": get_val(pv, "metadata.name") or "-",
+            "pvc_name": claim_name,
+            "namespace": claim_namespace,
+            "pv_phase": get_val(pv, "status.phase") or "-",
+            "pvc_phase": get_val(pvc, "status.phase") if pvc else "-",
+            "capacity": pv_capacity or pvc_capacity or "-",
+            "capacity_gib": round(parse_storage_to_gib(pv_capacity or pvc_capacity), 2),
+            "requested": pvc_capacity or "-",
+            "access_modes": ", ".join(get_val(pv, "spec.accessModes") or get_val(pvc, "spec.accessModes") or []) or "-",
+            "storage_class": storage_class or "-",
+            "reclaim_policy": get_val(pv, "spec.persistentVolumeReclaimPolicy") or sc_details.get("reclaim_policy") or "-",
+            "volume_mode": get_val(pv, "spec.volumeMode") or get_val(pvc, "spec.volumeMode") or "-",
+            "volume_binding_mode": sc_details.get("volume_binding_mode") or "-",
+            "allow_expansion": sc_details.get("allow_expansion"),
+            "azure_file": _is_azure_file_volume(pv, pvc, storage_class_map),
+            "backend": "Azure Files" if _is_azure_file_volume(pv, pvc, storage_class_map) else "-",
+            "azure_secret_name": get_val(pv, "spec.azureFile.secretName") or "-",
+            "azure_secret_namespace": get_val(pv, "spec.azureFile.secretNamespace") or "-",
+            "azure_share_name": get_val(pv, "spec.azureFile.shareName") or "-",
+            "csi_driver": get_val(pv, "spec.csi.driver") or "-",
+            "created_at": get_val(pv, "metadata.creationTimestamp") or "-",
+        })
+
+    for pvc_key, pvc in pvc_map.items():
+        if pvc_key in claimed_keys:
+            continue
+        pvc_namespace, pvc_name = pvc_key
+        capacity = get_val(pvc, "spec.resources.requests.storage")
+        storage_class = get_val(pvc, "spec.storageClassName") or ""
+        sc_details = storage_class_map.get(storage_class) or {}
+
+        rows.append({
+            "cluster_id": cluster.id,
+            "cluster_name": cluster.name,
+            "environment": cluster.environment or "-",
+            "datacenter": cluster.datacenter or "-",
+            "pv_name": "-",
+            "pvc_name": pvc_name,
+            "namespace": pvc_namespace,
+            "pv_phase": "-",
+            "pvc_phase": get_val(pvc, "status.phase") or "-",
+            "capacity": capacity or "-",
+            "capacity_gib": round(parse_storage_to_gib(capacity), 2),
+            "requested": capacity or "-",
+            "access_modes": ", ".join(get_val(pvc, "spec.accessModes") or []) or "-",
+            "storage_class": storage_class or "-",
+            "reclaim_policy": sc_details.get("reclaim_policy") or "-",
+            "volume_mode": get_val(pvc, "spec.volumeMode") or "-",
+            "volume_binding_mode": sc_details.get("volume_binding_mode") or "-",
+            "allow_expansion": sc_details.get("allow_expansion"),
+            "azure_file": _storage_class_is_azure_file(storage_class, storage_class_map),
+            "backend": "Azure Files" if _storage_class_is_azure_file(storage_class, storage_class_map) else "-",
+            "azure_secret_name": "-",
+            "azure_secret_namespace": "-",
+            "azure_share_name": "-",
+            "csi_driver": "-",
+            "created_at": get_val(pvc, "metadata.creationTimestamp") or "-",
+        })
+
+    return {
+        "rows": rows,
+        "errors": {
+            key: errors.get(key)
+            for key in ["persistentvolumes", "persistentvolumeclaims", "storageclasses"]
+            if errors.get(key)
+        },
+        "snapshot_time": snapshot_time.strftime("%Y-%m-%dT%H:%M:%S") if snapshot_time else None,
+    }
 
 def get_snapshot_for_cluster(session: Session, cluster_id: int, target_time: datetime) -> Optional[ClusterSnapshot]:
     """Finds the closest successful snapshot ON or BEFORE the target time (with 5m grace)."""
@@ -54,8 +228,100 @@ def get_available_snapshots(session: Session = Depends(get_session)):
     for t in timestamps:
         if not grouped or (grouped[-1] - t).total_seconds() > 300:
             grouped.append(t)
-            
+
     return [t.strftime("%Y-%m-%dT%H:%M:%S") for t in grouped]
+
+@router.get("/storage")
+def get_storage_analytics(
+    snapshot_time: Optional[str] = Query(None),
+    environment: Optional[str] = Query(None),
+    datacenter: Optional[str] = Query(None),
+    azure_files: bool = Query(False),
+    session: Session = Depends(get_session)
+):
+    query = select(Cluster)
+    if environment:
+        query = query.where(func.upper(Cluster.environment) == environment.upper())
+    if datacenter:
+        query = query.where(func.upper(Cluster.datacenter) == datacenter.upper())
+
+    clusters = session.exec(query.order_by(Cluster.name)).all()
+
+    target_dt = None
+    if snapshot_time:
+        try:
+            target_dt = datetime.strptime(snapshot_time.replace("T", " "), "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid snapshot_time format")
+
+    rows = []
+    cluster_status = []
+    snapshot_times = []
+
+    for cluster in clusters:
+        snapshot_data = None
+        snap = None
+
+        if target_dt:
+            snap = get_snapshot_for_cluster(session, cluster.id, target_dt)
+        else:
+            snap = session.exec(select(ClusterSnapshot).where(
+                ClusterSnapshot.cluster_id == cluster.id,
+                ClusterSnapshot.status == "Success"
+            ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+
+        if snap and snap.data_json:
+            try:
+                snapshot_data = json.loads(snap.data_json)
+                snapshot_times.append(snap.timestamp)
+            except Exception as e:
+                cluster_status.append({"cluster": cluster.name, "status": "error", "message": f"Snapshot parse failed: {e}"})
+
+        if snapshot_data is None and not target_dt:
+            snapshot_data = {}
+            try:
+                snapshot_data["persistentvolumes"] = fetch_resources(cluster, "v1", "PersistentVolume", timeout=120)
+                snapshot_data["persistentvolumeclaims"] = fetch_resources(cluster, "v1", "PersistentVolumeClaim", timeout=120)
+                snapshot_data["storageclasses"] = fetch_resources(cluster, "storage.k8s.io/v1", "StorageClass", timeout=120)
+                cluster_status.append({"cluster": cluster.name, "status": "live", "message": "No snapshot found; live data fetched"})
+            except Exception as e:
+                cluster_status.append({"cluster": cluster.name, "status": "error", "message": str(e)})
+                snapshot_data = {}
+        elif snapshot_data is None:
+            cluster_status.append({"cluster": cluster.name, "status": "missing", "message": "No matching snapshot found"})
+            snapshot_data = {}
+
+        storage_data = _build_storage_rows(cluster, snapshot_data, snap.timestamp if snap else None)
+        rows.extend(storage_data["rows"])
+        if storage_data["errors"]:
+            cluster_status.append({"cluster": cluster.name, "status": "partial", "message": storage_data["errors"]})
+
+    if azure_files:
+        rows = [row for row in rows if row["azure_file"]]
+
+    rows.sort(key=lambda row: (
+        str(row["cluster_name"]).lower(),
+        str(row["namespace"]).lower(),
+        str(row["pvc_name"]).lower(),
+        str(row["pv_name"]).lower(),
+    ))
+
+    total_capacity_gib = round(sum(row.get("capacity_gib") or 0 for row in rows), 2)
+    azure_capacity_gib = round(sum(row.get("capacity_gib") or 0 for row in rows if row.get("azure_file")), 2)
+
+    return {
+        "rows": rows,
+        "summary": {
+            "clusters": len(clusters),
+            "volumes": len([row for row in rows if row["pv_name"] != "-"]),
+            "claims": len([row for row in rows if row["pvc_name"] != "-"]),
+            "total_capacity_gib": total_capacity_gib,
+            "azure_file_count": len([row for row in rows if row.get("azure_file")]),
+            "azure_file_capacity_gib": azure_capacity_gib,
+        },
+        "status": cluster_status,
+        "timestamp": max(snapshot_times).strftime("%Y-%m-%dT%H:%M:%S") if snapshot_times else None,
+    }
 
 @router.get("/{cluster_id}/resources/{resource_type}")
 def get_cluster_resources(cluster_id: int, resource_type: str, snapshot_time: Optional[str] = Query(None), session: Session = Depends(get_session)):

@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Storage Analytics</h1>
+    <div style="display:flex; gap:0.5rem; align-items:center;">
+        <button class="btn btn-secondary" title="Export to Excel" onclick="exportTable('Storage_Analytics', 'excel', 'storage-table')">
+            <i class="fas fa-file-excel"></i>
+        </button>
+        <button class="btn btn-secondary" title="Export to CSV" onclick="exportTable('Storage_Analytics', 'csv', 'storage-table')">
+            <i class="fas fa-file-csv"></i>
+        </button>
+        <button class="btn btn-primary" onclick="loadStorageAnalytics(true)">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div id="storage-summary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+    <div class="card" style="margin:0; padding:1rem;">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Clusters</div>
+        <div id="storage-summary-clusters" style="font-size:1.6rem; font-weight:800;">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1rem;">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">PVs</div>
+        <div id="storage-summary-pvs" style="font-size:1.6rem; font-weight:800;">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1rem;">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">PVCs</div>
+        <div id="storage-summary-pvcs" style="font-size:1.6rem; font-weight:800;">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1rem;">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Capacity</div>
+        <div id="storage-summary-capacity" style="font-size:1.6rem; font-weight:800;">-</div>
+    </div>
+    <div class="card" style="margin:0; padding:1rem; border-bottom:3px solid var(--accent-color);">
+        <div style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Azure Files</div>
+        <div id="storage-summary-azure" style="font-size:1.6rem; font-weight:800; color:var(--accent-color);">-</div>
+    </div>
+</div>
+
+<div class="card fade-in">
+    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+        <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
+            <button class="filter-btn storage-filter" data-type="env" data-val="DEV" onclick="toggleStorageFilter(this)">DEV</button>
+            <button class="filter-btn storage-filter" data-type="env" data-val="UAT" onclick="toggleStorageFilter(this)">UAT</button>
+            <button class="filter-btn storage-filter" data-type="env" data-val="PROD" onclick="toggleStorageFilter(this)">PROD</button>
+            <div style="width:1px; height:22px; background:var(--border-color); margin:0 0.25rem;"></div>
+            <button class="filter-btn storage-filter" data-type="dc" data-val="AZURE" onclick="toggleStorageFilter(this)">AZURE</button>
+            <button class="filter-btn storage-filter" data-type="dc" data-val="HCI" onclick="toggleStorageFilter(this)">HCI</button>
+            <div style="width:1px; height:22px; background:var(--border-color); margin:0 0.25rem;"></div>
+            <button class="filter-btn storage-filter" data-type="azure" data-val="true" onclick="toggleStorageFilter(this)">
+                <i class="fas fa-folder-open"></i> Azure Files
+            </button>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:center;">
+            <span id="storage-data-as-of" style="font-size:0.8rem; color:var(--text-secondary); white-space:nowrap;"></span>
+            <input id="storage-search" class="form-input" type="text" placeholder="Search storage..." style="width:240px; padding:0.45rem 0.65rem; font-size:0.85rem;" oninput="renderStorageTable()">
+        </div>
+    </div>
+
+    <div id="storage-status" style="display:none; margin-bottom:1rem; padding:0.8rem; border:1px solid var(--border-color); border-radius:8px; background:rgba(255,255,255,0.03); font-size:0.85rem; color:var(--text-secondary);"></div>
+
+    <div class="table-container">
+        <table class="data-table" id="storage-table">
+            <thead>
+                <tr>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 0)">Cluster <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 1)">Env <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 2)">DC <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 3)">Namespace <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 4)">PVC <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 5)">PV <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th class="sortable-header" onclick="sortTable('storage-table', 6)">Capacity <i class="fas fa-sort sort-icon" style="opacity:0.3;"></i></th>
+                    <th>Access Modes</th>
+                    <th>StorageClass</th>
+                    <th>Backend</th>
+                    <th>PV/PVC Phase</th>
+                    <th>Reclaim</th>
+                    <th>Volume Mode</th>
+                    <th>Azure File</th>
+                </tr>
+            </thead>
+            <tbody id="storage-table-body">
+                <tr>
+                    <td colspan="14" style="text-align:center; padding:2rem;">
+                        <i class="fas fa-circle-notch fa-spin"></i> Loading storage inventory...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const storageState = {
+        rows: [],
+        filters: { env: new Set(), dc: new Set(), azure: false },
+        forceRefresh: false
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStorageAnalytics();
+    });
+
+    function toggleStorageFilter(btn) {
+        const type = btn.dataset.type;
+        const val = btn.dataset.val;
+
+        if (type === 'azure') {
+            storageState.filters.azure = !storageState.filters.azure;
+            btn.classList.toggle('active', storageState.filters.azure);
+        } else {
+            const group = storageState.filters[type];
+            if (group.has(val)) {
+                group.delete(val);
+                btn.classList.remove('active');
+            } else {
+                group.add(val);
+                btn.classList.add('active');
+            }
+        }
+
+        renderStorageTable();
+    }
+
+    async function loadStorageAnalytics(forceRefresh = false) {
+        const body = document.getElementById('storage-table-body');
+        if (body) {
+            body.innerHTML = '<tr><td colspan="14" style="text-align:center; padding:2rem;"><i class="fas fa-circle-notch fa-spin"></i> Loading storage inventory...</td></tr>';
+        }
+
+        try {
+            let url = '/api/dashboard/storage';
+            const params = new URLSearchParams();
+            if (window.currentSnapshotTime) params.set('snapshot_time', window.currentSnapshotTime);
+            if (forceRefresh) params.set('_', Date.now().toString());
+            const qs = params.toString();
+            if (qs) url += `?${qs}`;
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Failed to load storage analytics');
+            const data = await res.json();
+
+            storageState.rows = data.rows || [];
+            renderStorageSummaryFromRows(storageState.rows);
+            renderStorageStatus(data.status || [], data.timestamp);
+            renderStorageTable();
+        } catch (e) {
+            if (body) {
+                body.innerHTML = `<tr><td colspan="14" style="text-align:center; padding:2rem; color:var(--danger-color);">${e.message}</td></tr>`;
+            }
+        }
+    }
+
+    function renderStorageSummaryFromRows(rows) {
+        const clusters = new Set(rows.map(row => row.cluster_name));
+        const volumes = rows.filter(row => row.pv_name && row.pv_name !== '-').length;
+        const claims = rows.filter(row => row.pvc_name && row.pvc_name !== '-').length;
+        const totalCapacity = rows.reduce((sum, row) => sum + Number(row.capacity_gib || 0), 0);
+        const azureRows = rows.filter(row => row.azure_file);
+        const azureCapacity = azureRows.reduce((sum, row) => sum + Number(row.capacity_gib || 0), 0);
+
+        document.getElementById('storage-summary-clusters').innerText = clusters.size;
+        document.getElementById('storage-summary-pvs').innerText = volumes;
+        document.getElementById('storage-summary-pvcs').innerText = claims;
+        document.getElementById('storage-summary-capacity').innerText = formatGiB(totalCapacity);
+        document.getElementById('storage-summary-azure').innerText = `${azureRows.length} / ${formatGiB(azureCapacity)}`;
+    }
+
+    function renderStorageStatus(status, timestamp) {
+        const statusEl = document.getElementById('storage-status');
+        const asOf = document.getElementById('storage-data-as-of');
+
+        if (asOf) {
+            asOf.innerText = timestamp ? `Data as of ${formatEST(timestamp, false)}` : '';
+        }
+
+        const noteworthy = status.filter(item => item.status !== 'live');
+        if (!noteworthy.length) {
+            statusEl.style.display = 'none';
+            return;
+        }
+
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = noteworthy.slice(0, 6).map(item => {
+            const msg = typeof item.message === 'string' ? item.message : JSON.stringify(item.message);
+            return `<div><strong>${escapeHtml(item.cluster)}</strong>: ${escapeHtml(msg)}</div>`;
+        }).join('') + (noteworthy.length > 6 ? `<div>...and ${noteworthy.length - 6} more.</div>` : '');
+    }
+
+    function renderStorageTable() {
+        const body = document.getElementById('storage-table-body');
+        if (!body) return;
+
+        const search = (document.getElementById('storage-search')?.value || '').toLowerCase();
+        const filtered = storageState.rows.filter(row => {
+            if (storageState.filters.env.size && !storageState.filters.env.has((row.environment || '').toUpperCase())) return false;
+            if (storageState.filters.dc.size && !storageState.filters.dc.has((row.datacenter || '').toUpperCase())) return false;
+            if (storageState.filters.azure && !row.azure_file) return false;
+            if (search) {
+                const haystack = [
+                    row.cluster_name, row.environment, row.datacenter, row.namespace, row.pvc_name,
+                    row.pv_name, row.storage_class, row.backend, row.access_modes, row.azure_share_name,
+                    row.csi_driver
+                ].join(' ').toLowerCase();
+                if (!haystack.includes(search)) return false;
+            }
+            return true;
+        });
+
+        if (!filtered.length) {
+            renderStorageSummaryFromRows(filtered);
+            body.innerHTML = '<tr><td colspan="14" style="text-align:center; padding:2rem; color:var(--text-secondary);">No matching PVs or PVCs found.</td></tr>';
+            return;
+        }
+
+        renderStorageSummaryFromRows(filtered);
+        body.innerHTML = filtered.map(row => `
+            <tr>
+                <td style="font-weight:600;">${escapeHtml(row.cluster_name)}</td>
+                <td>${badge(row.environment, 'blue')}</td>
+                <td>${badge(row.datacenter, 'gray')}</td>
+                <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(row.namespace)}</td>
+                <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(row.pvc_name)}</td>
+                <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(row.pv_name)}</td>
+                <td data-sort="${row.capacity_gib || 0}">
+                    <div style="font-weight:700;">${formatGiB(row.capacity_gib || 0)}</div>
+                    <div style="font-size:0.75rem; color:var(--text-secondary);">${escapeHtml(row.capacity)}</div>
+                </td>
+                <td>${escapeHtml(row.access_modes)}</td>
+                <td style="font-family:monospace; font-size:0.85rem;">${escapeHtml(row.storage_class)}</td>
+                <td>${row.azure_file ? badge('Azure Files', 'blue') : escapeHtml(row.backend || '-')}</td>
+                <td>${escapeHtml(row.pv_phase)} / ${escapeHtml(row.pvc_phase)}</td>
+                <td>${escapeHtml(row.reclaim_policy)}</td>
+                <td>${escapeHtml(row.volume_mode)}</td>
+                <td style="font-size:0.8rem;">
+                    ${row.azure_file ? `
+                        <div>${escapeHtml(row.azure_share_name)}</div>
+                        <div style="color:var(--text-secondary);">${escapeHtml(row.csi_driver)}</div>
+                    ` : '-'}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function formatGiB(value) {
+        const numeric = Number(value || 0);
+        if (numeric >= 1024) return `${(numeric / 1024).toFixed(2)} TiB`;
+        return `${numeric.toFixed(numeric >= 10 ? 1 : 2)} GiB`;
+    }
+
+    function badge(text, color) {
+        return `<span class="badge badge-${color}">${escapeHtml(text || '-')}</span>`;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '-')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+</script>
+{% endblock %}

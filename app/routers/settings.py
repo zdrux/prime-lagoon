@@ -55,7 +55,7 @@ def user_management_page(
             clusters_by_dc[dc] = []
         clusters_by_dc[dc].append(c)
         
-    return templates.TemplateResponse("settings_users.html", {
+    return templates.TemplateResponse(request, "settings_users.html", {
         "request": request,
         "users": users,
         "user": user,
@@ -81,7 +81,7 @@ def ldap_settings_page(
             clusters_by_dc[dc] = []
         clusters_by_dc[dc].append(c)
     
-    return templates.TemplateResponse("settings_ldap.html", {
+    return templates.TemplateResponse(request, "settings_ldap.html", {
         "request": request,
         "ldap_host": cfg_dict.get("LDAP_HOST", ""),
         "ldap_port": cfg_dict.get("LDAP_PORT", "389"),
@@ -109,7 +109,7 @@ def db_stats_page(
             clusters_by_dc[dc] = []
         clusters_by_dc[dc].append(c)
         
-    return templates.TemplateResponse("settings_db_stats.html", {
+    return templates.TemplateResponse(request, "settings_db_stats.html", {
         "request": request,
         "user": user,
         "page": "settings_db_stats",
@@ -263,7 +263,7 @@ def license_settings_page(
             clusters_by_dc[dc] = []
         clusters_by_dc[dc].append(c)
     
-    return templates.TemplateResponse("settings_license.html", {
+    return templates.TemplateResponse(request, "settings_license.html", {
         "request": request,
         "user": user,
         "page": "settings_license",
@@ -405,7 +405,7 @@ def namespace_settings_page(
         
     rules = session.exec(select(NamespaceExclusionRule)).all()
     
-    return templates.TemplateResponse("settings_namespace_rules.html", {
+    return templates.TemplateResponse(request, "settings_namespace_rules.html", {
         "request": request,
         "user": user,
         "page": "settings_namespaces",

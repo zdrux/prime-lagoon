@@ -15,7 +15,7 @@ templates = Jinja2Templates(directory="app/templates")
 def login_page(request: Request, session: Session = Depends(get_session)):
     if not is_ldap_enabled(session):
         return RedirectResponse(url="/")
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html")
 
 @router.post("/login")
 def login(

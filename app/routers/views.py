@@ -42,7 +42,7 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
     enable_vacuum_config = session.get(AppConfig, "ENABLE_DB_VACUUM")
     enable_vacuum = enable_vacuum_config.value.lower() == "true" if enable_vacuum_config else True
     
-    return templates.TemplateResponse("admin.html", {
+    return templates.TemplateResponse(request, "admin.html", {
         "request": request, 
         "clusters": clusters, 
         "clusters_by_dc": clusters_by_dc,
@@ -68,7 +68,7 @@ def audit_view(request: Request, session: Session = Depends(get_session), user: 
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
     
-    return templates.TemplateResponse("audit.html", {
+    return templates.TemplateResponse(request, "audit.html", {
         "request": request, 
         "rules": rules, 
         "bundles": bundles,
@@ -86,7 +86,7 @@ def compliance_view(request: Request, session: Session = Depends(get_session), u
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
     
-    return templates.TemplateResponse("audit_run.html", {
+    return templates.TemplateResponse(request, "audit_run.html", {
         "request": request, 
         "page": "compliance",
         "clusters": clusters,
@@ -204,7 +204,7 @@ def dashboard_view(request: Request, session: Session = Depends(get_session), us
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
         
-    return templates.TemplateResponse("dashboard.html", {
+    return templates.TemplateResponse(request, "dashboard.html", {
         "request": request, 
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
@@ -219,7 +219,7 @@ def operators_view(request: Request, session: Session = Depends(get_session), us
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
     
-    return templates.TemplateResponse("operators.html", {
+    return templates.TemplateResponse(request, "operators.html", {
         "request": request, 
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
@@ -236,7 +236,7 @@ def license_analytics_view(request: Request, session: Session = Depends(get_sess
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
     
-    return templates.TemplateResponse("license_analytics.html", {
+    return templates.TemplateResponse(request, "license_analytics.html", {
         "request": request, 
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,
@@ -252,7 +252,7 @@ def storage_analytics_view(request: Request, session: Session = Depends(get_sess
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
 
-    return templates.TemplateResponse("storage_analytics.html", {
+    return templates.TemplateResponse(request, "storage_analytics.html", {
         "request": request,
         "clusters": clusters,
         "clusters_by_dc": clusters_by_dc,

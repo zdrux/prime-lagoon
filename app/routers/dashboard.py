@@ -93,6 +93,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
     pvs = snapshot_data.get("persistentvolumes", []) or []
     pvcs = snapshot_data.get("persistentvolumeclaims", []) or []
     storageclasses = snapshot_data.get("storageclasses", []) or []
+    projects = snapshot_data.get("projects", []) or []
     errors = snapshot_data.get("__errors", {}) or {}
 
     storage_class_map = {
@@ -111,6 +112,12 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
         pvc_namespace = get_val(pvc, "metadata.namespace") or "-"
         pvc_name = get_val(pvc, "metadata.name") or "-"
         pvc_map[(pvc_namespace, pvc_name)] = pvc
+
+    namespace_mapid_map = {
+        get_val(project, "metadata.name"): get_val(project, "metadata.labels.mapid") or "-"
+        for project in projects
+        if get_val(project, "metadata.name")
+    }
 
     claimed_keys = set()
     rows = []
@@ -136,6 +143,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
             "pv_name": get_val(pv, "metadata.name") or "-",
             "pvc_name": claim_name,
             "namespace": claim_namespace,
+            "namespace_mapid": namespace_mapid_map.get(claim_namespace, "-"),
             "pv_phase": get_val(pv, "status.phase") or "-",
             "pvc_phase": get_val(pvc, "status.phase") if pvc else "-",
             "capacity": pv_capacity or pvc_capacity or "-",
@@ -173,6 +181,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
             "pv_name": "-",
             "pvc_name": pvc_name,
             "namespace": pvc_namespace,
+            "namespace_mapid": namespace_mapid_map.get(pvc_namespace, "-"),
             "pv_phase": "-",
             "pvc_phase": get_val(pvc, "status.phase") or "-",
             "capacity": capacity or "-",

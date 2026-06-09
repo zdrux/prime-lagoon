@@ -296,16 +296,24 @@
         border: 1px solid rgba(234, 179, 8, 0.2);
     }
 
-    .upgrade-badge {
-        display: inline-block;
-        margin-top: 0.35rem;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 0.68rem;
-        font-weight: 700;
+    .upgrade-indicator {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        margin-left: 6px;
+        border-radius: 999px;
+        font-size: 0.62rem;
         color: #f59e0b;
         background: rgba(245, 158, 11, 0.12);
         border: 1px solid rgba(245, 158, 11, 0.25);
+        vertical-align: middle;
+    }
+
+    .upgrade-indicator:hover {
+        background: rgba(245, 158, 11, 0.2);
+        border-color: rgba(245, 158, 11, 0.45);
     }
 
     .operator-upgrade-card {

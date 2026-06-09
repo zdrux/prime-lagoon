@@ -129,17 +129,19 @@ function renderMatrix(data) {
                 const pillClass = isMatch ? 'ver-match' : 'ver-mismatch';
                 const matchTitle = isMatch ? 'Matches fleet consensus' : `Differs from fleet consensus (most common: ${consensus})`;
                 const upgradeInfo = install.upgrade_info || {};
+                const upgradeTitle = upgradeInfo.upgrade_available
+                    ? `${upgradeInfo.reason || 'Newer CSV available'} Installed: ${upgradeInfo.installed_csv || 'unknown'} Available: ${upgradeInfo.available_csv || 'unknown'}`
+                    : '';
                 const upgradeHtml = upgradeInfo.upgrade_available
-                    ? `<div class="upgrade-badge" title="${escapeHtml(upgradeInfo.reason || 'Newer CSV available')}">Upgrade</div>`
+                    ? `<span class="upgrade-indicator" title="${escapeHtml(upgradeTitle)}" aria-label="${escapeHtml(upgradeTitle)}"><i class="fas fa-arrow-up"></i></span>`
                     : '';
                 const channelHtml = upgradeInfo.upgrade_available && upgradeInfo.available_csv
                     ? `${escapeHtml(install.channel || '-')}: ${escapeHtml(upgradeInfo.available_csv)}`
                     : escapeHtml(install.channel || '-');
 
                 td.innerHTML = `
-                    <div class="ver-pill ${pillClass}" title="${escapeHtml(matchTitle)}">${escapeHtml(install.version || '-')}</div>
+                    <div class="ver-pill ${pillClass}" title="${escapeHtml(matchTitle)}">${escapeHtml(install.version || '-')}${upgradeHtml}</div>
                     <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 2px;">${channelHtml}</div>
-                    ${upgradeHtml}
                 `;
                 td.onclick = () => openOpModal(op, c.name);
             } else {

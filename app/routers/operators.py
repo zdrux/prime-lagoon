@@ -12,6 +12,66 @@ router = APIRouter(
     tags=["operators"],
 )
 
+
+UPGRADE_STATES = {
+    "UpgradeAvailable",
+    "UpgradePending",
+    "UpgradeWaiting",
+    "UpgradeNeedsApproval",
+}
+
+
+def _is_newer_csv_available(installed_csv: Optional[str], current_csv: Optional[str]) -> bool:
+    if not installed_csv or not current_csv:
+        return False
+    return installed_csv != current_csv
+
+
+def _extract_subscription_upgrade_info(sub: Dict[str, Any], installed_csv_name: Optional[str]) -> Dict[str, Any]:
+    spec = sub.get("spec", {})
+    status = sub.get("status", {})
+    installed_csv = status.get("installedCSV") or installed_csv_name
+    current_csv = status.get("currentCSV")
+    state = status.get("state")
+    approval = spec.get("installPlanApproval", "Automatic")
+    install_plan_ref = status.get("installPlanRef") or {}
+    conditions = status.get("conditions") or []
+
+    has_newer_csv = _is_newer_csv_available(installed_csv, current_csv)
+    has_pending_state = state in UPGRADE_STATES
+    has_pending_plan = bool(install_plan_ref.get("name")) and approval == "Manual" and (has_newer_csv or has_pending_state)
+    upgrade_available = has_newer_csv or has_pending_state
+
+    reason = ""
+    if has_newer_csv:
+        reason = "A newer CSV is available in the subscribed channel."
+    elif has_pending_plan:
+        reason = "A manual InstallPlan is waiting for approval."
+    elif has_pending_state:
+        reason = f"Subscription state is {state}."
+
+    return {
+        "upgrade_available": upgrade_available,
+        "manual_approval_required": upgrade_available and approval == "Manual",
+        "installed_csv": installed_csv,
+        "available_csv": current_csv if upgrade_available else None,
+        "subscription_state": state,
+        "install_plan_name": install_plan_ref.get("name"),
+        "install_plan_namespace": install_plan_ref.get("namespace"),
+        "reason": reason,
+        "conditions": [
+            {
+                "type": c.get("type"),
+                "status": c.get("status"),
+                "reason": c.get("reason"),
+                "message": c.get("message"),
+            }
+            for c in conditions
+            if isinstance(c, dict)
+        ],
+    }
+
+
 @router.get("/matrix")
 def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = Depends(get_session)):
     """
@@ -24,7 +84,12 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     
     matrix_data = {
         "clusters": [],
-        "operators": {}
+        "operators": {},
+        "upgrade_summary": {
+            "pending_installations": 0,
+            "operators": set(),
+            "clusters": set(),
+        },
     }
 
     target_ts = None
@@ -163,6 +228,8 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                     
                     # We might have duplicates if multiple subscriptions for same package (namespaces?)
                     # For now, overwrite or simple combine? Overwrite is safest for fleet view.
+                    upgrade_info = _extract_subscription_upgrade_info(sub, installed_csv_name)
+
                     matrix_data["operators"][pkg_name]["installations"][cluster.name] = {
                         "version": version,
                         "channel": channel,
@@ -171,8 +238,14 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
                         "namespace": meta.get("namespace"),
                         "approval": spec.get("installPlanApproval", "Automatic"),
                         "source": spec.get("source"),
-                        "managed_crds": managed_crds
+                        "managed_crds": managed_crds,
+                        "upgrade_info": upgrade_info,
                     }
+
+                    if upgrade_info["upgrade_available"]:
+                        matrix_data["upgrade_summary"]["pending_installations"] += 1
+                        matrix_data["upgrade_summary"]["operators"].add(pkg_name)
+                        matrix_data["upgrade_summary"]["clusters"].add(cluster.name)
                     
                     # Update display name if it was just the package name before
                     if display_name != pkg_name and matrix_data["operators"][pkg_name]["displayName"] == pkg_name:
@@ -194,8 +267,15 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     
     op_list.sort(key=lambda x: x["displayName"])
     
+    upgrade_summary = matrix_data["upgrade_summary"]
+
     return {
         "clusters": matrix_data["clusters"],
         "operators": op_list,
+        "upgrade_summary": {
+            "pending_installations": upgrade_summary["pending_installations"],
+            "operator_count": len(upgrade_summary["operators"]),
+            "cluster_count": len(upgrade_summary["clusters"]),
+        },
         "snapshot_time": (latest_ts.isoformat() + "Z") if latest_ts else None
     }

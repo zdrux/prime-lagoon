@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let allData = null; // Store for filtering
+let showUpgradesOnly = false;
 
 async function loadMatrix() {
     try {
@@ -13,6 +14,7 @@ async function loadMatrix() {
         const response = await fetch(url);
         const data = await response.json();
         allData = data;
+        renderUpgradeAlert(data);
         renderMatrix(data);
 
         if (data.snapshot_time) {
@@ -126,10 +128,18 @@ function renderMatrix(data) {
                 const isMatch = install.version === consensus;
                 const pillClass = isMatch ? 'ver-match' : 'ver-mismatch';
                 const matchTitle = isMatch ? 'Matches fleet consensus' : `Differs from fleet consensus (most common: ${consensus})`;
+                const upgradeInfo = install.upgrade_info || {};
+                const upgradeHtml = upgradeInfo.upgrade_available
+                    ? `<div class="upgrade-badge" title="${escapeHtml(upgradeInfo.reason || 'Newer CSV available')}">Upgrade</div>`
+                    : '';
+                const channelHtml = upgradeInfo.upgrade_available && upgradeInfo.available_csv
+                    ? `${escapeHtml(install.channel || '-')}: ${escapeHtml(upgradeInfo.available_csv)}`
+                    : escapeHtml(install.channel || '-');
 
                 td.innerHTML = `
-                    <div class="ver-pill ${pillClass}" title="${matchTitle}">${install.version}</div>
-                    <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 2px;">${install.channel}</div>
+                    <div class="ver-pill ${pillClass}" title="${escapeHtml(matchTitle)}">${escapeHtml(install.version || '-')}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 2px;">${channelHtml}</div>
+                    ${upgradeHtml}
                 `;
                 td.onclick = () => openOpModal(op, c.name);
             } else {
@@ -228,10 +238,109 @@ function applyFilters() {
         }
     }
 
+    if (showUpgradesOnly) {
+        const visibleClusterNames = new Set(filteredClusters.map(c => c.name));
+        filteredOps = filteredOps.filter(op =>
+            Object.entries(op.installations || {}).some(([clusterName, install]) =>
+                visibleClusterNames.has(clusterName) &&
+                install.upgrade_info &&
+                install.upgrade_info.upgrade_available
+            )
+        );
+    }
+
     renderMatrix({
         clusters: filteredClusters,
         operators: filteredOps
     });
+}
+
+function renderUpgradeAlert(data) {
+    const alert = document.getElementById('operator-upgrade-alert');
+    if (!alert) return;
+
+    const pending = getPendingUpgrades(data, data.clusters);
+    const summary = data.upgrade_summary || {};
+
+    if (pending.length === 0) {
+        alert.style.display = 'block';
+        alert.innerHTML = `
+            <div class="operator-upgrade-card ok">
+                <div>
+                    <div style="font-weight:700; color:#10b981;">
+                        <i class="fas fa-check-circle"></i> No operator upgrades pending
+                    </div>
+                    <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
+                        No Subscription reports a newer current CSV than the installed CSV.
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    const operatorCount = summary.operator_count || new Set(pending.map(p => p.operatorKey)).size;
+    const clusterCount = summary.cluster_count || new Set(pending.map(p => p.cluster)).size;
+    const installCount = summary.pending_installations || pending.length;
+    const preview = pending.slice(0, 5).map(item => `
+        <div>
+            <strong>${escapeHtml(item.operator)}</strong> on ${escapeHtml(item.cluster)}:
+            ${escapeHtml(item.installedCsv || 'installed unknown')} &rarr; ${escapeHtml(item.availableCsv || 'available unknown')}
+        </div>
+    `).join('');
+    const extra = pending.length > 5 ? `<div>+ ${pending.length - 5} more pending upgrade${pending.length - 5 === 1 ? '' : 's'}</div>` : '';
+
+    alert.style.display = 'block';
+    alert.innerHTML = `
+        <div class="operator-upgrade-card">
+            <div>
+                <div style="font-weight:700; color:#f59e0b;">
+                    <i class="fas fa-exclamation-triangle"></i> Operator upgrades pending approval
+                </div>
+                <div style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;">
+                    ${installCount} installation${installCount === 1 ? '' : 's'}
+                    across ${operatorCount} operator${operatorCount === 1 ? '' : 's'}
+                    and ${clusterCount} cluster${clusterCount === 1 ? '' : 's'}.
+                </div>
+                <div class="operator-upgrade-list">${preview}${extra}</div>
+            </div>
+            <button class="filter-btn ${showUpgradesOnly ? 'active' : ''}" onclick="toggleUpgradeOnlyFilter()" style="white-space:nowrap;">
+                ${showUpgradesOnly ? 'Show All Operators' : 'Show Pending Only'}
+            </button>
+        </div>
+    `;
+}
+
+function getPendingUpgrades(data, visibleClusters) {
+    const visibleClusterNames = new Set((visibleClusters || data.clusters || []).map(c => c.name));
+    const pending = [];
+
+    (data.operators || []).forEach(op => {
+        Object.entries(op.installations || {}).forEach(([clusterName, install]) => {
+            if (!visibleClusterNames.has(clusterName)) return;
+
+            const upgradeInfo = install.upgrade_info || {};
+            if (!upgradeInfo.upgrade_available) return;
+
+            pending.push({
+                operator: op.displayName || op.name,
+                operatorKey: op.name,
+                cluster: clusterName,
+                installedCsv: upgradeInfo.installed_csv,
+                availableCsv: upgradeInfo.available_csv,
+            });
+        });
+    });
+
+    return pending;
+}
+
+function toggleUpgradeOnlyFilter() {
+    showUpgradesOnly = !showUpgradesOnly;
+    if (allData) {
+        renderUpgradeAlert(allData);
+    }
+    applyFilters();
 }
 
 function formatTimestamp(isoStr) {
@@ -264,6 +373,18 @@ function openOpModal(op, clusterName) {
     document.getElementById('op-modal-version').innerText = install.version || '-';
     document.getElementById('op-modal-channel').innerText = install.channel || '-';
     document.getElementById('op-modal-source').innerText = install.source || '-';
+
+    const upgradeInfo = install.upgrade_info || {};
+    const installPlan = upgradeInfo.install_plan_name
+        ? `${upgradeInfo.install_plan_namespace || install.namespace || '-'} / ${upgradeInfo.install_plan_name}`
+        : '-';
+    document.getElementById('op-modal-installed-csv').innerText = upgradeInfo.installed_csv || '-';
+    document.getElementById('op-modal-available-csv').innerText = upgradeInfo.available_csv || '-';
+    document.getElementById('op-modal-subscription-state').innerText = upgradeInfo.subscription_state || '-';
+    document.getElementById('op-modal-install-plan').innerText = installPlan;
+    document.getElementById('op-modal-upgrade-signal').innerText = upgradeInfo.upgrade_available
+        ? (upgradeInfo.reason || 'Newer CSV is available.')
+        : 'No newer CSV reported by this Subscription.';
 
     const statusPill = document.getElementById('op-modal-status-pill');
     const statusText = document.getElementById('op-modal-status-text');
@@ -311,4 +432,14 @@ window.onclick = function (event) {
     if (event.target == modal) {
         modal.classList.remove('open');
     }
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
 }

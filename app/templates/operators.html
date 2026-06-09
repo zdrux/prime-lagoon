@@ -61,6 +61,8 @@
         </div>
     </div>
 
+    <div id="operator-upgrade-alert" style="display:none; margin-bottom:1rem;"></div>
+
     <div id="loading-matrix" style="text-align:center; padding: 4rem;">
         <i class="fas fa-circle-notch fa-spin fa-2x" style="color:var(--accent-color);"></i>
         <p style="margin-top:1rem; opacity:0.7;">Loading Operator Matrix...</p>
@@ -133,8 +135,37 @@
                         </div>
                         <div class="detail-item">
                             <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Installed
+                                CSV</label>
+                            <span id="op-modal-installed-csv" style="font-family:monospace; font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Available
+                                CSV</label>
+                            <span id="op-modal-available-csv" style="font-family:monospace; font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
                                 style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Channel</label>
                             <span id="op-modal-channel">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Subscription
+                                State</label>
+                            <span id="op-modal-subscription-state">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">InstallPlan</label>
+                            <span id="op-modal-install-plan" style="font-family:monospace; font-size:0.85rem;">-</span>
+                        </div>
+                        <div class="detail-item" style="grid-column: span 2;">
+                            <label
+                                style="display:block; font-size:0.7rem; opacity:0.5; text-transform:uppercase;">Upgrade
+                                Signal</label>
+                            <span id="op-modal-upgrade-signal" style="font-weight:500;">-</span>
                         </div>
                         <div class="detail-item" style="grid-column: span 2;">
                             <label
@@ -255,6 +286,41 @@
         background: rgba(234, 179, 8, 0.1);
         color: #eab308;
         border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+
+    .upgrade-badge {
+        display: inline-block;
+        margin-top: 0.35rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: #f59e0b;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .operator-upgrade-card {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: flex-start;
+        padding: 1rem 1.25rem;
+        border-radius: 10px;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        background: rgba(245, 158, 11, 0.08);
+    }
+
+    .operator-upgrade-card.ok {
+        border-color: rgba(16, 185, 129, 0.3);
+        background: rgba(16, 185, 129, 0.08);
+    }
+
+    .operator-upgrade-list {
+        margin-top: 0.5rem;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        line-height: 1.5;
     }
 
     /* Search Box Styles matching Bootstrap-ish feel but custom */

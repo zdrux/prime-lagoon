@@ -135,9 +135,7 @@ function renderMatrix(data) {
                 const upgradeHtml = upgradeInfo.upgrade_available
                     ? `<span class="upgrade-indicator" title="${escapeHtml(upgradeTitle)}" aria-label="${escapeHtml(upgradeTitle)}"><i class="fas fa-arrow-up"></i></span>`
                     : '';
-                const channelHtml = upgradeInfo.upgrade_available && upgradeInfo.available_csv
-                    ? `${escapeHtml(install.channel || '-')}: ${escapeHtml(upgradeInfo.available_csv)}`
-                    : escapeHtml(install.channel || '-');
+                const channelHtml = escapeHtml(install.channel || '-');
 
                 td.innerHTML = `
                     <div class="ver-pill ${pillClass}" title="${escapeHtml(matchTitle)}">${escapeHtml(install.version || '-')}${upgradeHtml}</div>

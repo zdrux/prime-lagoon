@@ -287,8 +287,17 @@ function renderUpgradeAlert(data) {
                     <i class="fas fa-exclamation-triangle"></i> ${installCount} upgrade${installCount === 1 ? '' : 's'} pending
                 </div>
             </div>
-            <button class="filter-btn ${showUpgradesOnly ? 'active' : ''}" onclick="toggleUpgradeOnlyFilter()" style="white-space:nowrap;">
-                ${showUpgradesOnly ? 'All' : 'Pending'}
+            <button
+                class="upgrade-filter-toggle ${showUpgradesOnly ? 'active' : ''}"
+                type="button"
+                role="switch"
+                aria-checked="${showUpgradesOnly ? 'true' : 'false'}"
+                onclick="toggleUpgradeOnlyFilter()"
+                title="Filter the matrix to operators with pending upgrades"
+            >
+                <span class="upgrade-filter-label">Show Only Upgradable</span>
+                <span class="upgrade-filter-switch" aria-hidden="true"></span>
+                <span class="upgrade-filter-state">${showUpgradesOnly ? 'On' : 'Off'}</span>
             </button>
         </div>
     `;

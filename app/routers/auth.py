@@ -10,6 +10,7 @@ import os
 
 router = APIRouter(tags=["auth"])
 templates = Jinja2Templates(directory="app/templates")
+SESSION_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, session: Session = Depends(get_session)):
@@ -41,7 +42,12 @@ def login(
             
         token = serializer.dumps(username)
         response = RedirectResponse(url="/", status_code=303)
-        response.set_cookie(key="session_id", value=token, httponly=True)
+        response.set_cookie(
+            key="session_id",
+            value=token,
+            max_age=SESSION_COOKIE_MAX_AGE_SECONDS,
+            httponly=True,
+        )
         return response
     else:
         return RedirectResponse(url="/login?error=invalid", status_code=303)

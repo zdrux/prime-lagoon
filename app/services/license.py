@@ -110,10 +110,19 @@ def calculate_licenses(nodes: List[Any], rules: List[LicenseRule] = [], default_
         "details": details
     }
 
-def calculate_mapid_usage(nodes: List[Any], rules: List[LicenseRule] = [], default_include: bool = False) -> List[Dict[str, Any]]:
+def calculate_mapid_usage(
+    nodes: List[Any],
+    rules: List[LicenseRule] = [],
+    default_include: bool = False,
+    projects: Optional[List[Any]] = None
+) -> List[Dict[str, Any]]:
     """
     Calculates license usage grouped by MAPID label.
     Also captures LOB if present.
+
+    Project/namespace MAPIDs do not contribute node or license counts, but they
+    are included so MAPID analytics can discover MAPIDs that only exist on
+    project labels.
     """
     # 1. First Pass: Calculate basic license status for all nodes
     base_calc = calculate_licenses(nodes, rules, default_include)
@@ -191,5 +200,23 @@ def calculate_mapid_usage(nodes: List[Any], rules: List[LicenseRule] = [], defau
             # Update LOB if "Unknown" and we found one
             if groups[mapid]["lob"] == "Unknown" and lob != "Unknown":
                 groups[mapid]["lob"] = lob
+
+    for project in projects or []:
+        labels = get_val(project, 'metadata.labels') or {}
+        mapid = labels.get('mapid')
+        if not mapid or mapid == 'Unmapped':
+            continue
+
+        lob = labels.get('lob', 'Unknown')
+        if mapid not in groups:
+            groups[mapid] = {
+                "mapid": mapid,
+                "lob": lob,
+                "node_count": 0,
+                "total_vcpu": 0.0,
+                "license_count": 0
+            }
+        elif groups[mapid]["lob"] == "Unknown" and lob != "Unknown":
+            groups[mapid]["lob"] = lob
 
     return list(groups.values())

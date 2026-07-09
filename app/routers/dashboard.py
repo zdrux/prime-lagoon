@@ -91,6 +91,71 @@ def _is_azure_file_volume(pv: Dict[str, Any], pvc: Optional[Dict[str, Any]], sto
     pvc_class = pvc_spec.get("storageClassName")
     return _storage_class_is_azure_file(pv_class, storage_class_map) or _storage_class_is_azure_file(pvc_class, storage_class_map)
 
+def _get_resource_mapid_labels(resource: Dict[str, Any]) -> Dict[str, str]:
+    labels = get_val(resource, "metadata.labels") or {}
+    mapid = labels.get("mapid")
+    if not mapid or mapid == "Unmapped":
+        return {}
+    return {
+        "mapid": str(mapid),
+        "lob": labels.get("lob") or "-"
+    }
+
+def _add_project_mapids_to_breakdown(
+    session: Session,
+    cluster_map: Dict[int, Cluster],
+    mapid_stats: Dict[str, Dict[str, Any]]
+) -> None:
+    """
+    Add MAPIDs that are present only on project labels to the analytics result.
+    These entries do not affect license or node totals, but make the MAPID
+    searchable and allow the existing Resources drill-down to show namespaces.
+    """
+    for cluster_id, cluster in cluster_map.items():
+        snap = session.exec(select(ClusterSnapshot).where(
+            ClusterSnapshot.cluster_id == cluster_id,
+            ClusterSnapshot.status == "Success"
+        ).order_by(ClusterSnapshot.timestamp.desc()).limit(1)).first()
+
+        if not snap or not snap.data_json:
+            continue
+
+        try:
+            snapshot_data = json.loads(snap.data_json)
+        except Exception:
+            continue
+
+        for project in snapshot_data.get("projects", []) or []:
+            label_info = _get_resource_mapid_labels(project)
+            if not label_info:
+                continue
+
+            mid = label_info["mapid"]
+            if mid not in mapid_stats:
+                mapid_stats[mid] = {
+                    "mapid": mid,
+                    "lob": label_info["lob"],
+                    "total_licenses": 0,
+                    "total_nodes": 0,
+                    "total_vcpu": 0.0,
+                    "clusters": []
+                }
+            elif mapid_stats[mid]["lob"] in ("-", "Unknown") and label_info["lob"] != "-":
+                mapid_stats[mid]["lob"] = label_info["lob"]
+
+            if any(c["cluster_id"] == cluster_id for c in mapid_stats[mid]["clusters"]):
+                continue
+
+            mapid_stats[mid]["clusters"].append({
+                "name": cluster.name,
+                "cluster_id": cluster.id,
+                "environment": cluster.environment or "-",
+                "datacenter": cluster.datacenter or "-",
+                "licenses": 0,
+                "nodes": 0,
+                "vcpu": 0.0
+            })
+
 def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapshot_time: Optional[datetime]) -> Dict[str, Any]:
     pvs = snapshot_data.get("persistentvolumes", []) or []
     pvcs = snapshot_data.get("persistentvolumeclaims", []) or []
@@ -1201,7 +1266,12 @@ def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(ge
                 try:
                     data = json.loads(snap.data_json)
                     nodes = data.get("nodes", [])
-                    mapid_data_list = calculate_mapid_usage(nodes, rules, default_include=default_include)
+                    mapid_data_list = calculate_mapid_usage(
+                        nodes,
+                        rules,
+                        default_include=default_include,
+                        projects=data.get("projects", [])
+                    )
                     
                     for m_data in mapid_data_list:
                         m_usage = MapidLicenseUsage(
@@ -1370,11 +1440,13 @@ def get_mapid_breakdown(
             "vcpu": r.total_vcpu
         })
 
+    _add_project_mapids_to_breakdown(session, cluster_map, mapid_stats)
+
     # Convert to list
     results = list(mapid_stats.values())
     
     # Sort by total licenses desc
-    results.sort(key=lambda x: x["total_licenses"], reverse=True)
+    results.sort(key=lambda x: (-x["total_licenses"], x["mapid"]))
     
     return results
             

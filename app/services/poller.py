@@ -319,7 +319,12 @@ def poll_cluster(
         session.add(usage)
 
         # 3b. Calculate and Save MAPID Usage
-        mapid_data_list = calculate_mapid_usage(nodes, rules, default_include=default_include)
+        mapid_data_list = calculate_mapid_usage(
+            nodes,
+            rules,
+            default_include=default_include,
+            projects=snapshot_data.get("projects", [])
+        )
         for m_data in mapid_data_list:
             m_usage = MapidLicenseUsage(
                 cluster_id=cluster.id,

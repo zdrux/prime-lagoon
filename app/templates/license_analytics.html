@@ -264,7 +264,9 @@
                             class="fas fa-sort" style="opacity:0.3;"></i></th>
                     <th onclick="sortTable('mapid-breakdown-table', 2)" style="cursor:pointer;">Total Nodes <i
                             class="fas fa-sort" style="opacity:0.3;"></i></th>
-                    <th onclick="sortTable('mapid-breakdown-table', 3)" style="cursor:pointer;">Total Licenses <i
+                    <th onclick="sortTable('mapid-breakdown-table', 3)" style="cursor:pointer;">Total Projects <i
+                            class="fas fa-sort" style="opacity:0.3;"></i></th>
+                    <th onclick="sortTable('mapid-breakdown-table', 4)" style="cursor:pointer;">Total Licenses <i
                             class="fas fa-sort" style="opacity:0.3;"></i></th>
                     <th>Details</th>
                 </tr>
@@ -314,6 +316,7 @@
         <td class="mapid-id" style="font-weight:600; font-family:monospace;"></td>
         <td class="mapid-lob"></td>
         <td class="mapid-nodes"></td>
+        <td class="mapid-projects"></td>
         <td class="mapid-licenses" style="font-weight:bold;"></td>
         <td>
             <button class="btn btn-secondary btn-sm toggle-details-btn">
@@ -322,7 +325,7 @@
         </td>
     </tr>
     <tr class="mapid-child-row" style="display:none; background:rgba(0,0,0,0.02);">
-        <td colspan="5" style="padding:0;">
+        <td colspan="6" style="padding:0;">
             <div style="padding:1rem;">
                 <table class="data-table" style="font-size:0.8rem; background:var(--bg-primary);">
                     <thead>
@@ -331,6 +334,7 @@
                             <th>Environment</th>
                             <th>Datacenter</th>
                             <th>Nodes</th>
+                            <th>Projects</th>
                             <th>Licenses</th>
                         </tr>
                     </thead>

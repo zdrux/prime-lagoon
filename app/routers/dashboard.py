@@ -125,36 +125,53 @@ def _add_project_mapids_to_breakdown(
         except Exception:
             continue
 
+        project_counts = {}
+        project_lobs = {}
         for project in snapshot_data.get("projects", []) or []:
             label_info = _get_resource_mapid_labels(project)
             if not label_info:
                 continue
 
             mid = label_info["mapid"]
+            project_counts[mid] = project_counts.get(mid, 0) + 1
+            if label_info["lob"] != "-":
+                project_lobs[mid] = label_info["lob"]
+
+        for mid, project_count in project_counts.items():
+            lob = project_lobs.get(mid, "-")
+
             if mid not in mapid_stats:
                 mapid_stats[mid] = {
                     "mapid": mid,
-                    "lob": label_info["lob"],
+                    "lob": lob,
                     "total_licenses": 0,
                     "total_nodes": 0,
+                    "total_projects": 0,
                     "total_vcpu": 0.0,
                     "clusters": []
                 }
-            elif mapid_stats[mid]["lob"] in ("-", "Unknown") and label_info["lob"] != "-":
-                mapid_stats[mid]["lob"] = label_info["lob"]
+            elif mapid_stats[mid]["lob"] in ("-", "Unknown") and lob != "-":
+                mapid_stats[mid]["lob"] = lob
 
-            if any(c["cluster_id"] == cluster_id for c in mapid_stats[mid]["clusters"]):
-                continue
+            mapid_stats[mid]["total_projects"] = mapid_stats[mid].get("total_projects", 0) + project_count
 
-            mapid_stats[mid]["clusters"].append({
-                "name": cluster.name,
-                "cluster_id": cluster.id,
-                "environment": cluster.environment or "-",
-                "datacenter": cluster.datacenter or "-",
-                "licenses": 0,
-                "nodes": 0,
-                "vcpu": 0.0
-            })
+            cluster_entry = next(
+                (c for c in mapid_stats[mid]["clusters"] if c["cluster_id"] == cluster_id),
+                None
+            )
+            if cluster_entry:
+                cluster_entry["projects"] = cluster_entry.get("projects", 0) + project_count
+            else:
+                mapid_stats[mid]["clusters"].append({
+                    "name": cluster.name,
+                    "cluster_id": cluster.id,
+                    "environment": cluster.environment or "-",
+                    "datacenter": cluster.datacenter or "-",
+                    "licenses": 0,
+                    "nodes": 0,
+                    "projects": project_count,
+                    "vcpu": 0.0
+                })
 
 def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapshot_time: Optional[datetime]) -> Dict[str, Any]:
     pvs = snapshot_data.get("persistentvolumes", []) or []
@@ -1420,6 +1437,7 @@ def get_mapid_breakdown(
                 "lob": r.lob or "-",
                 "total_licenses": 0,
                 "total_nodes": 0,
+                "total_projects": 0,
                 "total_vcpu": 0.0,
                 "clusters": []
             }
@@ -1437,6 +1455,7 @@ def get_mapid_breakdown(
             "datacenter": c.datacenter or "-",
             "licenses": r.license_count,
             "nodes": r.node_count,
+            "projects": 0,
             "vcpu": r.total_vcpu
         })
 

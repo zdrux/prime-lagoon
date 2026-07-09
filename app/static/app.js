@@ -1693,7 +1693,7 @@ async function loadMapidBreakdown() {
 
         if (data.length === 0) {
 
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:2rem; opacity:0.6;">No data found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:2rem; opacity:0.6;">No data found</td></tr>';
 
         } else {
 
@@ -1710,6 +1710,8 @@ async function loadMapidBreakdown() {
                 parent.querySelector('.mapid-lob').innerText = item.lob || '-';
 
                 parent.querySelector('.mapid-nodes').innerText = item.total_nodes;
+
+                parent.querySelector('.mapid-projects').innerText = item.total_projects || 0;
 
                 parent.querySelector('.mapid-licenses').innerText = item.total_licenses;
 
@@ -1763,6 +1765,8 @@ async function loadMapidBreakdown() {
 
                             <td>${c.nodes}</td>
 
+                            <td>${c.projects || 0}</td>
+
                             <td style="font-weight:bold;">
 
                                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1797,7 +1801,7 @@ async function loadMapidBreakdown() {
 
                         resRow.innerHTML = `
 
-                             <td colspan="5" style="padding:0;">
+                             <td colspan="6" style="padding:0;">
 
                                 <div style="padding:0.5rem 1rem; border-left: 2px solid var(--accent-color); margin: 0.5rem 1rem;">
 
@@ -1815,7 +1819,7 @@ async function loadMapidBreakdown() {
 
                 } else {
 
-                    childBody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No contributing clusters found.</td></tr>';
+                    childBody.innerHTML = '<tr><td colspan="6" style="text-align:center; opacity:0.5;">No contributing clusters found.</td></tr>';
 
                 }
 
@@ -1831,7 +1835,7 @@ async function loadMapidBreakdown() {
 
         console.error("Error loading MAPID breakdown:", e);
 
-        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="color:var(--danger-color); text-align:center;">Error: ${e.message}</td></tr>`;
 
     } finally {
 

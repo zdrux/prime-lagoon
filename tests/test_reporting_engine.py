@@ -1,5 +1,5 @@
 from app.models import Cluster, ReportRun, ReportTemplate
-from app.services.reporting import analyze_rbac_access
+from app.services.reporting import analyze_rbac_access, normalize_rbac_report_config
 
 
 def _cluster():
@@ -104,3 +104,53 @@ def test_not_contains_condition_is_applied_to_every_group_member():
 
     assert rows[0]["finding"] == "NONMATCHING_USER"
     assert rows[0]["nonmatching_users"] == ["ssid-support"]
+
+
+def test_multiple_values_are_or_matched_for_contains():
+    bindings = [{
+        "metadata": {"name": "review", "namespace": "finance"},
+        "roleRef": {"kind": "ClusterRole", "name": "admin"},
+        "subjects": [{"kind": "Group", "name": "humans"}],
+    }]
+    groups = [{
+        "metadata": {"name": "humans"},
+        "users": ["ssid-support", "shared-support", "alice"],
+    }]
+    config = _config()
+    config["user_condition"] = {
+        "operator": "contains",
+        "values": ["ssid", "shared"],
+        "case_sensitive": False,
+    }
+
+    rows = analyze_rbac_access(_cluster(), bindings, [], groups, config)
+
+    assert rows[0]["matching_users"] == ["ssid-support", "shared-support"]
+    assert rows[0]["nonmatching_users"] == ["alice"]
+
+
+def test_not_contains_negates_the_combined_or_match():
+    bindings = [{
+        "metadata": {"name": "review", "namespace": "finance"},
+        "roleRef": {"kind": "ClusterRole", "name": "admin"},
+        "subjects": [{"kind": "Group", "name": "humans"}],
+    }]
+    groups = [{
+        "metadata": {"name": "humans"},
+        "users": ["alice", "ssid-support", "shared-support"],
+    }]
+    config = _config("not_contains")
+    config["user_condition"]["values"] = ["ssid", "shared"]
+    config["user_condition"].pop("value")
+
+    rows = analyze_rbac_access(_cluster(), bindings, [], groups, config)
+
+    assert rows[0]["matching_users"] == ["alice"]
+    assert rows[0]["nonmatching_users"] == ["ssid-support", "shared-support"]
+
+
+def test_legacy_single_value_is_normalized_to_values_list():
+    config = normalize_rbac_report_config(_config())
+
+    assert config["user_condition"]["values"] == ["ssid"]
+    assert "value" not in config["user_condition"]

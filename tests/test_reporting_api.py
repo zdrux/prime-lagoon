@@ -59,7 +59,7 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
             "namespace_exclusions": ["openshift-*"],
             "user_condition": {
                 "operator": "contains",
-                "value": "ssid",
+                "values": ["ssid", "shared-support"],
                 "case_sensitive": False,
             },
         }
@@ -144,7 +144,7 @@ def test_report_worker_persists_results_summary_and_expiration(tmp_path, monkeyp
             template_name="Worker test",
             config_json=json.dumps({
                 "cluster_roles": ["admin"],
-                "user_condition": {"operator": "contains", "value": "ssid"},
+                "user_condition": {"operator": "contains", "values": ["ssid", "shared-support"]},
             }),
             cluster_ids_json=json.dumps([cluster.id]),
             requested_by="tester",

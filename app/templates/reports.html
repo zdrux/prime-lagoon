@@ -86,14 +86,14 @@
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">Value</label>
-                        <input id="report-user-value" class="form-input" value="ssid">
+                        <label class="form-label">Values — one per line (OR)</label>
+                        <textarea id="report-user-values" class="form-input code-input" rows="3">ssid</textarea>
                     </div>
                     <label style="display:flex; align-items:end; gap:0.5rem; padding-bottom:0.65rem; cursor:pointer;">
                         <input id="report-case-sensitive" type="checkbox"> Case sensitive
                     </label>
                 </div>
-                <div class="report-note"><i class="fas fa-circle-info"></i> All group members must satisfy the condition. Empty and unresolved groups are flagged for review.</div>
+                <div class="report-note"><i class="fas fa-circle-info"></i> Values are OR-matched: contains means any value may match; doesn't contain means none may match. All group members must satisfy the resulting condition. Empty and unresolved groups are flagged for review.</div>
             </div>
 
             <div id="report-step-2" class="report-step" style="display:none;">
@@ -234,7 +234,7 @@
             <div class="report-card">
                 <div class="report-card-main">
                     <div class="report-card-title">${escapeHtml(t.name)}</div>
-                    <div class="report-card-meta">${t.config.cluster_roles.length} ClusterRole(s) · condition: ALL ${escapeHtml(t.config.user_condition.operator)} “${escapeHtml(t.config.user_condition.value)}”</div>
+                    <div class="report-card-meta">${t.config.cluster_roles.length} ClusterRole(s) · condition: ALL ${escapeHtml(t.config.user_condition.operator)} ${formatConditionValues(t.config.user_condition)}</div>
                 </div>
                 <button class="btn btn-primary btn-sm" onclick="openReportWizard(${t.id})"><i class="fas fa-play"></i> Run</button>
                 ${CAN_MANAGE_REPORTS ? `<button class="btn btn-secondary btn-sm" onclick="openReportWizard(${t.id})" title="Edit"><i class="fas fa-edit"></i></button><button class="btn btn-danger btn-sm" onclick="archiveTemplate(${t.id})" title="Archive"><i class="fas fa-trash"></i></button>` : ''}
@@ -254,7 +254,14 @@
     }
 
     function defaultConfig() {
-        return {cluster_roles:[], namespace_exclusions:[], user_condition:{quantifier:'ALL',operator:'contains',value:'ssid',case_sensitive:false}};
+        return {cluster_roles:[], namespace_exclusions:[], user_condition:{quantifier:'ALL',operator:'contains',values:['ssid'],case_sensitive:false}};
+    }
+    function conditionValues(condition) {
+        if (Array.isArray(condition?.values)) return condition.values;
+        return condition?.value ? [condition.value] : [];
+    }
+    function formatConditionValues(condition) {
+        return conditionValues(condition).map(value => `“${escapeHtml(value)}”`).join(' OR ');
     }
     function openReportWizard(templateId = null) {
         const template = reportTemplates.find(t => t.id === templateId);
@@ -264,7 +271,7 @@
         document.getElementById('report-description').value = template?.description || '';
         document.getElementById('report-roles').value = (config.cluster_roles || []).join('\n');
         document.getElementById('report-user-op').value = config.user_condition?.operator || 'contains';
-        document.getElementById('report-user-value').value = config.user_condition?.value || 'ssid';
+        document.getElementById('report-user-values').value = (conditionValues(config.user_condition).length ? conditionValues(config.user_condition) : ['ssid']).join('\n');
         document.getElementById('report-case-sensitive').checked = !!config.user_condition?.case_sensitive;
         document.getElementById('report-exclusions').value = (config.namespace_exclusions || []).join('\n');
         document.querySelectorAll('.report-cluster-cb').forEach(cb => cb.checked = true);
@@ -281,7 +288,7 @@
             cluster_roles: lines(document.getElementById('report-roles').value), role_match:'any_exact',
             namespace_exclusions: lines(document.getElementById('report-exclusions').value),
             subject_kinds:['Group','User','ServiceAccount'],
-            user_condition:{quantifier:'ALL',operator:document.getElementById('report-user-op').value,value:document.getElementById('report-user-value').value.trim(),case_sensitive:document.getElementById('report-case-sensitive').checked},
+            user_condition:{quantifier:'ALL',operator:document.getElementById('report-user-op').value,values:lines(document.getElementById('report-user-values').value),case_sensitive:document.getElementById('report-case-sensitive').checked},
             empty_group_policy:'review', missing_group_policy:'review'
         };
     }
@@ -289,7 +296,7 @@
         if (step === 1) {
             if (!document.getElementById('report-name').value.trim()) { alert('Enter a report name.'); return false; }
             if (!lines(document.getElementById('report-roles').value).length) { alert('Enter at least one ClusterRole name.'); return false; }
-            if (!document.getElementById('report-user-value').value.trim()) { alert('Enter a user-name comparison value.'); return false; }
+            if (!lines(document.getElementById('report-user-values').value).length) { alert('Enter at least one user-name comparison value.'); return false; }
         }
         if (step === 3 && !document.querySelector('.report-cluster-cb:checked')) { alert('Select at least one cluster.'); return false; }
         return true;
@@ -359,7 +366,7 @@
             <dt>ClusterRoles</dt><dd>${config.cluster_roles.map(escapeHtml).join(', ')}</dd>
             <dt>Bindings</dt><dd>RoleBindings and ClusterRoleBindings</dd>
             <dt>Subjects</dt><dd>Groups, direct Users, and ServiceAccounts</dd>
-            <dt>User rule</dt><dd>ALL usernames ${escapeHtml(config.user_condition.operator)} “${escapeHtml(config.user_condition.value)}”${config.user_condition.case_sensitive ? ' (case-sensitive)' : ' (case-insensitive)'}</dd>
+            <dt>User rule</dt><dd>ALL usernames ${escapeHtml(config.user_condition.operator)} ${formatConditionValues(config.user_condition)}${config.user_condition.case_sensitive ? ' (case-sensitive)' : ' (case-insensitive)'}</dd>
             <dt>Exclusions</dt><dd>${config.namespace_exclusions.length ? config.namespace_exclusions.map(escapeHtml).join(', ') : 'None'}</dd>
             <dt>Clusters</dt><dd>${names.map(escapeHtml).join(', ')}</dd>`;
     }

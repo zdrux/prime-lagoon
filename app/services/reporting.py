@@ -27,7 +27,7 @@ def default_rbac_report_config() -> Dict[str, Any]:
         "user_condition": {
             "quantifier": "ALL",
             "operator": "contains",
-            "value": "ssid",
+            "values": ["ssid"],
             "case_sensitive": False,
         },
         "empty_group_policy": "review",
@@ -46,11 +46,24 @@ def normalize_rbac_report_config(config: Dict[str, Any]) -> Dict[str, Any]:
     ))
     normalized["subject_kinds"] = ["Group", "User", "ServiceAccount"]
 
+    raw_condition = normalized.get("user_condition") or {}
     condition = default_rbac_report_config()["user_condition"].copy()
-    condition.update(normalized.get("user_condition") or {})
+    condition.update(raw_condition)
     condition["quantifier"] = "ALL"
     condition["operator"] = condition.get("operator") if condition.get("operator") in {"contains", "not_contains"} else "contains"
-    condition["value"] = str(condition.get("value", ""))
+    raw_values = raw_condition.get("values")
+    if raw_values is None and "value" in raw_condition:
+        raw_values = [raw_condition.get("value")]
+    if raw_values is None:
+        raw_values = condition.get("values") or []
+    if isinstance(raw_values, str):
+        raw_values = [raw_values]
+    elif not isinstance(raw_values, (list, tuple, set)):
+        raw_values = [raw_values]
+    condition["values"] = list(dict.fromkeys(
+        str(value).strip() for value in raw_values if str(value).strip()
+    ))
+    condition.pop("value", None)
     condition["case_sensitive"] = bool(condition.get("case_sensitive", False))
     normalized["user_condition"] = condition
     return normalized
@@ -60,8 +73,8 @@ def validate_rbac_report_config(config: Dict[str, Any]) -> Dict[str, Any]:
     normalized = normalize_rbac_report_config(config)
     if not normalized["cluster_roles"]:
         raise ValueError("At least one ClusterRole name is required")
-    if not normalized["user_condition"]["value"]:
-        raise ValueError("A user-name comparison value is required")
+    if not normalized["user_condition"]["values"]:
+        raise ValueError("At least one user-name comparison value is required")
     return normalized
 
 
@@ -78,12 +91,12 @@ def _namespace_is_excluded(namespace: str, patterns: Iterable[str]) -> bool:
 
 def _user_matches(username: str, condition: Dict[str, Any]) -> bool:
     actual = str(username or "")
-    expected = condition["value"]
+    expected_values = condition["values"]
     if not condition.get("case_sensitive"):
         actual = actual.lower()
-        expected = expected.lower()
-    contains = expected in actual
-    return not contains if condition["operator"] == "not_contains" else contains
+        expected_values = [value.lower() for value in expected_values]
+    contains_any = any(expected in actual for expected in expected_values)
+    return not contains_any if condition["operator"] == "not_contains" else contains_any
 
 
 def analyze_rbac_access(

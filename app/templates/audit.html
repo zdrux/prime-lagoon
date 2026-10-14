@@ -605,6 +605,9 @@
                             <option value="equals">Equals</option>
                             <option value="exists">Exists</option>
                             <option value="contains">Contains</option>
+                            <option value="not_equals">Does Not Equal</option>
+                            <option value="not_exists">Doesn't Exist</option>
+                            <option value="not_contains">Doesn't Contain</option>
                         </select>
                     </div>
                     <div>
@@ -803,11 +806,19 @@
         const opWrap = document.createElement('div');
         const opSelect = document.createElement('select');
         opSelect.className = 'form-input ec-op';
-        ['equals', 'exists', 'contains'].forEach(o => {
+        const operators = [
+            ['equals', 'Equals'],
+            ['exists', 'Exists'],
+            ['contains', 'Contains'],
+            ['not_equals', 'Does Not Equal'],
+            ['not_exists', "Doesn't Exist"],
+            ['not_contains', "Doesn't Contain"]
+        ];
+        operators.forEach(([value, label]) => {
             const opt = document.createElement('option');
-            opt.value = o;
-            opt.innerText = o.charAt(0).toUpperCase() + o.slice(1);
-            if (o === op) opt.selected = true;
+            opt.value = value;
+            opt.innerText = label;
+            if (value === op) opt.selected = true;
             opSelect.appendChild(opt);
         });
         opWrap.appendChild(opSelect);

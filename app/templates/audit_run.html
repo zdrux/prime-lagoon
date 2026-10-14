@@ -184,6 +184,24 @@
         <div id="mass-step-2" class="mass-step" style="display:none;">
             <div style="padding:1.5rem;">
                 <h4 style="margin-bottom:1rem;">2. Confirm Target Clusters</h4>
+                <div style="margin-bottom:1rem; padding:0.8rem; border:1px solid var(--border-color); border-radius:6px; background:rgba(255,255,255,0.02);">
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.4rem; margin-bottom:0.65rem;">
+                        <span style="font-size:0.8rem; opacity:0.7; margin-right:0.2rem;">Filter:</span>
+                        <button class="filter-btn mass-target-filter" onclick="toggleMassTargetFilter(this, 'DEV')" style="font-size:0.7rem; padding:0.25rem 0.5rem;">DEV</button>
+                        <button class="filter-btn mass-target-filter" onclick="toggleMassTargetFilter(this, 'UAT')" style="font-size:0.7rem; padding:0.25rem 0.5rem;">UAT</button>
+                        <button class="filter-btn mass-target-filter" onclick="toggleMassTargetFilter(this, 'PROD')" style="font-size:0.7rem; padding:0.25rem 0.5rem;">PROD</button>
+                        <span style="height:20px; border-left:1px solid var(--border-color); margin:0 0.2rem;"></span>
+                        <button class="filter-btn mass-target-filter" onclick="toggleMassTargetFilter(this, 'AZURE')" style="font-size:0.7rem; padding:0.25rem 0.5rem;">AZURE</button>
+                        <button class="filter-btn mass-target-filter" onclick="toggleMassTargetFilter(this, 'HCI')" style="font-size:0.7rem; padding:0.25rem 0.5rem;">HCI</button>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.4rem;">
+                        <span style="font-size:0.8rem; opacity:0.7; margin-right:0.2rem;">Select:</span>
+                        <button class="btn btn-secondary" onclick="selectMassTargets('all')" style="font-size:0.75rem; padding:0.25rem 0.55rem;">All</button>
+                        <button class="btn btn-secondary" onclick="selectMassTargets('none')" style="font-size:0.75rem; padding:0.25rem 0.55rem;">None</button>
+                        <button class="btn btn-secondary" onclick="selectMassTargets('matching')" style="font-size:0.75rem; padding:0.25rem 0.55rem;">Only Matching</button>
+                        <small style="opacity:0.55; margin-left:0.25rem;">Environment filters are ORed, DC filters are ORed, and the two groups are combined.</small>
+                    </div>
+                </div>
                 <div id="target-summary"
                     style="margin-bottom:1rem; padding:0.8rem; background:rgba(0,0,0,0.1); border-radius:6px; font-weight:600;">
                 </div>
@@ -287,6 +305,7 @@
         display: flex;
         align-items: center;
         gap: 0.8rem;
+        cursor: pointer;
     }
 
     .target-item:last-child {
@@ -1010,8 +1029,10 @@
     // --- Mass Audit Logic ---
     let selectedMassMode = 'traits';
     let targetedClusters = [];
+    let activeMassTargetFilters = [];
 
     function openMassAuditModal() {
+        resetMassTargetFilters();
         showMassStep(1);
         setMassMode('custom');
         // Populate bundle dropdown
@@ -1090,6 +1111,68 @@
         document.getElementById(`mass-step-${step}`).style.display = 'block';
     }
 
+    function resetMassTargetFilters() {
+        activeMassTargetFilters = [];
+        document.querySelectorAll('.mass-target-filter').forEach(btn => {
+            btn.style.background = 'rgba(255,255,255,0.05)';
+            btn.style.borderColor = 'var(--border-color)';
+        });
+    }
+
+    function toggleMassTargetFilter(btn, filterVal) {
+        if (activeMassTargetFilters.includes(filterVal)) {
+            activeMassTargetFilters = activeMassTargetFilters.filter(f => f !== filterVal);
+            btn.style.background = 'rgba(255,255,255,0.05)';
+            btn.style.borderColor = 'var(--border-color)';
+        } else {
+            activeMassTargetFilters.push(filterVal);
+            btn.style.background = 'rgba(58,134,255,0.2)';
+            btn.style.borderColor = 'var(--accent-color)';
+        }
+        filterMassTargetList();
+    }
+
+    function massTargetMatchesFilters(cluster) {
+        const envFilters = activeMassTargetFilters.filter(f => ['DEV', 'UAT', 'PROD'].includes(f));
+        const dcFilters = activeMassTargetFilters.filter(f => ['AZURE', 'HCI'].includes(f));
+        const environment = (cluster.environment || '').toUpperCase();
+        const datacenter = (cluster.datacenter || '').toUpperCase();
+        const envMatch = envFilters.length === 0 || envFilters.includes(environment);
+        const dcMatch = dcFilters.length === 0 || dcFilters.includes(datacenter);
+        return envMatch && dcMatch;
+    }
+
+    function filterMassTargetList() {
+        document.querySelectorAll('.target-item[data-cluster-id]').forEach(item => {
+            const clusterId = parseInt(item.dataset.clusterId);
+            const cluster = targetedClusters.find(c => c.id === clusterId);
+            item.style.display = cluster && massTargetMatchesFilters(cluster) ? 'flex' : 'none';
+        });
+        updateMassTargetSummary();
+    }
+
+    function selectMassTargets(mode) {
+        const items = Array.from(document.querySelectorAll('.target-item[data-cluster-id]'));
+        if (mode === 'matching') {
+            items.forEach(item => {
+                item.querySelector('.cluster-target-cb').checked = item.style.display !== 'none';
+            });
+        } else {
+            const checked = mode === 'all';
+            items.forEach(item => item.querySelector('.cluster-target-cb').checked = checked);
+        }
+        updateMassTargetSummary();
+    }
+
+    function updateMassTargetSummary() {
+        const items = Array.from(document.querySelectorAll('.target-item[data-cluster-id]'));
+        const selected = items.filter(item => item.querySelector('.cluster-target-cb').checked).length;
+        const shown = items.filter(item => item.style.display !== 'none').length;
+        document.getElementById('target-summary').innerHTML =
+            `<i class="fas fa-bullseye"></i> ${selected} of ${items.length} Clusters Selected` +
+            (activeMassTargetFilters.length > 0 ? ` <span style="opacity:0.6; font-weight:400;">(${shown} matching filters)</span>` : '');
+    }
+
     async function calculateMassTargets() {
         if (selectedMassMode === 'custom') {
             const selectedBundles = Array.from(document.querySelectorAll('.mass-custom-bundle-cb:checked')).map(cb => parseInt(cb.value));
@@ -1116,7 +1199,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            targetedClusters = await res.json();
+            const matches = await res.json();
+            targetedClusters = matches.map(match => allClusters.find(c => c.id === match.id) || match);
         }
 
         renderMassPreview();
@@ -1127,19 +1211,21 @@
         const summary = document.getElementById('target-summary');
         const list = document.getElementById('target-list');
 
-        summary.innerHTML = `<i class="fas fa-bullseye"></i> ${targetedClusters.length} Clusters Targeted`;
-
         if (targetedClusters.length === 0) {
+            summary.innerHTML = '<i class="fas fa-bullseye"></i> 0 Clusters Selected';
             list.innerHTML = '<div style="padding:2rem; text-align:center; opacity:0.5;">No clusters matched these criteria.</div>';
             return;
         }
 
         list.innerHTML = targetedClusters.map(c => `
-            <div class="target-item">
-                <input type="checkbox" checked value="${c.id}" class="cluster-target-cb">
-                <div style="font-weight:500;">${c.name}</div>
-            </div>
+            <label class="target-item" data-cluster-id="${c.id}">
+                <input type="checkbox" checked value="${c.id}" class="cluster-target-cb" onchange="updateMassTargetSummary()">
+                <div style="font-weight:500; flex:1;">${c.name}</div>
+                ${c.environment ? `<span class="badge" style="font-size:0.65rem;">${c.environment}</span>` : ''}
+                ${c.datacenter ? `<span class="badge badge-blue" style="font-size:0.65rem;">${c.datacenter}</span>` : ''}
+            </label>
         `).join('');
+        filterMassTargetList();
     }
 
     async function launchMassAudit() {

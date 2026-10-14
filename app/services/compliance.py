@@ -59,6 +59,35 @@ def check_scope_match(scope_val: Optional[str], cluster_val: Optional[str]) -> b
 def get_nested_value(data: dict, path: str):
     return get_val(data, path, case_insensitive=True)
 
+def condition_matches(actual, operator: Optional[str], expected) -> bool:
+    """Evaluate a validation condition, including its negative variants."""
+    op = (operator or "equals").lower()
+    negate = op in {"not_equals", "not_exists", "not_contains"}
+    positive_op = {
+        "not_equals": "equals",
+        "not_exists": "exists",
+        "not_contains": "contains",
+    }.get(op, op)
+
+    if positive_op == "exists":
+        matched = actual is not None
+    elif positive_op == "equals":
+        matched = str(actual) == str(expected)
+    elif positive_op == "contains":
+        expected_str = str(expected).lower()
+        if isinstance(actual, list):
+            matched = any(
+                expected_str in (item.lower() if isinstance(item, str) else str(item).lower())
+                for item in actual
+                if isinstance(item, (str, dict))
+            )
+        else:
+            matched = expected_str in str(actual).lower() if actual is not None else False
+    else:
+        return False
+
+    return not matched if negate else matched
+
 def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[AuditRule], bundles: List[AuditBundle], run_timestamp: Optional[datetime] = None) -> Optional[ComplianceScore]:
     """
     Evaluates all applicable rules for a single cluster and saves a ComplianceScore.
@@ -140,25 +169,7 @@ def evaluate_cluster_compliance(session: Session, cluster: Cluster, rules: List[
                     actual = get_nested_value(item_data, cond["path"])
                     op = cond["op"].lower() if cond["op"] else "equals"
                     exp = cond["val"]
-                    
-                    m = False
-                    if op == "exists":
-                        m = actual is not None
-                    elif op == "equals":
-                        m = str(actual) == str(exp)
-                    elif op == "contains":
-                        exp_str = str(exp).lower()
-                        if isinstance(actual, list):
-                            m = False
-                            for sub_item in actual:
-                                if isinstance(sub_item, str):
-                                    if exp_str in sub_item.lower():
-                                        m = True; break
-                                elif isinstance(sub_item, dict):
-                                    if exp_str in str(sub_item).lower():
-                                        m = True; break
-                        else:
-                            m = exp_str in str(actual).lower() if actual else False
+                    m = condition_matches(actual, op, exp)
                     
                     cond_results.append({"match": m, "cond": cond, "actual": actual})
                 

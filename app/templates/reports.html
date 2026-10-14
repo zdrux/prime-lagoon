@@ -41,13 +41,17 @@
             <div id="result-title" style="font-weight:700;">Report Results</div>
             <div id="result-meta" style="font-size:0.78rem; opacity:0.65; margin-top:0.2rem;"></div>
         </div>
-        <input id="result-search" class="form-input" style="width:250px; padding:0.4rem;" placeholder="Filter results…" oninput="renderResultRows()">
+        <input id="result-search" class="form-input" style="width:250px; padding:0.4rem;" placeholder="Filter results…" oninput="resultPage = 1; renderResultRows()">
+        <label class="report-clear-toggle" title="Exclude rows whose finding is CLEAR">
+            <input id="result-hide-clear" type="checkbox" onchange="resultPage = 1; renderResultRows()">
+            Hide clear findings
+        </label>
         <button class="btn btn-secondary btn-sm" onclick="exportActiveReport('excel')"><i class="fas fa-file-excel"></i> Excel</button>
         <button class="btn btn-secondary btn-sm" onclick="exportActiveReport('csv')"><i class="fas fa-file-csv"></i> CSV</button>
         <button class="btn btn-secondary btn-sm" onclick="exportActiveReport('json')"><i class="fas fa-code"></i> JSON</button>
     </div>
     <div id="run-progress" style="display:none; padding:1rem; border-bottom:1px solid var(--border-color);"></div>
-    <div class="table-container" style="max-height:620px; overflow:auto;">
+    <div class="table-container report-results-container">
         <table class="data-table report-results-table" id="report-results-table">
             <colgroup id="report-results-columns">
                 <col class="report-col-cluster">
@@ -67,6 +71,7 @@
             <tbody id="report-result-body"></tbody>
         </table>
     </div>
+    <div id="result-pagination" class="report-pagination" style="display:none;"></div>
 </section>
 
 <div id="report-wizard" class="modal">
@@ -140,17 +145,17 @@
                 <h4>3. Select clusters</h4>
                 <div class="cluster-picker-toolbar">
                     <div class="cluster-filter-group">
-                        <button class="filter-btn report-cluster-filter" data-filter="DEV" onclick="toggleReportClusterFilter(this, 'DEV')">DEV</button>
-                        <button class="filter-btn report-cluster-filter" data-filter="UAT" onclick="toggleReportClusterFilter(this, 'UAT')">UAT</button>
-                        <button class="filter-btn report-cluster-filter" data-filter="PROD" onclick="toggleReportClusterFilter(this, 'PROD')">PROD</button>
+                        <button type="button" class="filter-btn report-cluster-filter" data-filter="DEV" onclick="toggleReportClusterFilter(this, 'DEV')">DEV</button>
+                        <button type="button" class="filter-btn report-cluster-filter" data-filter="UAT" onclick="toggleReportClusterFilter(this, 'UAT')">UAT</button>
+                        <button type="button" class="filter-btn report-cluster-filter" data-filter="PROD" onclick="toggleReportClusterFilter(this, 'PROD')">PROD</button>
                         <span class="filter-divider"></span>
-                        <button class="filter-btn report-cluster-filter" data-filter="AZURE" onclick="toggleReportClusterFilter(this, 'AZURE')">AZURE</button>
-                        <button class="filter-btn report-cluster-filter" data-filter="HCI" onclick="toggleReportClusterFilter(this, 'HCI')">HCI</button>
+                        <button type="button" class="filter-btn report-cluster-filter" data-filter="AZURE" onclick="toggleReportClusterFilter(this, 'AZURE')">AZURE</button>
+                        <button type="button" class="filter-btn report-cluster-filter" data-filter="HCI" onclick="toggleReportClusterFilter(this, 'HCI')">HCI</button>
                     </div>
                     <div style="display:flex; gap:0.35rem; align-items:center;">
-                        <button class="btn btn-secondary btn-sm" onclick="selectReportClusters('all')">All</button>
-                        <button class="btn btn-secondary btn-sm" onclick="selectReportClusters('none')">None</button>
-                        <button class="btn btn-secondary btn-sm" onclick="selectReportClusters('matching')">Only Matching</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="selectReportClusters('all')">All</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="selectReportClusters('none')">None</button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="selectReportClusters('matching')">All Matching</button>
                     </div>
                 </div>
                 <div id="report-cluster-summary" class="report-note"></div>
@@ -187,18 +192,30 @@
     .report-menu-refresh { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:0.4rem; cursor:pointer; color:var(--text-primary); background:rgba(255,255,255,0.07); }
     .report-menu-refresh:hover { background:rgba(255,255,255,0.13); }
     .reports-panel-header { padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-weight:700; }
-    .report-results-table { min-width:1730px; table-layout:fixed; }
+    .report-results-container { overflow-x:auto; overflow-y:visible; }
+    .report-results-table { min-width:1690px; table-layout:fixed; }
     .report-results-table th { position:sticky; top:0; z-index:2; background:var(--card-bg); }
-    .report-results-table td { vertical-align:top; overflow-wrap:anywhere; }
-    .report-col-cluster { width:185px; }
-    .report-col-scope { width:135px; }
+    .report-results-table td { vertical-align:top; overflow-wrap:break-word; word-break:normal; }
+    .report-col-cluster { width:170px; }
+    .report-col-scope { width:115px; }
     .report-col-binding { width:170px; }
     .report-col-role { width:120px; }
-    .report-col-subject { width:250px; }
-    .report-col-users { width:80px; }
-    .report-col-nonmatching { width:410px; }
-    .report-col-finding { width:160px; }
-    .report-col-detail { width:220px; }
+    .report-col-subject { width:210px; }
+    .report-col-users { width:270px; }
+    .report-col-nonmatching { width:280px; }
+    .report-col-finding { width:145px; }
+    .report-col-detail { width:210px; }
+    .report-results-table.hide-nonmatching-column .report-col-nonmatching,
+    .report-results-table.hide-nonmatching-column th:nth-child(7),
+    .report-results-table.hide-nonmatching-column td:nth-child(7) { display:none; }
+    .report-user-count { display:inline-flex; align-items:center; justify-content:center; min-width:1.6rem; padding:0.12rem 0.4rem; margin-bottom:0.35rem; border-radius:999px; background:rgba(56,189,248,0.13); color:#7dd3fc; font-size:0.72rem; font-weight:700; }
+    .report-user-list { display:flex; flex-wrap:wrap; gap:0.28rem; align-items:flex-start; }
+    .report-user-chip { display:inline-block; max-width:100%; padding:0.16rem 0.38rem; border-radius:4px; background:rgba(255,255,255,0.06); font-size:0.72rem; line-height:1.35; overflow-wrap:anywhere; }
+    .report-user-chip.is-nonmatching { color:#fca5a5; background:rgba(248,113,113,0.12); }
+    .report-clear-toggle { min-height:34px; display:inline-flex; align-items:center; gap:0.45rem; padding:0.35rem 0.65rem; border:1px solid var(--border-color); border-radius:6px; color:var(--text-secondary); font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap; }
+    .report-clear-toggle input { accent-color:var(--accent-color); }
+    .report-pagination { padding:0.85rem 1rem; border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; align-items:center; gap:0.65rem; color:var(--text-secondary); font-size:0.8rem; }
+    .report-pagination .btn { min-width:78px; }
     .report-card-list { max-height:min(480px, 65vh); overflow:auto; }
     .report-card { padding:0.9rem 1rem; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:0.8rem; }
     .report-card:hover { background:rgba(255,255,255,0.025); }
@@ -250,10 +267,13 @@
     let reportClusters = [];
     let reportWizardStep = 1;
     let activeClusterFilters = [];
+    let reportClusterSelectionMode = 'all';
     let activeRunId = null;
     let activeRun = null;
     let activeResultRows = [];
+    let resultPage = 1;
     let runPollTimer = null;
+    const RESULT_PAGE_SIZE = 100;
 
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
@@ -351,6 +371,7 @@
         document.getElementById('report-identity-exclusions').value = identityExclusions.join('\n');
         document.querySelectorAll('.report-cluster-cb').forEach(cb => cb.checked = true);
         activeClusterFilters = [];
+        reportClusterSelectionMode = 'all';
         document.querySelectorAll('.report-cluster-filter').forEach(btn => btn.classList.remove('active'));
         filterReportClusters();
         setReportStep(1);
@@ -397,7 +418,7 @@
         const list = document.getElementById('report-cluster-list');
         list.innerHTML = reportClusters.map(c => `
             <label class="report-cluster-row" data-cluster-id="${c.id}">
-                <input type="checkbox" checked class="report-cluster-cb" value="${c.id}" onchange="updateClusterSummary()">
+                <input type="checkbox" checked class="report-cluster-cb" value="${c.id}" onchange="reportClusterSelectionMode = 'custom'; updateClusterSummary()">
                 <span style="font-weight:600; flex:1;">${escapeHtml(c.name)}</span>
                 <span class="badge">${escapeHtml(c.environment || '-')}</span><span class="badge badge-blue">${escapeHtml(c.datacenter || '-')}</span>
             </label>`).join('');
@@ -407,6 +428,7 @@
         if (activeClusterFilters.includes(value)) { activeClusterFilters = activeClusterFilters.filter(v => v !== value); btn.classList.remove('active'); }
         else { activeClusterFilters.push(value); btn.classList.add('active'); }
         filterReportClusters();
+        if (reportClusterSelectionMode === 'matching') selectReportClusters('matching');
     }
     function clusterMatchesFilters(cluster) {
         const envs = activeClusterFilters.filter(v => ['DEV','UAT','PROD'].includes(v));
@@ -421,9 +443,11 @@
         updateClusterSummary();
     }
     function selectReportClusters(mode) {
+        reportClusterSelectionMode = mode;
         document.querySelectorAll('.report-cluster-row').forEach(row => {
             const checkbox = row.querySelector('.report-cluster-cb');
-            checkbox.checked = mode === 'all' || (mode === 'matching' && row.style.display !== 'none');
+            const cluster = reportClusters.find(c => Number(c.id) === Number(row.dataset.clusterId));
+            checkbox.checked = mode === 'all' || (mode === 'matching' && cluster && clusterMatchesFilters(cluster));
         }); updateClusterSummary();
     }
     function updateClusterSummary() {
@@ -432,7 +456,11 @@
         const shown = rows.filter(row => row.style.display !== 'none').length;
         document.getElementById('report-cluster-summary').innerHTML = `<i class="fas fa-bullseye"></i> ${selected} of ${rows.length} clusters selected${activeClusterFilters.length ? ` · ${shown} match filters` : ''}`;
     }
-    function selectedClusterIds() { return Array.from(document.querySelectorAll('.report-cluster-cb:checked')).map(cb => Number(cb.value)); }
+    function selectedClusterIds() {
+        return Array.from(document.querySelectorAll('.report-cluster-cb:checked'))
+            .map(cb => Number(cb.value))
+            .filter(id => reportClusterSelectionMode !== 'matching' || clusterMatchesFilters(reportClusters.find(c => Number(c.id) === id) || {}));
+    }
 
     function renderReportReview() {
         const config = collectWizardConfig();
@@ -476,6 +504,7 @@
         const [runRes, resultRes] = await Promise.all([fetch(`/api/reporting/runs/${id}`), fetch(`/api/reporting/runs/${id}/results`)]);
         if (!runRes.ok || !resultRes.ok) { alert('Unable to load report run.'); return; }
         activeRun = await runRes.json(); activeResultRows = await resultRes.json();
+        resultPage = 1;
         document.getElementById('report-results-card').style.display = 'block';
         document.getElementById('result-title').innerText = activeRun.template_name;
         document.getElementById('result-meta').innerText = `${activeRun.status} · requested by ${activeRun.requested_by} · ${formatDate(activeRun.created_at)}`;
@@ -489,22 +518,51 @@
         document.getElementById('report-results-card').scrollIntoView({behavior:'smooth',block:'start'});
     }
     async function refreshRunsOnly() { const res = await fetch('/api/reporting/runs'); if (res.ok) { reportRuns = await res.json(); renderRuns(); } }
-    function compactUsers(users) { return (users || []).join(', '); }
+    function renderUserList(users, nonmatching = false) {
+        if (!users?.length) return '-';
+        return `<div class="report-user-list">${users.map(user => `<span class="report-user-chip${nonmatching ? ' is-nonmatching' : ''}">${escapeHtml(user)}</span>`).join('')}</div>`;
+    }
+    function changeResultPage(delta) {
+        resultPage += delta;
+        renderResultRows();
+        document.getElementById('report-results-card').scrollIntoView({behavior:'smooth', block:'start'});
+    }
     function renderResultRows() {
         const query = document.getElementById('result-search').value.toLowerCase();
-        const rows = activeResultRows.filter(row => !query || JSON.stringify(row).toLowerCase().includes(query));
+        const hideClear = document.getElementById('result-hide-clear').checked;
+        const rows = activeResultRows.filter(row =>
+            (!hideClear || row.finding !== 'CLEAR') &&
+            (!query || JSON.stringify(row).toLowerCase().includes(query))
+        );
         const body = document.getElementById('report-result-body');
-        if (!rows.length) { body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;opacity:0.6;">${activeRun && ['QUEUED','RUNNING'].includes(activeRun.status) ? 'Waiting for results…' : 'No matching access assignments found.'}</td></tr>`; return; }
-        body.innerHTML = rows.map(row => `<tr>
+        const table = document.getElementById('report-results-table');
+        table.classList.toggle('hide-nonmatching-column', rows.length > 0 && !rows.some(row => row.nonmatching_users?.length));
+        const pagination = document.getElementById('result-pagination');
+        const totalPages = Math.max(1, Math.ceil(rows.length / RESULT_PAGE_SIZE));
+        resultPage = Math.max(1, Math.min(resultPage, totalPages));
+        if (!rows.length) {
+            body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;opacity:0.6;">${activeRun && ['QUEUED','RUNNING'].includes(activeRun.status) ? 'Waiting for results…' : (hideClear ? 'No review findings match the current filter.' : 'No matching access assignments found.')}</td></tr>`;
+            pagination.style.display = 'none';
+            return;
+        }
+        const start = (resultPage - 1) * RESULT_PAGE_SIZE;
+        const pageRows = rows.slice(start, start + RESULT_PAGE_SIZE);
+        body.innerHTML = pageRows.map(row => `<tr>
             <td><b>${escapeHtml(row.cluster)}</b><br><small>${escapeHtml(row.environment)} / ${escapeHtml(row.datacenter)}</small></td>
             <td>${escapeHtml(row.scope)}</td>
             <td>${escapeHtml(row.binding_kind)}<br><small>${escapeHtml(row.binding_name)}</small></td>
             <td><code>${escapeHtml(row.cluster_role)}</code></td>
             <td>${escapeHtml(row.subject_kind)}<br><b>${escapeHtml(row.subject_name)}</b></td>
-            <td>${row.total_users ?? '-'}${row.matching_users?.length ? `<br><small title="${escapeHtml(compactUsers(row.matching_users))}">${escapeHtml(compactUsers(row.matching_users).slice(0,90))}</small>` : ''}</td>
-            <td style="color:${row.nonmatching_users?.length ? 'var(--danger-color)' : 'inherit'};">${row.nonmatching_users?.length ? escapeHtml(compactUsers(row.nonmatching_users)) : '-'}</td>
+            <td><span class="report-user-count" title="Total resolved users">${row.total_users ?? '-'}</span>${renderUserList(row.matching_users)}</td>
+            <td>${renderUserList(row.nonmatching_users, true)}</td>
             <td><span class="finding-badge ${findingClass(row.finding)}">${escapeHtml(row.finding)}</span></td>
             <td>${escapeHtml(row.detail)}</td></tr>`).join('');
+        pagination.style.display = 'flex';
+        pagination.innerHTML = `
+            <span>Showing ${start + 1}–${Math.min(start + RESULT_PAGE_SIZE, rows.length)} of ${rows.length}</span>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="changeResultPage(-1)" ${resultPage === 1 ? 'disabled' : ''}>Previous</button>
+            <span>Page ${resultPage} of ${totalPages}</span>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="changeResultPage(1)" ${resultPage === totalPages ? 'disabled' : ''}>Next</button>`;
     }
     function exportActiveReport(format) {
         if (!activeRunId) return;

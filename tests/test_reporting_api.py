@@ -29,6 +29,13 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
             datacenter="HCI",
             tags=json.dumps({"owner": "platform"}),
         ))
+        session.add(Cluster(
+            name="dev-sno",
+            api_url="https://dev.example.invalid:6443",
+            token="not-used",
+            environment="DEV",
+            datacenter="HCI",
+        ))
         session.commit()
 
     def override_session():
@@ -47,7 +54,7 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
 
         clusters = asyncio.run(request("GET", "/api/reporting/clusters"))
         assert clusters.status_code == 200
-        cluster_id = clusters.json()[0]["id"]
+        cluster_id = next(cluster["id"] for cluster in clusters.json() if cluster["environment"] == "PROD")
 
         page = asyncio.run(request("GET", "/reports"))
         assert page.status_code == 200
@@ -56,6 +63,10 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
         assert 'id="template-menu"' in page.text
         assert 'id="run-menu"' in page.text
         assert 'id="report-results-columns"' in page.text
+        assert 'id="result-hide-clear"' in page.text
+        assert 'id="result-pagination"' in page.text
+        assert "const RESULT_PAGE_SIZE = 100" in page.text
+        assert "max-height:620px" not in page.text
         assert 'class="reports-layout"' not in page.text
 
         config = {
@@ -81,12 +92,14 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
             "cluster_ids": [cluster_id],
         }))
         assert started.status_code == 200
+        assert started.json()["cluster_ids"] == [cluster_id]
         run_id = started.json()["id"]
 
         with Session(engine) as session:
             cluster_run = session.exec(
                 select(ReportRunCluster).where(ReportRunCluster.run_id == run_id)
             ).one()
+            assert cluster_run.cluster_name == "lab-sno"
             cluster_run.status = "COMPLETED"
             cluster_run.row_count = 1
             cluster_run.results_json = json.dumps([{

@@ -51,7 +51,8 @@ PAGE_DEFINITIONS: List[Dict[str, str]] = [
         "key": "reports",
         "label": "Reports",
         "description": "Run saved or ad-hoc reports against selected clusters and view their results.",
-        "default_role": "user",
+        "default_role": "operator",
+        "minimum_role": "operator",
     },
     {
         "key": "license_analytics",
@@ -80,11 +81,24 @@ PAGE_DEFINITIONS: List[Dict[str, str]] = [
 ]
 
 PAGE_DEFAULTS = {page["key"]: page["default_role"] for page in PAGE_DEFINITIONS}
+PAGE_MINIMUMS = {
+    page["key"]: page["minimum_role"]
+    for page in PAGE_DEFINITIONS
+    if page.get("minimum_role")
+}
 
 
 def normalize_role(role: str) -> str:
     role = (role or "").lower()
     return role if role in ROLES else "user"
+
+
+def enforce_minimum_role(page_key: str, role: str) -> str:
+    normalized = normalize_role(role)
+    minimum = PAGE_MINIMUMS.get(page_key)
+    if minimum and ROLES.index(normalized) < ROLES.index(minimum):
+        return minimum
+    return normalized
 
 
 def get_page_access_config(session: Session) -> Dict[str, str]:
@@ -99,7 +113,7 @@ def get_page_access_config(session: Session) -> Dict[str, str]:
     access = PAGE_DEFAULTS.copy()
     for key, value in saved.items():
         if key in access:
-            access[key] = normalize_role(value)
+            access[key] = enforce_minimum_role(key, value)
     return access
 
 
@@ -107,7 +121,7 @@ def set_page_access_config(session: Session, access: Dict[str, str]) -> Dict[str
     clean = PAGE_DEFAULTS.copy()
     for key, value in access.items():
         if key in clean:
-            clean[key] = normalize_role(value)
+            clean[key] = enforce_minimum_role(key, value)
 
     config = session.get(AppConfig, PAGE_ACCESS_CONFIG_KEY)
     if not config:

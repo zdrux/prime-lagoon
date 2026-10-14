@@ -53,7 +53,9 @@
                     <td>
                         <select class="form-input page-access-select" data-page-key="{{ p.key }}" style="padding:0.35rem;">
                             {% for role_key, role_label in role_labels.items() %}
+                            {% if not p.get('minimum_role') or role_key != 'user' %}
                             <option value="{{ role_key }}" {% if page_access_config[p.key] == role_key %}selected{% endif %}>{{ role_label }}</option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                     </td>

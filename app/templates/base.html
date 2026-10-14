@@ -79,7 +79,7 @@
                 {% endif %}
 
                 <!-- Administration Group -->
-                {% if access.get('admin', user.is_operator) or access.get('audit_rules', true) or access.get('compliance', true) or user.is_admin %}
+                {% if access.get('admin', user.is_operator) or access.get('audit_rules', true) or access.get('compliance', true) or access.get('reports', true) or user.is_admin %}
                 <li
                     style="padding: 0.4rem 0.6rem; font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.4rem; margin-bottom:0.1rem;">
                     Administration
@@ -138,6 +138,13 @@
                         </a>
                         {% endif %}
                     </div>
+                </li>
+                {% endif %}
+                {% if access.get('reports', true) %}
+                <li class="nav-item">
+                    <a href="/reports" class="nav-link {% if page == 'reports' %}active{% endif %}">
+                        <i class="fas fa-file-lines"></i> Reports
+                    </a>
                 </li>
                 {% endif %}
                 {% if user.is_admin %}

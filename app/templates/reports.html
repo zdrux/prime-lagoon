@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Reports</h1>
+        <p style="opacity:0.65; margin:0.25rem 0 0;">Run reusable, live queries against selected clusters without compliance scoring.</p>
+    </div>
+    <button class="btn btn-primary" onclick="openReportWizard()"><i class="fas fa-plus"></i> New Report</button>
+</div>
+
+<div class="reports-layout">
+    <section class="card reports-panel">
+        <div class="reports-panel-header">
+            <div><i class="fas fa-layer-group"></i> Saved Templates</div>
+            <span id="template-count" class="badge badge-blue">0</span>
+        </div>
+        <div id="template-list" class="report-card-list"><div class="report-empty">Loading templates…</div></div>
+    </section>
+    <section class="card reports-panel">
+        <div class="reports-panel-header">
+            <div><i class="fas fa-clock-rotate-left"></i> Recent Runs</div>
+            <button class="btn btn-secondary btn-sm" onclick="loadReportData()"><i class="fas fa-rotate"></i></button>
+        </div>
+        <div id="run-list" class="report-card-list"><div class="report-empty">Loading runs…</div></div>
+    </section>
+</div>
+
+<section id="report-results-card" class="card" style="display:none; margin-top:1.25rem;">
+    <div class="reports-panel-header" style="gap:1rem; flex-wrap:wrap;">
+        <div style="flex:1; min-width:260px;">
+            <div id="result-title" style="font-weight:700;">Report Results</div>
+            <div id="result-meta" style="font-size:0.78rem; opacity:0.65; margin-top:0.2rem;"></div>
+        </div>
+        <input id="result-search" class="form-input" style="width:250px; padding:0.4rem;" placeholder="Filter results…" oninput="renderResultRows()">
+        <button class="btn btn-secondary btn-sm" onclick="exportActiveReport('excel')"><i class="fas fa-file-excel"></i> Excel</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportActiveReport('csv')"><i class="fas fa-file-csv"></i> CSV</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportActiveReport('json')"><i class="fas fa-code"></i> JSON</button>
+    </div>
+    <div id="run-progress" style="display:none; padding:1rem; border-bottom:1px solid var(--border-color);"></div>
+    <div class="table-container" style="max-height:620px; overflow:auto;">
+        <table class="data-table" id="report-results-table" style="min-width:1500px;">
+            <thead><tr>
+                <th>Cluster</th><th>Scope</th><th>Binding</th><th>ClusterRole</th><th>Subject</th>
+                <th>Users</th><th>Nonmatching Users</th><th>Finding</th><th>Detail</th>
+            </tr></thead>
+            <tbody id="report-result-body"></tbody>
+        </table>
+    </div>
+</section>
+
+<div id="report-wizard" class="modal">
+    <div class="modal-content" style="width:920px; max-width:96vw; max-height:94vh; display:flex; flex-direction:column;">
+        <div class="modal-header">
+            <div>
+                <h3 style="margin:0;">RBAC Access Membership Report</h3>
+                <div id="wizard-step-label" style="font-size:0.75rem; opacity:0.6; margin-top:0.2rem;">Step 1 of 4</div>
+            </div>
+            <button class="close-btn" onclick="closeReportWizard()">&times;</button>
+        </div>
+        <div class="wizard-progress"><span id="wizard-progress-fill"></span></div>
+        <div class="modal-body" style="overflow-y:auto; flex:1;">
+            <input type="hidden" id="report-template-id">
+
+            <div id="report-step-1" class="report-step">
+                <h4>1. Report definition</h4>
+                <div class="form-group">
+                    <label class="form-label">Report name</label>
+                    <input id="report-name" class="form-input" placeholder="Production privileged access review">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="report-description" class="form-input" rows="2" placeholder="What this report checks and when it should be used"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">ClusterRoles — one exact name per line</label>
+                    <textarea id="report-roles" class="form-input code-input" rows="6" placeholder="admin&#10;edit&#10;custom-production-role"></textarea>
+                    <small>Bindings match when they reference any ClusterRole in this list.</small>
+                </div>
+                <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+                    <div>
+                        <label class="form-label">User condition</label>
+                        <select id="report-user-op" class="form-input">
+                            <option value="contains">Every username contains</option>
+                            <option value="not_contains">Every username doesn't contain</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Value</label>
+                        <input id="report-user-value" class="form-input" value="ssid">
+                    </div>
+                    <label style="display:flex; align-items:end; gap:0.5rem; padding-bottom:0.65rem; cursor:pointer;">
+                        <input id="report-case-sensitive" type="checkbox"> Case sensitive
+                    </label>
+                </div>
+                <div class="report-note"><i class="fas fa-circle-info"></i> All group members must satisfy the condition. Empty and unresolved groups are flagged for review.</div>
+            </div>
+
+            <div id="report-step-2" class="report-step" style="display:none;">
+                <h4>2. Scope and exclusions</h4>
+                <div class="form-group">
+                    <label class="form-label">Namespace exclusions — one glob pattern per line</label>
+                    <textarea id="report-exclusions" class="form-input code-input" rows="7" placeholder="openshift-*&#10;kube-*"></textarea>
+                    <small>Exclusions apply to namespaced RoleBindings only. ClusterRoleBindings are always collected.</small>
+                </div>
+                <div class="report-scope-grid">
+                    <div><i class="fas fa-folder-tree"></i><b> RoleBinding</b><span>All namespaces except excluded patterns</span></div>
+                    <div><i class="fas fa-globe"></i><b> ClusterRoleBinding</b><span>All cluster-wide assignments</span></div>
+                    <div><i class="fas fa-users"></i><b> Groups</b><span>Resolve and evaluate every member</span></div>
+                    <div><i class="fas fa-user"></i><b> Direct identities</b><span>Collect users and ServiceAccounts</span></div>
+                </div>
+            </div>
+
+            <div id="report-step-3" class="report-step" style="display:none;">
+                <h4>3. Select clusters</h4>
+                <div class="cluster-picker-toolbar">
+                    <div class="cluster-filter-group">
+                        <button class="filter-btn report-cluster-filter" data-filter="DEV" onclick="toggleReportClusterFilter(this, 'DEV')">DEV</button>
+                        <button class="filter-btn report-cluster-filter" data-filter="UAT" onclick="toggleReportClusterFilter(this, 'UAT')">UAT</button>
+                        <button class="filter-btn report-cluster-filter" data-filter="PROD" onclick="toggleReportClusterFilter(this, 'PROD')">PROD</button>
+                        <span class="filter-divider"></span>
+                        <button class="filter-btn report-cluster-filter" data-filter="AZURE" onclick="toggleReportClusterFilter(this, 'AZURE')">AZURE</button>
+                        <button class="filter-btn report-cluster-filter" data-filter="HCI" onclick="toggleReportClusterFilter(this, 'HCI')">HCI</button>
+                    </div>
+                    <div style="display:flex; gap:0.35rem; align-items:center;">
+                        <button class="btn btn-secondary btn-sm" onclick="selectReportClusters('all')">All</button>
+                        <button class="btn btn-secondary btn-sm" onclick="selectReportClusters('none')">None</button>
+                        <button class="btn btn-secondary btn-sm" onclick="selectReportClusters('matching')">Only Matching</button>
+                    </div>
+                </div>
+                <div id="report-cluster-summary" class="report-note"></div>
+                <div id="report-cluster-list" class="report-cluster-list"></div>
+            </div>
+
+            <div id="report-step-4" class="report-step" style="display:none;">
+                <h4>4. Review</h4>
+                <div id="report-review" class="report-review"></div>
+                <div class="report-note" style="margin-top:1rem;"><i class="fas fa-shield-halved"></i> This run performs live read-only queries and is not included in compliance scoring or scheduled polling.</div>
+            </div>
+        </div>
+        <div class="modal-footer wizard-footer">
+            <button id="wizard-back" class="btn btn-secondary" onclick="changeReportStep(-1)" style="visibility:hidden;"><i class="fas fa-chevron-left"></i> Back</button>
+            <div style="margin-left:auto; display:flex; gap:0.5rem;">
+                {% if can_manage_reports %}<button id="wizard-save" class="btn btn-secondary" onclick="saveReportTemplate()" style="display:none;"><i class="fas fa-save"></i> Save Template</button>{% endif %}
+                <button id="wizard-next" class="btn btn-primary" onclick="changeReportStep(1)">Next <i class="fas fa-chevron-right"></i></button>
+                <button id="wizard-run" class="btn btn-primary" onclick="launchReport()" style="display:none;"><i class="fas fa-play"></i> Run Report</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .reports-layout { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; }
+    .reports-panel { min-height:300px; overflow:hidden; }
+    .reports-panel-header { padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-weight:700; }
+    .report-card-list { max-height:420px; overflow:auto; }
+    .report-card { padding:0.9rem 1rem; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:0.8rem; }
+    .report-card:last-child { border-bottom:0; }
+    .report-card-main { flex:1; min-width:0; }
+    .report-card-title { font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .report-card-meta { font-size:0.75rem; opacity:0.6; margin-top:0.25rem; }
+    .report-empty { padding:2rem; text-align:center; opacity:0.55; }
+    .wizard-progress { height:4px; background:rgba(255,255,255,0.05); }
+    .wizard-progress span { display:block; height:100%; width:25%; background:var(--accent-color); transition:width 0.2s; }
+    .wizard-footer { display:flex; padding:1rem; border-top:1px solid var(--border-color); }
+    .report-step h4 { margin-top:0; }
+    .code-input { font-family:Consolas, monospace; resize:vertical; }
+    .report-note { padding:0.75rem; border:1px solid rgba(58,134,255,0.25); background:rgba(58,134,255,0.07); border-radius:6px; font-size:0.82rem; }
+    .report-scope-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; }
+    .report-scope-grid > div { padding:1rem; border:1px solid var(--border-color); border-radius:7px; display:grid; grid-template-columns:auto 1fr; gap:0.25rem 0.5rem; }
+    .report-scope-grid span { grid-column:2; font-size:0.78rem; opacity:0.65; }
+    .cluster-picker-toolbar { display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:0.75rem; }
+    .cluster-filter-group { display:flex; gap:0.35rem; align-items:center; }
+    .report-cluster-filter { padding:0.3rem 0.55rem; }
+    .filter-divider { height:22px; border-left:1px solid var(--border-color); margin:0 0.2rem; }
+    .report-cluster-list { max-height:340px; overflow:auto; border:1px solid var(--border-color); border-radius:7px; margin-top:0.75rem; }
+    .report-cluster-row { padding:0.7rem 0.8rem; border-bottom:1px solid var(--border-color); display:flex; gap:0.75rem; align-items:center; cursor:pointer; }
+    .report-cluster-row:last-child { border-bottom:0; }
+    .report-review { display:grid; grid-template-columns:170px 1fr; gap:0.75rem; padding:1rem; border:1px solid var(--border-color); border-radius:7px; }
+    .report-review dt { font-weight:650; opacity:0.75; }
+    .report-review dd { margin:0; overflow-wrap:anywhere; }
+    .finding-badge { display:inline-block; padding:0.18rem 0.45rem; border-radius:999px; font-size:0.68rem; font-weight:700; white-space:nowrap; }
+    .finding-clear { background:rgba(52,211,153,0.15); color:#34d399; }
+    .finding-review { background:rgba(251,191,36,0.15); color:#fbbf24; }
+    .finding-fail { background:rgba(248,113,113,0.15); color:#f87171; }
+    @media (max-width:900px) { .reports-layout { grid-template-columns:1fr; } .report-scope-grid { grid-template-columns:1fr; } }
+</style>
+
+<script>
+    const CAN_MANAGE_REPORTS = {{ 'true' if can_manage_reports else 'false' }};
+    let reportTemplates = [];
+    let reportRuns = [];
+    let reportClusters = [];
+    let reportWizardStep = 1;
+    let activeClusterFilters = [];
+    let activeRunId = null;
+    let activeRun = null;
+    let activeResultRows = [];
+    let runPollTimer = null;
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    }
+    function lines(value) { return value.split(/\r?\n/).map(v => v.trim()).filter(Boolean); }
+    function formatDate(value) { return value ? new Date(value.endsWith?.('Z') ? value : value + 'Z').toLocaleString() : '-'; }
+    function findingClass(finding) {
+        if (finding === 'CLEAR') return 'finding-clear';
+        if (finding === 'NONMATCHING_USER') return 'finding-fail';
+        return 'finding-review';
+    }
+    function statusBadge(status) {
+        const color = status === 'COMPLETED' ? 'badge-green' : (status === 'FAILED' ? 'badge-red' : 'badge-blue');
+        return `<span class="badge ${color}">${escapeHtml(status)}</span>`;
+    }
+
+    async function loadReportData() {
+        const [templatesRes, runsRes, clustersRes] = await Promise.all([
+            fetch('/api/reporting/templates'), fetch('/api/reporting/runs'), fetch('/api/reporting/clusters')
+        ]);
+        if (!templatesRes.ok || !runsRes.ok || !clustersRes.ok) throw new Error('Unable to load report data');
+        reportTemplates = await templatesRes.json();
+        reportRuns = await runsRes.json();
+        reportClusters = await clustersRes.json();
+        renderTemplates(); renderRuns(); renderClusterPicker();
+    }
+
+    function renderTemplates() {
+        document.getElementById('template-count').innerText = reportTemplates.length;
+        const list = document.getElementById('template-list');
+        if (!reportTemplates.length) {
+            list.innerHTML = '<div class="report-empty">No saved templates yet. Create an ad-hoc report and save it for reuse.</div>'; return;
+        }
+        list.innerHTML = reportTemplates.map(t => `
+            <div class="report-card">
+                <div class="report-card-main">
+                    <div class="report-card-title">${escapeHtml(t.name)}</div>
+                    <div class="report-card-meta">${t.config.cluster_roles.length} ClusterRole(s) · condition: ALL ${escapeHtml(t.config.user_condition.operator)} “${escapeHtml(t.config.user_condition.value)}”</div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="openReportWizard(${t.id})"><i class="fas fa-play"></i> Run</button>
+                ${CAN_MANAGE_REPORTS ? `<button class="btn btn-secondary btn-sm" onclick="openReportWizard(${t.id})" title="Edit"><i class="fas fa-edit"></i></button><button class="btn btn-danger btn-sm" onclick="archiveTemplate(${t.id})" title="Archive"><i class="fas fa-trash"></i></button>` : ''}
+            </div>`).join('');
+    }
+
+    function renderRuns() {
+        const list = document.getElementById('run-list');
+        if (!reportRuns.length) { list.innerHTML = '<div class="report-empty">No reports have been run.</div>'; return; }
+        list.innerHTML = reportRuns.map(run => `
+            <div class="report-card" style="cursor:pointer;" onclick="showReportRun(${run.id})">
+                <div class="report-card-main">
+                    <div class="report-card-title">${escapeHtml(run.template_name)}</div>
+                    <div class="report-card-meta">${escapeHtml(run.requested_by)} · ${formatDate(run.created_at)}${run.summary ? ` · ${run.summary.row_count || 0} row(s)` : ''}</div>
+                </div>${statusBadge(run.status)}
+            </div>`).join('');
+    }
+
+    function defaultConfig() {
+        return {cluster_roles:[], namespace_exclusions:[], user_condition:{quantifier:'ALL',operator:'contains',value:'ssid',case_sensitive:false}};
+    }
+    function openReportWizard(templateId = null) {
+        const template = reportTemplates.find(t => t.id === templateId);
+        const config = template ? template.config : defaultConfig();
+        document.getElementById('report-template-id').value = template?.id || '';
+        document.getElementById('report-name').value = template?.name || '';
+        document.getElementById('report-description').value = template?.description || '';
+        document.getElementById('report-roles').value = (config.cluster_roles || []).join('\n');
+        document.getElementById('report-user-op').value = config.user_condition?.operator || 'contains';
+        document.getElementById('report-user-value').value = config.user_condition?.value || 'ssid';
+        document.getElementById('report-case-sensitive').checked = !!config.user_condition?.case_sensitive;
+        document.getElementById('report-exclusions').value = (config.namespace_exclusions || []).join('\n');
+        document.querySelectorAll('.report-cluster-cb').forEach(cb => cb.checked = true);
+        activeClusterFilters = [];
+        document.querySelectorAll('.report-cluster-filter').forEach(btn => btn.classList.remove('active'));
+        filterReportClusters();
+        setReportStep(1);
+        document.getElementById('report-wizard').classList.add('open');
+    }
+    function closeReportWizard() { document.getElementById('report-wizard').classList.remove('open'); }
+
+    function collectWizardConfig() {
+        return {
+            cluster_roles: lines(document.getElementById('report-roles').value), role_match:'any_exact',
+            namespace_exclusions: lines(document.getElementById('report-exclusions').value),
+            subject_kinds:['Group','User','ServiceAccount'],
+            user_condition:{quantifier:'ALL',operator:document.getElementById('report-user-op').value,value:document.getElementById('report-user-value').value.trim(),case_sensitive:document.getElementById('report-case-sensitive').checked},
+            empty_group_policy:'review', missing_group_policy:'review'
+        };
+    }
+    function validateReportStep(step) {
+        if (step === 1) {
+            if (!document.getElementById('report-name').value.trim()) { alert('Enter a report name.'); return false; }
+            if (!lines(document.getElementById('report-roles').value).length) { alert('Enter at least one ClusterRole name.'); return false; }
+            if (!document.getElementById('report-user-value').value.trim()) { alert('Enter a user-name comparison value.'); return false; }
+        }
+        if (step === 3 && !document.querySelector('.report-cluster-cb:checked')) { alert('Select at least one cluster.'); return false; }
+        return true;
+    }
+    function changeReportStep(direction) {
+        if (direction > 0 && !validateReportStep(reportWizardStep)) return;
+        setReportStep(Math.max(1, Math.min(4, reportWizardStep + direction)));
+    }
+    function setReportStep(step) {
+        reportWizardStep = step;
+        document.querySelectorAll('.report-step').forEach((el, idx) => el.style.display = idx + 1 === step ? 'block' : 'none');
+        document.getElementById('wizard-step-label').innerText = `Step ${step} of 4`;
+        document.getElementById('wizard-progress-fill').style.width = `${step * 25}%`;
+        document.getElementById('wizard-back').style.visibility = step === 1 ? 'hidden' : 'visible';
+        document.getElementById('wizard-next').style.display = step === 4 ? 'none' : 'inline-block';
+        document.getElementById('wizard-run').style.display = step === 4 ? 'inline-block' : 'none';
+        const save = document.getElementById('wizard-save'); if (save) save.style.display = step === 4 ? 'inline-block' : 'none';
+        if (step === 4) renderReportReview();
+    }
+
+    function renderClusterPicker() {
+        const list = document.getElementById('report-cluster-list');
+        list.innerHTML = reportClusters.map(c => `
+            <label class="report-cluster-row" data-cluster-id="${c.id}">
+                <input type="checkbox" checked class="report-cluster-cb" value="${c.id}" onchange="updateClusterSummary()">
+                <span style="font-weight:600; flex:1;">${escapeHtml(c.name)}</span>
+                <span class="badge">${escapeHtml(c.environment || '-')}</span><span class="badge badge-blue">${escapeHtml(c.datacenter || '-')}</span>
+            </label>`).join('');
+        filterReportClusters();
+    }
+    function toggleReportClusterFilter(btn, value) {
+        if (activeClusterFilters.includes(value)) { activeClusterFilters = activeClusterFilters.filter(v => v !== value); btn.classList.remove('active'); }
+        else { activeClusterFilters.push(value); btn.classList.add('active'); }
+        filterReportClusters();
+    }
+    function clusterMatchesFilters(cluster) {
+        const envs = activeClusterFilters.filter(v => ['DEV','UAT','PROD'].includes(v));
+        const dcs = activeClusterFilters.filter(v => ['AZURE','HCI'].includes(v));
+        return (!envs.length || envs.includes((cluster.environment || '').toUpperCase())) && (!dcs.length || dcs.includes((cluster.datacenter || '').toUpperCase()));
+    }
+    function filterReportClusters() {
+        document.querySelectorAll('.report-cluster-row').forEach(row => {
+            const cluster = reportClusters.find(c => c.id === Number(row.dataset.clusterId));
+            row.style.display = cluster && clusterMatchesFilters(cluster) ? 'flex' : 'none';
+        });
+        updateClusterSummary();
+    }
+    function selectReportClusters(mode) {
+        document.querySelectorAll('.report-cluster-row').forEach(row => {
+            const checkbox = row.querySelector('.report-cluster-cb');
+            checkbox.checked = mode === 'all' || (mode === 'matching' && row.style.display !== 'none');
+        }); updateClusterSummary();
+    }
+    function updateClusterSummary() {
+        const rows = Array.from(document.querySelectorAll('.report-cluster-row'));
+        const selected = rows.filter(row => row.querySelector('.report-cluster-cb').checked).length;
+        const shown = rows.filter(row => row.style.display !== 'none').length;
+        document.getElementById('report-cluster-summary').innerHTML = `<i class="fas fa-bullseye"></i> ${selected} of ${rows.length} clusters selected${activeClusterFilters.length ? ` · ${shown} match filters` : ''}`;
+    }
+    function selectedClusterIds() { return Array.from(document.querySelectorAll('.report-cluster-cb:checked')).map(cb => Number(cb.value)); }
+
+    function renderReportReview() {
+        const config = collectWizardConfig();
+        const names = selectedClusterIds().map(id => reportClusters.find(c => c.id === id)?.name).filter(Boolean);
+        document.getElementById('report-review').innerHTML = `
+            <dt>Name</dt><dd>${escapeHtml(document.getElementById('report-name').value)}</dd>
+            <dt>ClusterRoles</dt><dd>${config.cluster_roles.map(escapeHtml).join(', ')}</dd>
+            <dt>Bindings</dt><dd>RoleBindings and ClusterRoleBindings</dd>
+            <dt>Subjects</dt><dd>Groups, direct Users, and ServiceAccounts</dd>
+            <dt>User rule</dt><dd>ALL usernames ${escapeHtml(config.user_condition.operator)} “${escapeHtml(config.user_condition.value)}”${config.user_condition.case_sensitive ? ' (case-sensitive)' : ' (case-insensitive)'}</dd>
+            <dt>Exclusions</dt><dd>${config.namespace_exclusions.length ? config.namespace_exclusions.map(escapeHtml).join(', ') : 'None'}</dd>
+            <dt>Clusters</dt><dd>${names.map(escapeHtml).join(', ')}</dd>`;
+    }
+
+    async function saveReportTemplate() {
+        if (!validateReportStep(1)) return;
+        const id = document.getElementById('report-template-id').value;
+        const payload = {name:document.getElementById('report-name').value.trim(),description:document.getElementById('report-description').value.trim(),report_type:'rbac_access_membership',config:collectWizardConfig()};
+        const res = await fetch(id ? `/api/reporting/templates/${id}` : '/api/reporting/templates', {method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const data = await res.json(); if (!res.ok) { alert(data.detail || 'Unable to save template.'); return; }
+        document.getElementById('report-template-id').value = data.id;
+        await loadReportData(); alert('Template saved.');
+    }
+    async function archiveTemplate(id) {
+        if (!confirm('Archive this report template? Historical runs will be retained.')) return;
+        const res = await fetch(`/api/reporting/templates/${id}`, {method:'DELETE'}); if (!res.ok) { alert('Unable to archive template.'); return; } await loadReportData();
+    }
+    async function launchReport() {
+        if (!validateReportStep(3)) return;
+        const payload = {template_id:Number(document.getElementById('report-template-id').value)||null,name:document.getElementById('report-name').value.trim(),report_type:'rbac_access_membership',config:collectWizardConfig(),cluster_ids:selectedClusterIds()};
+        const res = await fetch('/api/reporting/runs', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const data = await res.json(); if (!res.ok) { alert(data.detail || 'Unable to start report.'); return; }
+        closeReportWizard(); await loadReportData(); showReportRun(data.id);
+    }
+
+    async function showReportRun(id) {
+        activeRunId = id;
+        if (runPollTimer) clearTimeout(runPollTimer);
+        const [runRes, resultRes] = await Promise.all([fetch(`/api/reporting/runs/${id}`), fetch(`/api/reporting/runs/${id}/results`)]);
+        if (!runRes.ok || !resultRes.ok) { alert('Unable to load report run.'); return; }
+        activeRun = await runRes.json(); activeResultRows = await resultRes.json();
+        document.getElementById('report-results-card').style.display = 'block';
+        document.getElementById('result-title').innerText = activeRun.template_name;
+        document.getElementById('result-meta').innerText = `${activeRun.status} · requested by ${activeRun.requested_by} · ${formatDate(activeRun.created_at)}`;
+        const progress = document.getElementById('run-progress');
+        if (['QUEUED','RUNNING'].includes(activeRun.status)) {
+            const completed = activeRun.clusters.filter(c => ['COMPLETED','FAILED'].includes(c.status)).length;
+            progress.style.display = 'block'; progress.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Processing clusters: ${completed} of ${activeRun.clusters.length}<div style="margin-top:0.5rem;font-size:0.78rem;opacity:0.7;">${activeRun.clusters.map(c => `${escapeHtml(c.cluster_name)}: ${escapeHtml(c.status)}`).join(' · ')}</div>`;
+            runPollTimer = setTimeout(() => showReportRun(id), 1800);
+        } else { progress.style.display = 'none'; await refreshRunsOnly(); }
+        renderResultRows();
+        document.getElementById('report-results-card').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+    async function refreshRunsOnly() { const res = await fetch('/api/reporting/runs'); if (res.ok) { reportRuns = await res.json(); renderRuns(); } }
+    function compactUsers(users) { return (users || []).join(', '); }
+    function renderResultRows() {
+        const query = document.getElementById('result-search').value.toLowerCase();
+        const rows = activeResultRows.filter(row => !query || JSON.stringify(row).toLowerCase().includes(query));
+        const body = document.getElementById('report-result-body');
+        if (!rows.length) { body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;opacity:0.6;">${activeRun && ['QUEUED','RUNNING'].includes(activeRun.status) ? 'Waiting for results…' : 'No matching access assignments found.'}</td></tr>`; return; }
+        body.innerHTML = rows.map(row => `<tr>
+            <td><b>${escapeHtml(row.cluster)}</b><br><small>${escapeHtml(row.environment)} / ${escapeHtml(row.datacenter)}</small></td>
+            <td>${escapeHtml(row.scope)}</td>
+            <td>${escapeHtml(row.binding_kind)}<br><small>${escapeHtml(row.binding_name)}</small></td>
+            <td><code>${escapeHtml(row.cluster_role)}</code></td>
+            <td>${escapeHtml(row.subject_kind)}<br><b>${escapeHtml(row.subject_name)}</b></td>
+            <td>${row.total_users ?? '-'}${row.matching_users?.length ? `<br><small title="${escapeHtml(compactUsers(row.matching_users))}">${escapeHtml(compactUsers(row.matching_users).slice(0,90))}</small>` : ''}</td>
+            <td style="color:${row.nonmatching_users?.length ? 'var(--danger-color)' : 'inherit'};">${row.nonmatching_users?.length ? escapeHtml(compactUsers(row.nonmatching_users)) : '-'}</td>
+            <td><span class="finding-badge ${findingClass(row.finding)}">${escapeHtml(row.finding)}</span></td>
+            <td>${escapeHtml(row.detail)}</td></tr>`).join('');
+    }
+    function exportActiveReport(format) {
+        if (!activeRunId) return;
+        if (format === 'excel') exportTable(`RBAC_Report_${activeRunId}`, 'excel', 'report-results-table');
+        else window.location.href = `/api/reporting/runs/${activeRunId}/export?format=${format}`;
+    }
+
+    loadReportData().catch(error => {
+        document.getElementById('template-list').innerHTML = `<div class="report-empty" style="color:var(--danger-color);">${escapeHtml(error.message)}</div>`;
+    });
+</script>
+{% endblock %}

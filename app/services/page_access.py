@@ -48,6 +48,12 @@ PAGE_DEFINITIONS: List[Dict[str, str]] = [
         "default_role": "user",
     },
     {
+        "key": "reports",
+        "label": "Reports",
+        "description": "Run saved or ad-hoc reports against selected clusters and view their results.",
+        "default_role": "user",
+    },
+    {
         "key": "license_analytics",
         "label": "License Analytics (MAPID)",
         "description": "Fleet-wide license analytics and MAPID attribution.",

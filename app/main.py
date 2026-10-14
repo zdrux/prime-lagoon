@@ -30,5 +30,6 @@ app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(operators.router)
 
-from app.routers import reports
+from app.routers import reports, reporting
 app.include_router(reports.router)
+app.include_router(reporting.router)

@@ -188,3 +188,44 @@ class NamespaceExclusionRule(SQLModel, table=True):
     is_active: bool = Field(default=True)
     description: Optional[str] = None
 
+
+class ReportTemplate(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    report_type: str = Field(default="rbac_access_membership", index=True)
+    config_json: str = Field(sa_column=Column(Text))
+    created_by: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = Field(default=True)
+
+
+class ReportRun(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    template_id: Optional[int] = Field(default=None, foreign_key="reporttemplate.id", index=True)
+    template_name: str
+    report_type: str = Field(default="rbac_access_membership", index=True)
+    config_json: str = Field(sa_column=Column(Text))
+    cluster_ids_json: str = Field(sa_column=Column(Text))
+    requested_by: str
+    status: str = Field(default="QUEUED", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = Field(default=None, index=True)
+    summary_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+
+
+class ReportRunCluster(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="reportrun.id", index=True)
+    cluster_id: int = Field(index=True)
+    cluster_name: str
+    status: str = Field(default="QUEUED", index=True)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    row_count: int = Field(default=0)
+    error: Optional[str] = None
+    results_json: Optional[str] = Field(default=None, sa_column=Column(Text))
+

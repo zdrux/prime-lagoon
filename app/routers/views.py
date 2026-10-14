@@ -103,6 +103,25 @@ def compliance_view(request: Request, session: Session = Depends(get_session), u
         "page_access": template_page_access(user, session)
     })
 
+@router.get("/reports", response_class=HTMLResponse)
+def reports_view(request: Request, session: Session = Depends(get_session), user: User = Depends(get_current_user_optional)):
+    if is_ldap_enabled(session) and not user:
+        return RedirectResponse(url="/login")
+    require_page_access("reports", user, session)
+
+    clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
+    clusters_by_dc = _group_clusters_with_status(clusters, session)
+
+    return templates.TemplateResponse(request, "reports.html", {
+        "request": request,
+        "page": "reports",
+        "clusters": clusters,
+        "clusters_by_dc": clusters_by_dc,
+        "user": user,
+        "can_manage_reports": user.is_operator,
+        "page_access": template_page_access(user, session)
+    })
+
 def _group_clusters(clusters):
     by_dc = {}
     for c in clusters:

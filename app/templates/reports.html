@@ -48,7 +48,18 @@
     </div>
     <div id="run-progress" style="display:none; padding:1rem; border-bottom:1px solid var(--border-color);"></div>
     <div class="table-container" style="max-height:620px; overflow:auto;">
-        <table class="data-table" id="report-results-table" style="min-width:1500px;">
+        <table class="data-table report-results-table" id="report-results-table">
+            <colgroup id="report-results-columns">
+                <col class="report-col-cluster">
+                <col class="report-col-scope">
+                <col class="report-col-binding">
+                <col class="report-col-role">
+                <col class="report-col-subject">
+                <col class="report-col-users">
+                <col class="report-col-nonmatching">
+                <col class="report-col-finding">
+                <col class="report-col-detail">
+            </colgroup>
             <thead><tr>
                 <th>Cluster</th><th>Scope</th><th>Binding</th><th>ClusterRole</th><th>Subject</th>
                 <th>Users</th><th>Nonmatching Users</th><th>Finding</th><th>Detail</th>
@@ -171,6 +182,18 @@
     .report-menu-refresh { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:0.4rem; cursor:pointer; color:var(--text-primary); background:rgba(255,255,255,0.07); }
     .report-menu-refresh:hover { background:rgba(255,255,255,0.13); }
     .reports-panel-header { padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-weight:700; }
+    .report-results-table { min-width:1730px; table-layout:fixed; }
+    .report-results-table th { position:sticky; top:0; z-index:2; background:var(--card-bg); }
+    .report-results-table td { vertical-align:top; overflow-wrap:anywhere; }
+    .report-col-cluster { width:185px; }
+    .report-col-scope { width:135px; }
+    .report-col-binding { width:170px; }
+    .report-col-role { width:120px; }
+    .report-col-subject { width:250px; }
+    .report-col-users { width:80px; }
+    .report-col-nonmatching { width:410px; }
+    .report-col-finding { width:160px; }
+    .report-col-detail { width:220px; }
     .report-card-list { max-height:min(480px, 65vh); overflow:auto; }
     .report-card { padding:0.9rem 1rem; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:0.8rem; }
     .report-card:hover { background:rgba(255,255,255,0.025); }

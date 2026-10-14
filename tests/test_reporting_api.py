@@ -55,6 +55,7 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
         assert "Saved Templates" in page.text
         assert 'id="template-menu"' in page.text
         assert 'id="run-menu"' in page.text
+        assert 'id="report-results-columns"' in page.text
         assert 'class="reports-layout"' not in page.text
 
         config = {

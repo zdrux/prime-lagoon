@@ -57,41 +57,41 @@
                 </li>
                 {% endif %}
 
-                <!-- Snapshot Selector -->
-                {% if access.get('admin', user.is_operator) %}
-                <li
-                    style="padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border-color); margin-bottom: 0.5rem;">
-                    <div
-                        style="font-size: 0.75rem; font-weight: bold; color: var(--text-secondary); margin-bottom: 0.3rem; display:flex; justify-content:space-between; align-items:center;">
-                        SNAPSHOT <i class="fas fa-history"></i>
-                    </div>
-                    <select id="snapshot-selector" class="form-input"
-                        style="font-size:0.75rem; padding:0.2rem; margin-bottom:0.3rem; width:100%; color:var(--text-primary); background:var(--bg-secondary); border:1px solid var(--border-color);"
-                        onchange="toggleTimeTravel(this.value)">
-                        <option value="">Live Mode (Real-time)</option>
-                        <!-- Populated by JS -->
-                    </select>
-                    <div id="time-travel-indicator"
-                        style="display:none; color:var(--warning-color); font-size:0.75rem; text-align:center; background:rgba(234, 179, 8, 0.1); padding:0.2rem; border-radius:4px; margin-top:0.2rem;">
-                        <i class="fas fa-exclamation-triangle"></i> Historical View
-                    </div>
-                </li>
-                {% endif %}
-
                 <!-- Administration Group -->
-                {% if access.get('admin', user.is_operator) or access.get('audit_rules', true) or access.get('compliance', true) or (user.is_operator and access.get('reports', false)) or user.is_admin %}
-                <li
-                    style="padding: 0.4rem 0.6rem; font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-top: 0.4rem; margin-bottom:0.1rem;">
-                    Administration
-                </li>
+                {% if access.get('admin', user.is_operator) or access.get('audit_rules', true) or access.get('compliance', true) or (user.is_operator and access.get('reports', false)) or access.get('storage_analytics', user.is_operator) or access.get('operators', user.is_operator) or user.is_admin %}
+                {% set administration_open = page == 'admin'
+                    or page in ['audit_rules', 'compliance', 'reports', 'storage_analytics', 'cluster_storage', 'operators', 'settings_db_stats']
+                    or (page and page.startswith('settings_')) %}
+                <li class="nav-item sidebar-admin-section">
+                    <a href="#"
+                        class="nav-link submenu-toggle {% if administration_open %}active{% endif %}"
+                        data-target="sidebar-administration"
+                        onclick="event.preventDefault(); toggleSubmenu('sidebar-administration', this)">
+                        <i class="fas fa-user-shield"></i> Administration
+                        <i class="fas fa-chevron-down arrow"></i>
+                    </a>
+                    <div class="resource-submenu sidebar-admin-submenu {% if administration_open %}open{% endif %}"
+                        id="sidebar-administration">
+                        {% if access.get('admin', user.is_operator) %}
+                        <div class="sidebar-snapshot-panel">
+                            <div class="sidebar-snapshot-label">
+                                <span><i class="fas fa-history"></i> Snapshot</span>
+                            </div>
+                            <select id="snapshot-selector" class="form-input sidebar-snapshot-select"
+                                onchange="toggleTimeTravel(this.value)">
+                                <option value="">Live Mode (Real-time)</option>
+                                <!-- Populated by JS -->
+                            </select>
+                            <div id="time-travel-indicator" class="sidebar-time-travel-indicator">
+                                <i class="fas fa-exclamation-triangle"></i> Historical View
+                            </div>
+                        </div>
+                        {% endif %}
                 {% if access.get('admin', user.is_operator) %}
-                <li class="nav-item">
                     <a href="/admin?tab=clusters"
-                        class="nav-link {% if page == 'admin' and active_tab == 'clusters' %}active{% endif %}">
+                        class="sub-link {% if page == 'admin' and active_tab == 'clusters' %}active{% endif %}">
                         <i class="fas fa-server"></i> Cluster Config
                     </a>
-                </li>
-                <li class="nav-item">
                     <a href="#"
                         class="nav-link submenu-toggle {% if (page == 'admin' and active_tab in ['schedulers', 'snapshots']) or page == 'settings_db_stats' %}active{% endif %}"
                         data-target="submenu-snapshots"
@@ -114,10 +114,8 @@
                             <i class="fas fa-database" style="width:16px;"></i> DB Stats
                         </a>
                     </div>
-                </li>
                 {% endif %}
                 {% if access.get('audit_rules', true) or access.get('compliance', true) or (user.is_operator and access.get('reports', false)) %}
-                <li class="nav-item">
                     <a href="#"
                         class="nav-link submenu-toggle {% if page in ['audit_rules', 'compliance', 'reports'] %}active{% endif %}"
                         data-target="submenu-compliance"
@@ -143,34 +141,45 @@
                         </a>
                         {% endif %}
                     </div>
-                </li>
                 {% endif %}
                 {% if user.is_admin %}
-                <a href="#"
-                    class="nav-link submenu-toggle {% if page and page.startswith('settings_') and page != 'settings_db_stats' %}active{% endif %}"
-                    data-target="submenu-app-config"
-                    onclick="event.preventDefault(); toggleSubmenu('submenu-app-config', this)">
-                    <i class="fas fa-cog"></i> App Config
-                    <i class="fas fa-chevron-down arrow"></i>
-                </a>
-                <div class="resource-submenu {% if page in ['settings_users', 'settings_ldap', 'settings_license'] %}open{% endif %}"
-                    id="submenu-app-config">
-                    <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}">
-                        <i class="fas fa-users" style="width:16px;"></i> Users
+                    <a href="#"
+                        class="nav-link submenu-toggle {% if page and page.startswith('settings_') and page != 'settings_db_stats' %}active{% endif %}"
+                        data-target="submenu-app-config"
+                        onclick="event.preventDefault(); toggleSubmenu('submenu-app-config', this)">
+                        <i class="fas fa-cog"></i> App Config
+                        <i class="fas fa-chevron-down arrow"></i>
                     </a>
-                    <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
-                        <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
-                    </a>
-                    <a href="/settings/license" class="sub-link {% if page == 'settings_license' %}active{% endif %}">
-                        <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Cluster License Config
-                    </a>
-                    <a href="/settings/namespaces"
-                        class="sub-link {% if page == 'settings_namespaces' %}active{% endif %}">
-                        <i class="fas fa-filter" style="width:16px;"></i> Namespace Rules
-                    </a>
-                </div>
-                </li>
+                    <div class="resource-submenu {% if page in ['settings_users', 'settings_ldap', 'settings_license', 'settings_namespaces'] %}open{% endif %}"
+                        id="submenu-app-config">
+                        <a href="/settings/users" class="sub-link {% if page == 'settings_users' %}active{% endif %}">
+                            <i class="fas fa-users" style="width:16px;"></i> Users
+                        </a>
+                        <a href="/settings/ldap" class="sub-link {% if page == 'settings_ldap' %}active{% endif %}">
+                            <i class="fas fa-network-wired" style="width:16px;"></i> LDAP Settings
+                        </a>
+                        <a href="/settings/license" class="sub-link {% if page == 'settings_license' %}active{% endif %}">
+                            <i class="fas fa-file-invoice-dollar" style="width:16px;"></i> Cluster License Config
+                        </a>
+                        <a href="/settings/namespaces"
+                            class="sub-link {% if page == 'settings_namespaces' %}active{% endif %}">
+                            <i class="fas fa-filter" style="width:16px;"></i> Namespace Rules
+                        </a>
+                    </div>
                 {% endif %}
+                {% if access.get('storage_analytics', user.is_operator) %}
+                    <a href="/storage-analytics"
+                        class="sub-link {% if page == 'storage_analytics' and not storage_cluster_id %}active{% endif %}">
+                        <i class="fas fa-hard-drive"></i> Storage Analytics
+                    </a>
+                {% endif %}
+                {% if access.get('operators', user.is_operator) %}
+                    <a href="/operators" class="sub-link {% if page == 'operators' %}active{% endif %}">
+                        <i class="fas fa-boxes"></i> Cluster Operators
+                    </a>
+                {% endif %}
+                    </div>
+                </li>
                 {% endif %}
 
                 {% if access.get('dashboard', true) %}
@@ -185,20 +194,6 @@
                 <li class="nav-item">
                     <a href="/license-analytics" class="nav-link {% if page == 'license_analytics' %}active{% endif %}">
                         <i class="fas fa-chart-line"></i> License Analytics (MAPID)
-                    </a>
-                </li>
-                {% endif %}
-                {% if access.get('storage_analytics', user.is_operator) %}
-                <li class="nav-item">
-                    <a href="/storage-analytics" class="nav-link {% if page == 'storage_analytics' and not storage_cluster_id %}active{% endif %}">
-                        <i class="fas fa-hard-drive"></i> Storage Analytics
-                    </a>
-                </li>
-                {% endif %}
-                {% if access.get('operators', user.is_operator) %}
-                <li class="nav-item">
-                    <a href="/operators" class="nav-link {% if page == 'operators' %}active{% endif %}">
-                        <i class="fas fa-boxes"></i> Cluster Operators
                     </a>
                 </li>
                 {% endif %}

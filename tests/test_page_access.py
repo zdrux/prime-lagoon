@@ -79,7 +79,19 @@ def test_reports_navigation_page_and_api_require_operator(tmp_path):
 
         dashboard = asyncio.run(request("/dashboard"))
         assert 'href="/reports"' in dashboard.text
-        assert asyncio.run(request("/reports")).status_code == 200
+        assert 'id="sidebar-administration"' in dashboard.text
+        assert 'id="snapshot-selector"' in dashboard.text
+        assert "sidebar-admin-submenu open" not in dashboard.text
+        administration_position = dashboard.text.index('id="sidebar-administration"')
+        dashboard_position = dashboard.text.index('href="/dashboard"', administration_position)
+        license_position = dashboard.text.index('href="/license-analytics"')
+        assert administration_position < dashboard.text.index('href="/storage-analytics"') < dashboard_position
+        assert administration_position < dashboard.text.index('href="/operators"') < dashboard_position
+        assert dashboard_position < license_position
+
+        reports_page = asyncio.run(request("/reports"))
+        assert reports_page.status_code == 200
+        assert "sidebar-admin-submenu open" in reports_page.text
         assert asyncio.run(request("/api/reporting/templates")).status_code == 200
     finally:
         app.dependency_overrides.clear()

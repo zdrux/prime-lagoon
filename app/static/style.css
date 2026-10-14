@@ -268,6 +268,10 @@ a:hover {
 
     transition: transform 0.2s;
 
+    margin-left: auto;
+
+    margin-right: 0;
+
 }
 
 
@@ -275,6 +279,106 @@ a:hover {
 .submenu-toggle.active .arrow {
 
     transform: rotate(180deg);
+
+}
+
+.sidebar-admin-section {
+
+    margin: 0.35rem 0 0.5rem;
+
+}
+
+.sidebar-admin-submenu {
+
+    margin-left: 0.45rem;
+
+    padding: 0.25rem 0 0.25rem 0.35rem;
+
+    border-left: 1px solid var(--border-color);
+
+}
+
+.sidebar-admin-submenu > .nav-link {
+
+    padding: 0.45rem 0.55rem;
+
+}
+
+.sidebar-admin-submenu > .sub-link {
+
+    margin-left: 0;
+
+}
+
+.sidebar-snapshot-panel {
+
+    margin: 0.15rem 0.45rem 0.55rem 0.15rem;
+
+    padding: 0;
+
+    background: transparent;
+
+    border: 0;
+
+    border-radius: 0;
+
+}
+
+.sidebar-snapshot-label {
+
+    margin-bottom: 0.3rem;
+
+    color: var(--text-secondary);
+
+    font-size: 0.7rem;
+
+    font-weight: 700;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.06em;
+
+}
+
+.form-input.sidebar-snapshot-select {
+
+    width: 100%;
+
+    height: 30px;
+
+    min-height: 30px;
+
+    padding: 0.2rem 0.45rem;
+
+    color: var(--text-primary);
+
+    background: var(--bg-secondary);
+
+    border: 1px solid var(--border-color);
+
+    font-size: 0.75rem;
+
+    line-height: 1.1;
+
+}
+
+.sidebar-time-travel-indicator {
+
+    display: none;
+
+    margin-top: 0.35rem;
+
+    padding: 0.3rem;
+
+    color: var(--warning-color);
+
+    background: rgba(234, 179, 8, 0.1);
+
+    border-radius: 4px;
+
+    text-align: center;
+
+    font-size: 0.7rem;
 
 }
 

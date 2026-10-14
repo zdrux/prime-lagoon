@@ -31,7 +31,7 @@
                 <div id="run-list" class="report-card-list"><div class="report-empty">Loading runs…</div></div>
             </div>
         </div>
-        <button class="btn btn-primary" onclick="openReportWizard()"><i class="fas fa-plus"></i> New Template</button>
+        <button class="btn btn-primary report-header-button" onclick="openReportWizard()"><i class="fas fa-plus"></i> New Template</button>
     </div>
 </div>
 
@@ -177,10 +177,10 @@
 <style>
     .report-header-actions { display:flex; align-items:center; justify-content:flex-end; gap:0.6rem; flex-wrap:wrap; }
     .report-menu { position:relative; }
-    .report-menu-toggle { display:flex; align-items:center; gap:0.5rem; white-space:nowrap; }
+    .report-menu-toggle, .report-header-button { width:190px; min-height:46px; display:inline-flex; align-items:center; justify-content:center; gap:0.5rem; white-space:nowrap; }
     .report-menu-toggle[aria-expanded="true"] { box-shadow:0 0 0 2px rgba(56,189,248,0.2); }
     .report-menu-toggle[aria-expanded="true"] .report-menu-chevron { transform:rotate(180deg); }
-    .report-menu-chevron { font-size:0.7rem; opacity:0.65; transition:transform 0.15s ease; }
+    .report-menu-chevron { margin-left:auto; font-size:0.7rem; opacity:0.65; transition:transform 0.15s ease; }
     .report-menu-panel { display:none; position:absolute; z-index:30; top:calc(100% + 0.55rem); right:0; width:min(520px, calc(100vw - 3rem)); background:var(--card-bg); border:1px solid var(--border-color); border-radius:0.75rem; box-shadow:0 18px 45px rgba(0,0,0,0.4); overflow:hidden; }
     .report-menu-panel.open { display:block; }
     .report-menu-heading { min-height:42px; padding:0.65rem 0.85rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-secondary); box-sizing:border-box; }

@@ -116,16 +116,16 @@
                     </div>
                 </li>
                 {% endif %}
-                {% if access.get('audit_rules', true) or access.get('compliance', true) %}
+                {% if access.get('audit_rules', true) or access.get('compliance', true) or access.get('reports', true) %}
                 <li class="nav-item">
                     <a href="#"
-                        class="nav-link submenu-toggle {% if page in ['audit_rules', 'compliance'] %}active{% endif %}"
+                        class="nav-link submenu-toggle {% if page in ['audit_rules', 'compliance', 'reports'] %}active{% endif %}"
                         data-target="submenu-compliance"
                         onclick="event.preventDefault(); toggleSubmenu('submenu-compliance', this)">
                         <i class="fas fa-shield-alt"></i> Compliance
                         <i class="fas fa-chevron-down arrow"></i>
                     </a>
-                    <div class="resource-submenu {% if page in ['audit_rules', 'compliance'] %}open{% endif %}"
+                    <div class="resource-submenu {% if page in ['audit_rules', 'compliance', 'reports'] %}open{% endif %}"
                         id="submenu-compliance">
                         {% if access.get('audit_rules', true) %}
                         <a href="/audit" class="sub-link {% if page == 'audit_rules' %}active{% endif %}">
@@ -137,14 +137,12 @@
                             <i class="fas fa-check-circle" style="width:16px;"></i> Run Compliance
                         </a>
                         {% endif %}
+                        {% if access.get('reports', true) %}
+                        <a href="/reports" class="sub-link {% if page == 'reports' %}active{% endif %}">
+                            <i class="fas fa-file-lines" style="width:16px;"></i> Reports
+                        </a>
+                        {% endif %}
                     </div>
-                </li>
-                {% endif %}
-                {% if access.get('reports', true) %}
-                <li class="nav-item">
-                    <a href="/reports" class="nav-link {% if page == 'reports' %}active{% endif %}">
-                        <i class="fas fa-file-lines"></i> Reports
-                    </a>
                 </li>
                 {% endif %}
                 {% if user.is_admin %}

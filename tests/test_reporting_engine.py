@@ -17,6 +17,7 @@ def _config(operator="contains"):
     return {
         "cluster_roles": ["admin", "edit"],
         "namespace_exclusions": ["openshift-*"],
+        "identity_exclusions": [],
         "user_condition": {
             "quantifier": "ALL",
             "operator": operator,
@@ -154,3 +155,35 @@ def test_legacy_single_value_is_normalized_to_values_list():
 
     assert config["user_condition"]["values"] == ["ssid"]
     assert "value" not in config["user_condition"]
+
+
+def test_system_service_accounts_are_excluded_by_default():
+    bindings = [{
+        "metadata": {"name": "admin", "namespace": "automation"},
+        "roleRef": {"kind": "ClusterRole", "name": "admin"},
+        "subjects": [
+            {"kind": "User", "name": "system:serviceaccount:automation:awx"},
+            {"kind": "ServiceAccount", "name": "deployer", "namespace": "automation"},
+            {"kind": "User", "name": "human-admin"},
+            {"kind": "Group", "name": "mixed"},
+            {"kind": "Group", "name": "system-only"},
+        ],
+    }]
+    groups = [
+        {"metadata": {"name": "mixed"}, "users": [
+            "ssid-support", "system:serviceaccount:automation:robot",
+        ]},
+        {"metadata": {"name": "system-only"}, "users": [
+            "system:serviceaccount:automation:controller",
+        ]},
+    ]
+    config = _config()
+    config.pop("identity_exclusions")
+
+    rows = analyze_rbac_access(_cluster(), bindings, [], groups, config)
+
+    by_subject = {row["subject_name"]: row for row in rows}
+    assert set(by_subject) == {"human-admin", "mixed"}
+    assert by_subject["mixed"]["total_users"] == 1
+    assert by_subject["mixed"]["matching_users"] == ["ssid-support"]
+    assert "1 identity exclusion(s) applied" in by_subject["mixed"]["detail"]

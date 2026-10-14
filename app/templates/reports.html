@@ -123,6 +123,11 @@
                     <textarea id="report-exclusions" class="form-input code-input" rows="7" placeholder="openshift-*&#10;kube-*"></textarea>
                     <small>Exclusions apply to namespaced RoleBindings only. ClusterRoleBindings are always collected.</small>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Identity exclusions — one glob pattern per line</label>
+                    <textarea id="report-identity-exclusions" class="form-input code-input" rows="4" placeholder="system:serviceaccount:*">system:serviceaccount:*</textarea>
+                    <small>Matching direct users, ServiceAccounts, and group members are omitted before evaluating the username condition.</small>
+                </div>
                 <div class="report-scope-grid">
                     <div><i class="fas fa-folder-tree"></i><b> RoleBinding</b><span>All namespaces except excluded patterns</span></div>
                     <div><i class="fas fa-globe"></i><b> ClusterRoleBinding</b><span>All cluster-wide assignments</span></div>
@@ -321,7 +326,7 @@
     }
 
     function defaultConfig() {
-        return {cluster_roles:[], namespace_exclusions:[], user_condition:{quantifier:'ALL',operator:'contains',values:['ssid'],case_sensitive:false}};
+        return {cluster_roles:[], namespace_exclusions:[], identity_exclusions:['system:serviceaccount:*'], user_condition:{quantifier:'ALL',operator:'contains',values:['ssid'],case_sensitive:false}};
     }
     function conditionValues(condition) {
         if (Array.isArray(condition?.values)) return condition.values;
@@ -342,6 +347,8 @@
         document.getElementById('report-user-values').value = (conditionValues(config.user_condition).length ? conditionValues(config.user_condition) : ['ssid']).join('\n');
         document.getElementById('report-case-sensitive').checked = !!config.user_condition?.case_sensitive;
         document.getElementById('report-exclusions').value = (config.namespace_exclusions || []).join('\n');
+        const identityExclusions = Array.isArray(config.identity_exclusions) ? config.identity_exclusions : ['system:serviceaccount:*'];
+        document.getElementById('report-identity-exclusions').value = identityExclusions.join('\n');
         document.querySelectorAll('.report-cluster-cb').forEach(cb => cb.checked = true);
         activeClusterFilters = [];
         document.querySelectorAll('.report-cluster-filter').forEach(btn => btn.classList.remove('active'));
@@ -355,6 +362,7 @@
         return {
             cluster_roles: lines(document.getElementById('report-roles').value), role_match:'any_exact',
             namespace_exclusions: lines(document.getElementById('report-exclusions').value),
+            identity_exclusions: lines(document.getElementById('report-identity-exclusions').value),
             subject_kinds:['Group','User','ServiceAccount'],
             user_condition:{quantifier:'ALL',operator:document.getElementById('report-user-op').value,values:lines(document.getElementById('report-user-values').value),case_sensitive:document.getElementById('report-case-sensitive').checked},
             empty_group_policy:'review', missing_group_policy:'review'
@@ -435,7 +443,8 @@
             <dt>Bindings</dt><dd>RoleBindings and ClusterRoleBindings</dd>
             <dt>Subjects</dt><dd>Groups, direct Users, and ServiceAccounts</dd>
             <dt>User rule</dt><dd>ALL usernames ${escapeHtml(config.user_condition.operator)} ${formatConditionValues(config.user_condition)}${config.user_condition.case_sensitive ? ' (case-sensitive)' : ' (case-insensitive)'}</dd>
-            <dt>Exclusions</dt><dd>${config.namespace_exclusions.length ? config.namespace_exclusions.map(escapeHtml).join(', ') : 'None'}</dd>
+            <dt>Namespace exclusions</dt><dd>${config.namespace_exclusions.length ? config.namespace_exclusions.map(escapeHtml).join(', ') : 'None'}</dd>
+            <dt>Identity exclusions</dt><dd>${config.identity_exclusions.length ? config.identity_exclusions.map(escapeHtml).join(', ') : 'None'}</dd>
             <dt>Clusters</dt><dd>${names.map(escapeHtml).join(', ')}</dd>`;
     }
 

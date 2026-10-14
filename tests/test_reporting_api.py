@@ -73,6 +73,7 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
             "config": config,
         }))
         assert created.status_code == 200
+        assert created.json()["config"]["identity_exclusions"] == ["system:serviceaccount:*"]
         template_id = created.json()["id"]
 
         started = asyncio.run(request("POST", "/api/reporting/runs", json={

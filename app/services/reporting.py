@@ -23,6 +23,7 @@ def default_rbac_report_config() -> Dict[str, Any]:
         "cluster_roles": [],
         "role_match": "any_exact",
         "namespace_exclusions": [],
+        "identity_exclusions": ["system:serviceaccount:*"],
         "subject_kinds": ["Group", "User", "ServiceAccount"],
         "user_condition": {
             "quantifier": "ALL",
@@ -43,6 +44,9 @@ def normalize_rbac_report_config(config: Dict[str, Any]) -> Dict[str, Any]:
     ))
     normalized["namespace_exclusions"] = list(dict.fromkeys(
         str(value).strip() for value in normalized.get("namespace_exclusions", []) if str(value).strip()
+    ))
+    normalized["identity_exclusions"] = list(dict.fromkeys(
+        str(value).strip() for value in normalized.get("identity_exclusions", []) if str(value).strip()
     ))
     normalized["subject_kinds"] = ["Group", "User", "ServiceAccount"]
 
@@ -89,6 +93,11 @@ def _namespace_is_excluded(namespace: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(namespace_lower, pattern.lower()) for pattern in patterns)
 
 
+def _identity_is_excluded(identity: str, patterns: Iterable[str]) -> bool:
+    identity_lower = str(identity or "").lower()
+    return any(fnmatch.fnmatchcase(identity_lower, pattern.lower()) for pattern in patterns)
+
+
 def _user_matches(username: str, condition: Dict[str, Any]) -> bool:
     actual = str(username or "")
     expected_values = condition["values"]
@@ -110,6 +119,7 @@ def analyze_rbac_access(
     config = validate_rbac_report_config(config)
     selected_roles = set(config["cluster_roles"])
     exclusions = config["namespace_exclusions"]
+    identity_exclusions = config["identity_exclusions"]
     condition = config["user_condition"]
     group_map = {}
     for group in groups:
@@ -135,6 +145,15 @@ def analyze_rbac_access(
             for subject in binding_data.get("subjects") or []:
                 subject_kind = subject.get("kind", "Unknown")
                 subject_name = subject.get("name", "")
+                subject_namespace = subject.get("namespace") or namespace or "?"
+                canonical_identity = (
+                    f"system:serviceaccount:{subject_namespace}:{subject_name}"
+                    if subject_kind == "ServiceAccount" else subject_name
+                )
+                if subject_kind in {"User", "ServiceAccount"} and _identity_is_excluded(
+                    canonical_identity, identity_exclusions
+                ):
+                    continue
                 base_row = {
                     "cluster_id": cluster.id,
                     "cluster": cluster.name,
@@ -164,7 +183,14 @@ def analyze_rbac_access(
                             if is_system else "Referenced OpenShift Group could not be resolved"
                         )
                     else:
-                        users = list(group.get("users") or [])
+                        all_users = list(group.get("users") or [])
+                        users = [
+                            user for user in all_users
+                            if not _identity_is_excluded(user, identity_exclusions)
+                        ]
+                        excluded_count = len(all_users) - len(users)
+                        if all_users and not users:
+                            continue
                         base_row["total_users"] = len(users)
                         if not users:
                             base_row["finding"] = "EMPTY_GROUP_REVIEW"
@@ -179,6 +205,8 @@ def analyze_rbac_access(
                                 "Every group member satisfies the user-name condition"
                                 if not nonmatching else f"{len(nonmatching)} group member(s) do not satisfy the user-name condition"
                             )
+                            if excluded_count:
+                                base_row["detail"] += f"; {excluded_count} identity exclusion(s) applied"
                 elif subject_kind == "User":
                     matched = _user_matches(subject_name, condition)
                     base_row["total_users"] = 1
@@ -190,7 +218,6 @@ def analyze_rbac_access(
                         if matched else "Direct user does not satisfy the user-name condition"
                     )
                 elif subject_kind == "ServiceAccount":
-                    subject_namespace = subject.get("namespace") or namespace or "?"
                     base_row["subject_name"] = f"{subject_namespace}/{subject_name}"
                     base_row["finding"] = "SERVICE_ACCOUNT"
                     base_row["detail"] = "ServiceAccount access is recorded but is not evaluated as a human username"

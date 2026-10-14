@@ -6,27 +6,36 @@
         <h1 class="page-title">Reports</h1>
         <p style="opacity:0.65; margin:0.25rem 0 0;">Run reusable, live queries against selected clusters without compliance scoring.</p>
     </div>
-    <button class="btn btn-primary" onclick="openReportWizard()"><i class="fas fa-plus"></i> New Report</button>
+    <div class="report-header-actions">
+        <div class="report-menu">
+            <button class="btn btn-secondary report-menu-toggle" type="button" aria-expanded="false" aria-controls="template-menu" onclick="toggleReportMenu('template-menu', this, event)">
+                <i class="fas fa-layer-group"></i> Saved Templates
+                <span id="template-count" class="badge badge-blue">0</span>
+                <i class="fas fa-chevron-down report-menu-chevron"></i>
+            </button>
+            <div id="template-menu" class="report-menu-panel" onclick="event.stopPropagation()">
+                <div class="report-menu-heading">Saved Templates</div>
+                <div id="template-list" class="report-card-list"><div class="report-empty">Loading templates…</div></div>
+            </div>
+        </div>
+        <div class="report-menu">
+            <button class="btn btn-secondary report-menu-toggle" type="button" aria-expanded="false" aria-controls="run-menu" onclick="toggleReportMenu('run-menu', this, event)">
+                <i class="fas fa-clock-rotate-left"></i> Recent Runs
+                <i class="fas fa-chevron-down report-menu-chevron"></i>
+            </button>
+            <div id="run-menu" class="report-menu-panel" onclick="event.stopPropagation()">
+                <div class="report-menu-heading">
+                    <span>Recent Runs</span>
+                    <button class="report-menu-refresh" type="button" onclick="loadReportData()" title="Refresh recent runs" aria-label="Refresh recent runs"><i class="fas fa-rotate"></i></button>
+                </div>
+                <div id="run-list" class="report-card-list"><div class="report-empty">Loading runs…</div></div>
+            </div>
+        </div>
+        <button class="btn btn-primary" onclick="openReportWizard()"><i class="fas fa-plus"></i> New Template</button>
+    </div>
 </div>
 
-<div class="reports-layout">
-    <section class="card reports-panel">
-        <div class="reports-panel-header">
-            <div><i class="fas fa-layer-group"></i> Saved Templates</div>
-            <span id="template-count" class="badge badge-blue">0</span>
-        </div>
-        <div id="template-list" class="report-card-list"><div class="report-empty">Loading templates…</div></div>
-    </section>
-    <section class="card reports-panel">
-        <div class="reports-panel-header">
-            <div><i class="fas fa-clock-rotate-left"></i> Recent Runs</div>
-            <button class="btn btn-secondary btn-sm" onclick="loadReportData()"><i class="fas fa-rotate"></i></button>
-        </div>
-        <div id="run-list" class="report-card-list"><div class="report-empty">Loading runs…</div></div>
-    </section>
-</div>
-
-<section id="report-results-card" class="card" style="display:none; margin-top:1.25rem;">
+<section id="report-results-card" class="card" style="display:none; margin-top:0;">
     <div class="reports-panel-header" style="gap:1rem; flex-wrap:wrap;">
         <div style="flex:1; min-width:260px;">
             <div id="result-title" style="font-weight:700;">Report Results</div>
@@ -150,11 +159,21 @@
 </div>
 
 <style>
-    .reports-layout { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; }
-    .reports-panel { min-height:300px; overflow:hidden; }
+    .report-header-actions { display:flex; align-items:center; justify-content:flex-end; gap:0.6rem; flex-wrap:wrap; }
+    .report-menu { position:relative; }
+    .report-menu-toggle { display:flex; align-items:center; gap:0.5rem; white-space:nowrap; }
+    .report-menu-toggle[aria-expanded="true"] { box-shadow:0 0 0 2px rgba(56,189,248,0.2); }
+    .report-menu-toggle[aria-expanded="true"] .report-menu-chevron { transform:rotate(180deg); }
+    .report-menu-chevron { font-size:0.7rem; opacity:0.65; transition:transform 0.15s ease; }
+    .report-menu-panel { display:none; position:absolute; z-index:30; top:calc(100% + 0.55rem); right:0; width:min(520px, calc(100vw - 3rem)); background:var(--card-bg); border:1px solid var(--border-color); border-radius:0.75rem; box-shadow:0 18px 45px rgba(0,0,0,0.4); overflow:hidden; }
+    .report-menu-panel.open { display:block; }
+    .report-menu-heading { min-height:42px; padding:0.65rem 0.85rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-secondary); box-sizing:border-box; }
+    .report-menu-refresh { width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:0.4rem; cursor:pointer; color:var(--text-primary); background:rgba(255,255,255,0.07); }
+    .report-menu-refresh:hover { background:rgba(255,255,255,0.13); }
     .reports-panel-header { padding:1rem; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; font-weight:700; }
-    .report-card-list { max-height:420px; overflow:auto; }
+    .report-card-list { max-height:min(480px, 65vh); overflow:auto; }
     .report-card { padding:0.9rem 1rem; border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:0.8rem; }
+    .report-card:hover { background:rgba(255,255,255,0.025); }
     .report-card:last-child { border-bottom:0; }
     .report-card-main { flex:1; min-width:0; }
     .report-card-title { font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -183,7 +202,17 @@
     .finding-clear { background:rgba(52,211,153,0.15); color:#34d399; }
     .finding-review { background:rgba(251,191,36,0.15); color:#fbbf24; }
     .finding-fail { background:rgba(248,113,113,0.15); color:#f87171; }
-    @media (max-width:900px) { .reports-layout { grid-template-columns:1fr; } .report-scope-grid { grid-template-columns:1fr; } }
+    @media (max-width:900px) {
+        .page-header { align-items:flex-start; gap:1rem; }
+        .report-header-actions { justify-content:flex-start; }
+        .report-scope-grid { grid-template-columns:1fr; }
+    }
+    @media (max-width:620px) {
+        .page-header { flex-direction:column; }
+        .report-header-actions { position:relative; width:100%; }
+        .report-menu { position:static; }
+        .report-menu-panel { top:calc(100% + 0.55rem); left:0; right:0; width:auto; }
+    }
 </style>
 
 <script>
@@ -211,6 +240,21 @@
     function statusBadge(status) {
         const color = status === 'COMPLETED' ? 'badge-green' : (status === 'FAILED' ? 'badge-red' : 'badge-blue');
         return `<span class="badge ${color}">${escapeHtml(status)}</span>`;
+    }
+
+    function closeReportMenus() {
+        document.querySelectorAll('.report-menu-panel.open').forEach(menu => menu.classList.remove('open'));
+        document.querySelectorAll('.report-menu-toggle[aria-expanded="true"]').forEach(button => button.setAttribute('aria-expanded', 'false'));
+    }
+    function toggleReportMenu(menuId, button, clickEvent) {
+        clickEvent.stopPropagation();
+        const menu = document.getElementById(menuId);
+        const shouldOpen = !menu.classList.contains('open');
+        closeReportMenus();
+        if (shouldOpen) {
+            menu.classList.add('open');
+            button.setAttribute('aria-expanded', 'true');
+        }
     }
 
     async function loadReportData() {
@@ -264,6 +308,7 @@
         return conditionValues(condition).map(value => `“${escapeHtml(value)}”`).join(' OR ');
     }
     function openReportWizard(templateId = null) {
+        closeReportMenus();
         const template = reportTemplates.find(t => t.id === templateId);
         const config = template ? template.config : defaultConfig();
         document.getElementById('report-template-id').value = template?.id || '';
@@ -393,6 +438,7 @@
     }
 
     async function showReportRun(id) {
+        closeReportMenus();
         activeRunId = id;
         if (runPollTimer) clearTimeout(runPollTimer);
         const [runRes, resultRes] = await Promise.all([fetch(`/api/reporting/runs/${id}`), fetch(`/api/reporting/runs/${id}/results`)]);
@@ -436,6 +482,9 @@
 
     loadReportData().catch(error => {
         document.getElementById('template-list').innerHTML = `<div class="report-empty" style="color:var(--danger-color);">${escapeHtml(error.message)}</div>`;
+        document.getElementById('run-list').innerHTML = `<div class="report-empty" style="color:var(--danger-color);">${escapeHtml(error.message)}</div>`;
     });
+    document.addEventListener('click', closeReportMenus);
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeReportMenus(); });
 </script>
 {% endblock %}

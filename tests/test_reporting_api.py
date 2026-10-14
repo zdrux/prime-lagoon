@@ -51,8 +51,11 @@ def test_reporting_template_run_and_export_lifecycle(tmp_path, monkeypatch):
 
         page = asyncio.run(request("GET", "/reports"))
         assert page.status_code == 200
-        assert "New Report" in page.text
+        assert "New Template" in page.text
         assert "Saved Templates" in page.text
+        assert 'id="template-menu"' in page.text
+        assert 'id="run-menu"' in page.text
+        assert 'class="reports-layout"' not in page.text
 
         config = {
             "cluster_roles": ["admin", "edit"],

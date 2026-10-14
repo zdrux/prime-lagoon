@@ -1,4 +1,4 @@
-from app.models import Cluster
+from app.models import Cluster, ReportRun, ReportTemplate
 from app.services.reporting import analyze_rbac_access
 
 
@@ -24,6 +24,20 @@ def _config(operator="contains"):
             "case_sensitive": False,
         },
     }
+
+
+def test_report_timestamp_defaults_are_timezone_aware():
+    template = ReportTemplate(name="test", config_json="{}", created_by="tester")
+    run = ReportRun(
+        template_name="test",
+        config_json="{}",
+        cluster_ids_json="[]",
+        requested_by="tester",
+    )
+
+    assert template.created_at.utcoffset() is not None
+    assert template.updated_at.utcoffset() is not None
+    assert run.created_at.utcoffset() is not None
 
 
 def test_rbac_report_joins_groups_and_collects_all_subject_kinds():

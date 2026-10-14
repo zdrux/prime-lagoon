@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List
 
 from sqlmodel import Session, select
@@ -206,7 +206,7 @@ def execute_report_run(run_id: int) -> None:
         if not run:
             return
         run.status = "RUNNING"
-        run.started_at = datetime.utcnow()
+        run.started_at = datetime.now(timezone.utc)
         session.add(run)
         session.commit()
 
@@ -222,7 +222,7 @@ def execute_report_run(run_id: int) -> None:
             for cluster_run in cluster_runs:
                 cluster = session.get(Cluster, cluster_run.cluster_id)
                 cluster_run.status = "RUNNING"
-                cluster_run.started_at = datetime.utcnow()
+                cluster_run.started_at = datetime.now(timezone.utc)
                 session.add(cluster_run)
                 session.commit()
 
@@ -241,7 +241,7 @@ def execute_report_run(run_id: int) -> None:
                     cluster_run.error = str(exc)[:1000]
                     failed_clusters += 1
                 finally:
-                    cluster_run.completed_at = datetime.utcnow()
+                    cluster_run.completed_at = datetime.now(timezone.utc)
                     session.add(cluster_run)
                     session.commit()
 
@@ -263,7 +263,7 @@ def execute_report_run(run_id: int) -> None:
             run.status = "FAILED"
             run.summary_json = json.dumps({"error": str(exc)[:1000]})
         finally:
-            run.completed_at = datetime.utcnow()
+            run.completed_at = datetime.now(timezone.utc)
             run.expires_at = run.completed_at + timedelta(days=REPORT_RETENTION_DAYS)
             session.add(run)
             session.commit()
@@ -274,7 +274,7 @@ def start_report_run(run_id: int) -> None:
 
 
 def cleanup_expired_report_runs(session: Session) -> int:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     runs = session.exec(select(ReportRun).where(ReportRun.expires_at != None, ReportRun.expires_at < now)).all()
     for run in runs:
         children = session.exec(select(ReportRunCluster).where(ReportRunCluster.run_id == run.id)).all()

@@ -1,7 +1,11 @@
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import Field, SQLModel, Column, Text, Boolean
 from pydantic import field_validator
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 class ClusterBase(SQLModel):
     name: str = Field(index=True, unique=True)
@@ -196,8 +200,8 @@ class ReportTemplate(SQLModel, table=True):
     report_type: str = Field(default="rbac_access_membership", index=True)
     config_json: str = Field(sa_column=Column(Text))
     created_by: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     is_active: bool = Field(default=True)
 
 
@@ -210,7 +214,7 @@ class ReportRun(SQLModel, table=True):
     cluster_ids_json: str = Field(sa_column=Column(Text))
     requested_by: str
     status: str = Field(default="QUEUED", index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    created_at: datetime = Field(default_factory=utc_now, index=True)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     expires_at: Optional[datetime] = Field(default=None, index=True)

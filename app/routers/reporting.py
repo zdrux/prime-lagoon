@@ -1,7 +1,7 @@
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -174,7 +174,7 @@ def update_report_template(
     template.name = name
     template.description = (payload.description or "").strip() or None
     template.config_json = json.dumps(config)
-    template.updated_at = datetime.utcnow()
+    template.updated_at = datetime.now(timezone.utc)
     session.add(template)
     session.commit()
     session.refresh(template)
@@ -192,7 +192,7 @@ def archive_report_template(
     if not template or not template.is_active:
         raise HTTPException(status_code=404, detail="Report template not found")
     template.is_active = False
-    template.updated_at = datetime.utcnow()
+    template.updated_at = datetime.now(timezone.utc)
     session.add(template)
     session.commit()
     return {"ok": True}

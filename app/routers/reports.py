@@ -123,6 +123,7 @@ def generate_report_data(filters: ReportFilter, session: Session = Depends(get_s
                             "Environment": c.environment or "-",
                             "Datacenter": c.datacenter or "-",
                             "Node Name": name,
+                            "Node Created At": node.get("metadata", {}).get("creationTimestamp"),
                             "Node vCPU": capacity_info.get("cpu", 0),
                             "Node Memory (GB)": round(capacity_info.get("memory_gb", 0), 1),
                             "Node MAPID": labels.get("mapid", "-"),

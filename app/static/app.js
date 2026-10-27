@@ -5477,6 +5477,8 @@ let reportColumns = [
 
     { name: "Node Name", included: true },
 
+    { name: "Node Created At", included: true },
+
     { name: "Node vCPU", included: true },
 
     { name: "Node Memory (GB)", included: true },
@@ -5935,7 +5937,14 @@ async function generateReport() {
 
                 finalCols.forEach(col => {
 
-                    newRow[col.name] = row[col.name];
+                    if (col.name === 'Node Created At') {
+                        const timestamp = row[col.name];
+                        newRow[col.name] = timestamp && !Number.isNaN(new Date(timestamp).getTime())
+                            ? formatEST(timestamp)
+                            : '-';
+                    } else {
+                        newRow[col.name] = row[col.name];
+                    }
 
                 });
 

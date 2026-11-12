@@ -441,8 +441,8 @@ def bulk_delete_snapshots(request: BulkDeleteRequest, session: Session = Depends
 @router.post("/clusters/snapshots/cleanup")
 def cleanup_snapshots(request: CleanupRequest, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     """Deletes snapshots older than X days."""
-    from datetime import datetime, timedelta
-    cutoff = datetime.utcnow() - timedelta(days=request.days)
+    from datetime import datetime, timedelta, timezone
+    cutoff = datetime.now(timezone.utc) - timedelta(days=request.days)
     cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
     
     from sqlalchemy import text

@@ -1,3 +1,4 @@
+from app.time_utils import as_utc, parse_snapshot_time
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select, func
 from typing import Any, List, Dict, Optional
@@ -299,7 +300,7 @@ def _build_storage_rows(cluster: Cluster, snapshot_data: Dict[str, Any], snapsho
 def get_snapshot_for_cluster(session: Session, cluster_id: int, target_time: datetime) -> Optional[ClusterSnapshot]:
     """Finds the closest successful snapshot ON or BEFORE the target time (with 5m grace)."""
     # Adding a grace period to target_time to account for multi-cluster polling delays
-    grace_target = target_time + timedelta(seconds=600)
+    grace_target = as_utc(target_time) + timedelta(seconds=600)
     statement = select(ClusterSnapshot).where(
         ClusterSnapshot.cluster_id == cluster_id,
         ClusterSnapshot.timestamp <= grace_target,
@@ -314,7 +315,7 @@ def get_available_snapshots(session: Session = Depends(get_session)):
     # Actually, let's return all unique timestamps from the last 7 days?
     # Or just return a list of dates?
     # For MVP: Return all timestamps from the last 30 days
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
     statement = select(ClusterSnapshot.timestamp).where(ClusterSnapshot.timestamp >= cutoff).order_by(ClusterSnapshot.timestamp.desc())
     timestamps = session.exec(statement).all()
     
@@ -351,7 +352,7 @@ def get_storage_analytics(
     target_dt = None
     if snapshot_time:
         try:
-            target_dt = datetime.strptime(snapshot_time.replace("T", " "), "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(snapshot_time)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid snapshot_time format")
 
@@ -440,7 +441,7 @@ def get_cluster_resources(cluster_id: int, resource_type: str, snapshot_time: Op
         try:
             # Handle both T and space separators
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 data = json.loads(snap.data_json)
@@ -468,7 +469,7 @@ def get_cluster_details(cluster_id: int, snapshot_time: Optional[str] = Query(No
     if snapshot_time:
         try:
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -502,7 +503,7 @@ def get_node_details_endpoint(cluster_id: int, node_name: str, snapshot_time: Op
     if snapshot_time:
         try:
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -525,7 +526,7 @@ def get_machine_details_endpoint(cluster_id: int, machine_name: str, snapshot_ti
     if snapshot_time:
         try:
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -546,7 +547,7 @@ def get_license_details(cluster_id: int, usage_id: str, snapshot_time: Optional[
     if snapshot_time:
         try:
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 data = json.loads(snap.data_json)
@@ -646,7 +647,7 @@ def get_dashboard_summary(snapshot_time: Optional[str] = Query(None), mode: Opti
     if snapshot_time:
         try:
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
         except:
             pass
 
@@ -1167,12 +1168,12 @@ def get_resource_trends(
     # Logic: Start Date > Days priority
     if start_date:
         try:
-             cutoff = datetime.strptime(start_date, "%Y-%m-%d")
+             cutoff = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         except ValueError:
              # Fallback
-             cutoff = datetime.utcnow() - timedelta(days=days)
+             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     
     if cluster_id:
         # Single cluster summary (used by cluster details modal)
@@ -1234,7 +1235,7 @@ def get_resource_trends(
 @router.get("/mapid/global-trends")
 def get_mapid_global_trends(days: int = Query(30), session: Session = Depends(get_session)):
     """Returns aggregated MAPID license usage trends across all clusters."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     from app.models import MapidLicenseUsage
     
     # We need to aggregate by timestamp and mapid
@@ -1402,7 +1403,7 @@ def get_mapid_breakdown(
     # Efficient approach: Fetch all MapidLicenseUsage records for these clusters from the last 7 days (or 24h),
     # then for each cluster, pick the latest timestamp, and use only those records.
     
-    cutoff = datetime.utcnow() - timedelta(days=7) # generous window to catch stale clusters too
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7) # generous window to catch stale clusters too
     
     # We need to grab data. 
     # Let's fetch all records for target clusters > cutoff
@@ -1525,7 +1526,7 @@ def get_unmapped_nodes_details(session: Session = Depends(get_session)):
     from app.services.license import calculate_licenses
     
     results = []
-    cutoff = datetime.utcnow() - timedelta(days=7)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
     # 1. Identify clusters that HAVE unmapped nodes recently
     # We look for records with mapid="Unmapped" (case sensitive match to service logic)
@@ -1627,7 +1628,7 @@ def get_mapid_resources(cluster_id: int, mapid: str, snapshot_time: Optional[str
     if snapshot_time:
         try:
             clean_ts = snapshot_time.replace("T", " ")
-            target_dt = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_dt = parse_snapshot_time(clean_ts)
             snap = get_snapshot_for_cluster(session, cluster_id, target_dt)
             if snap and snap.data_json:
                 snapshot_data = json.loads(snap.data_json)
@@ -1715,11 +1716,11 @@ def get_resource_trends_diffs(
     # 2. Cutoff
     if start_date:
         try:
-             cutoff = datetime.strptime(start_date, "%Y-%m-%d")
+             cutoff = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         except ValueError:
-             cutoff = datetime.utcnow() - timedelta(days=days)
+             cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     else:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
 
     # Global Cache for Diff Results (Simple In-Memory)

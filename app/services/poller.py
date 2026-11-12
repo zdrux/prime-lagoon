@@ -1,8 +1,9 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlmodel import Session, select
 from app.database import engine
+from app.time_utils import as_utc
 from app.models import Cluster, ClusterSnapshot, LicenseUsage, LicenseRule, MapidLicenseUsage
 from app.services.ocp import fetch_resources, parse_cpu, get_val, get_service_mesh_details, get_argocd_details
 from app.services.license import calculate_licenses, calculate_mapid_usage
@@ -28,7 +29,7 @@ POLL_RESOURCES = {
 def poll_all_clusters(progress_callback=None):
     """Main entry point for the scheduler."""
     logger.info("Starting background poll of all clusters...")
-    run_timestamp = datetime.utcnow() # Unified timestamp for the entire run
+    run_timestamp = datetime.now(timezone.utc) # Unified timestamp for the entire run
     
     with Session(engine) as session:
         from app.models import AppConfig
@@ -84,7 +85,7 @@ def cleanup_old_snapshots(session: Session):
     days = int(config.value) if config else 30
     
     logger.info(f"Running automated cleanup (Retention: {days} days)...")
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
     
     from sqlalchemy import text
@@ -123,7 +124,8 @@ def poll_cluster(
 ):
     """Fetches all resources for a cluster, saves snapshot, and updates license usage."""
     if run_timestamp is None:
-        run_timestamp = datetime.utcnow()
+        run_timestamp = datetime.now(timezone.utc)
+    run_timestamp = as_utc(run_timestamp)
 
     with Session(engine) as session:
         cluster = session.get(Cluster, cluster_id)

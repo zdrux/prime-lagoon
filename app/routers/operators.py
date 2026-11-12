@@ -1,3 +1,4 @@
+from app.time_utils import parse_snapshot_time
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from typing import List, Dict, Any, Optional
@@ -95,12 +96,7 @@ def get_operator_matrix(snapshot_time: Optional[str] = None, session: Session = 
     target_ts = None
     if snapshot_time:
         try:
-            # Handle potential 'Z' suffix or T separator
-            clean_ts = snapshot_time.replace("T", " ").replace("Z", "")
-            # Truncate potential fractional seconds if present in input string
-            if "." in clean_ts:
-                clean_ts = clean_ts.split(".")[0]
-            target_ts = datetime.strptime(clean_ts, "%Y-%m-%d %H:%M:%S")
+            target_ts = parse_snapshot_time(snapshot_time)
         except:
             print(f"Failed to parse snapshot time: {snapshot_time}")
             pass

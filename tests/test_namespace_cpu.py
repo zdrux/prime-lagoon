@@ -177,6 +177,21 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert [call.args[1] for call in collect.call_args_list] == [old_day, yesterday]
     assert client.post(run_url, params={**dates, "end": today.isoformat()}).status_code == 422
 
+    with Session(engine) as session:
+        previous = session.exec(select(NamespaceCPUDaily)).one().model_dump()
+        previous["day"] = old_day
+        session.add(NamespaceCPUDaily(**previous))
+        session.commit()
+    monkeypatch.setattr(report_api, "PAGE_SIZE", 1)
+    first = client.get(base, params=dates).json()
+    assert first["page_count"] == 2
+    assert first["has_more"]
+    assert first["days"] == [{"day": day, "count": 1} for day in (dates["end"], dates["start"])]
+    assert client.get(base, params={**dates, "page": 2}).json()["rows"][0]["date_et"] == dates["start"]
+    assert client.get(base, params={**dates, "report_day": dates["start"]}).json()["total"] == 1
+    exported_range = client.get(base + "/export", params={**dates, "fields": "date_et"})
+    assert list(csv.reader(io.StringIO(exported_range.text))) == [["date_et"], [dates["end"]], [dates["start"]]]
+
 
 
 def test_eastern_report_hours_follow_daylight_saving():

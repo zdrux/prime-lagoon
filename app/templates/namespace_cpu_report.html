@@ -23,7 +23,7 @@
 <div class="page-header">
     <h1 class="page-title">Namespace average vCPU by hour</h1>
     <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
-        <button class="btn btn-secondary" type="button" id="cpu-download-active" style="display:none;">Download CSV</button>
+        <a class="btn btn-secondary" id="cpu-download-active" style="display:none;">Download CSV</a>
         {% if can_manage_reports %}
         <button class="btn btn-secondary" type="button" id="cpu-open-run">
             <i class="fas fa-play" aria-hidden="true"></i> Run Now
@@ -43,6 +43,13 @@
         </div>
         <div id="cpu-environment" class="cpu-environment-filters" role="group" aria-label="Filter by environment"></div>
         <button id="cpu-show-all" class="btn btn-secondary" type="button" hidden>Show all reports</button>
+        <label for="cpu-result-day">Report day (ET)</label>
+        <select id="cpu-result-day" class="form-input" style="width:auto;"></select>
+        <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
+            <button class="btn btn-secondary btn-sm" type="button" id="cpu-prev" disabled>Previous</button>
+            <span id="cpu-page"></span>
+            <button class="btn btn-secondary btn-sm" type="button" id="cpu-next" disabled>Next</button>
+        </div>
     </div>
     <p id="cpu-status" role="status">Loading reports…</p>
     <details id="cpu-issues" hidden>
@@ -54,11 +61,6 @@
             <thead><tr id="cpu-result-head"></tr></thead>
             <tbody id="cpu-result-rows"></tbody>
         </table>
-    </div>
-    <div style="display:flex; align-items:center; justify-content:flex-end; gap:0.75rem; padding:1rem;">
-        <button class="btn btn-secondary btn-sm" type="button" id="cpu-prev">Previous</button>
-        <span id="cpu-page"></span>
-        <button class="btn btn-secondary btn-sm" type="button" id="cpu-next">Next</button>
     </div>
 </section>
 

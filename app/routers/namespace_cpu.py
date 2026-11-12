@@ -229,11 +229,19 @@ def summarize(row: NamespaceCPUDaily):
 def view_report(
     scope=Depends(report_scope), page: int = Query(1, ge=1), session: Session = Depends(get_session),
     environment: Annotated[list[str] | None, Query()] = None, search: str = "",
-    sort: str = "", descending: bool = False,
+    sort: str = "", descending: bool = False, report_day: date | None = None,
 ):
     selected_envs = [value.upper() for value in environment or [] if value]
-    records = session.exec(report_query(scope, selected_envs, search, sort, descending)
-                           .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1)).all()
+    query = report_query(scope, selected_envs, search, sort, descending)
+    matches = query.order_by(None).with_only_columns(NamespaceCPUDaily.day).subquery()
+    day_counts = session.exec(select(matches.c.day, func.count()).group_by(matches.c.day)
+                              .order_by(matches.c.day.desc())).all()
+    total = sum(count for day, count in day_counts if report_day is None or day == report_day)
+    if report_day is not None:
+        query = query.where(NamespaceCPUDaily.day == report_day)
+    page_count = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+    page = min(page, page_count)
+    records = session.exec(query.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)).all()
     environments = session.exec(select(func.upper(NamespaceCPUDaily.environment)).where(
         NamespaceCPUDaily.eastern_day == True, *scope_conditions(NamespaceCPUDaily, scope),
     ).distinct()).all()
@@ -251,7 +259,9 @@ def view_report(
     )).all()
     return {
         "environments": sorted(value for value in environments if value),
-        "rows": [summarize(row) for row in records[:PAGE_SIZE]], "has_more": len(records) > PAGE_SIZE,
+        "rows": [summarize(row) for row in records], "has_more": page < page_count,
+        "page": page, "page_count": page_count, "total": total, "page_size": PAGE_SIZE,
+        "days": [{"day": day, "count": count} for day, count in day_counts],
         "collection_issues": [
             {"day": record.day, "cluster": name, "status": record.status, "detail": record.detail}
             for record, name in collections

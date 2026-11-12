@@ -10,6 +10,8 @@
     let scope = new URLSearchParams();
     let searchTimer;
     let page = 1;
+    const reportDay = get('cpu-result-day');
+    const download = get('cpu-download-active');
     let request;
     let chart;
 
@@ -308,6 +310,7 @@
         }
         if (viewButton.disabled) return;
         scope = query;
+        reportDay.value = '';
         activeEnvironments.clear();
         search.value = '';
         picker.close();
@@ -393,6 +396,7 @@
                     button.setAttribute('aria-pressed', 'false');
                 });
                 scope = new URLSearchParams({ start: job.start, end: job.end, cluster_ids: clusterId });
+                reportDay.value = '';
                 fields.forEach(field => scope.append('fields', field));
                 activeEnvironments.clear();
                 search.value = '';
@@ -483,16 +487,29 @@
         request?.abort();
         request = new AbortController();
         const params = reportParams();
+        const exportUrl = endpoint + '/export?' + params;
+        const day = reportDay.value;
+        if (day) params.set('report_day', day);
         params.set('page', target);
         get('cpu-show-all').hidden = !scope.has('start');
         const status = get('cpu-status');
         status.textContent = 'Loading report…';
-        get('cpu-download-active').style.display = 'none';
+        download.style.display = 'none';
         get('cpu-prev').disabled = get('cpu-next').disabled = true;
         get('cpu-issues').hidden = true;
         try {
             const data = await read(endpoint + '?' + params, { signal: request.signal });
-            page = target;
+            page = data.page;
+            reportDay.replaceChildren(new Option('All collected days (' + data.days.length + ')', ''));
+            for (const entry of data.days) {
+                reportDay.add(new Option(entry.day + ' (' + entry.count + ' rows)', entry.day));
+            }
+            if (day && !data.days.some(entry => entry.day === day)) {
+                reportDay.value = '';
+                return loadPage(1);
+            }
+            reportDay.value = day;
+            reportDay.disabled = !data.days.length;
             renderEnvironmentFilters(data.environments);
             const body = get('cpu-result-rows');
             body.replaceChildren();
@@ -559,10 +576,15 @@
             get('cpu-issue-count').textContent = data.collection_issues.length + ' cluster-day collection issues';
             get('cpu-issues').hidden = !data.collection_issues.length;
             get('cpu-issues').open = !data.rows.length && data.collection_issues.length > 0;
-            get('cpu-download-active').style.display = data.rows.length ? '' : 'none';
+            download.href = exportUrl;
+            download.style.display = data.days.length ? '' : 'none';
+            download.textContent = scope.has('start') ? 'Download range CSV' : 'Download CSV';
             get('cpu-prev').disabled = page === 1;
             get('cpu-next').disabled = !data.has_more;
-            get('cpu-page').textContent = 'Page ' + page;
+            const firstRow = data.rows.length ? (page - 1) * data.page_size + 1 : 0;
+            const lastRow = firstRow ? firstRow + data.rows.length - 1 : 0;
+            get('cpu-page').textContent = 'Page ' + page + ' of ' + data.page_count +
+                ' · ' + firstRow + '–' + lastRow + ' of ' + data.total + ' rows';
             status.textContent = data.rows.length ? '' : data.collection_issues.length
                 ? 'No collected reports match this selection. See the collection details below.'
                 : 'No collected reports match this selection.';
@@ -573,7 +595,7 @@
 
     get('cpu-prev').addEventListener('click', () => loadPage(page - 1));
     get('cpu-next').addEventListener('click', () => loadPage(page + 1));
-    get('cpu-download-active').addEventListener('click', () => window.location.assign(endpoint + '/export?' + reportParams()));
+    reportDay.addEventListener('change', () => loadPage(1));
     search.addEventListener('input', () => {
         clearTimeout(searchTimer);
         request?.abort();
@@ -582,6 +604,7 @@
     get('cpu-show-all').addEventListener('click', () => {
         const fields = scope.getAll('fields');
         scope = new URLSearchParams();
+        reportDay.value = '';
         fields.forEach(field => scope.append('fields', field));
         activeEnvironments.clear();
         search.value = '';

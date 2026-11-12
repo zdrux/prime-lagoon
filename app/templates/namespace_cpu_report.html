@@ -3,11 +3,20 @@
 {% macro cpu_fields() %}
 <fieldset style="margin:1rem 0;">
     <legend>Report fields</legend>
-    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.5rem;">
+    <p class="cpu-field-help">Choose fields and drag to reorder, or use the arrow buttons.</p>
+    <ul class="cpu-field-list">
         {% for key, label in cpu_report_fields.items() %}
-        <label><input type="checkbox" name="cpu-field" value="{{ key }}" {% if key in cpu_default_fields %}checked{% endif %}> {{ label }}</label>
+        <li class="cpu-field-row" data-field="{{ key }}">
+            <span class="cpu-field-handle" draggable="true" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
+            <label><input type="checkbox" name="cpu-field" value="{{ key }}" {% if key in cpu_default_fields %}checked{% endif %}> {{ label }}</label>
+            <div class="cpu-field-actions">
+                <button type="button" class="btn btn-secondary" data-move="-1" aria-label="Move {{ label }} up" {% if loop.first %}disabled{% endif %}><i class="fas fa-arrow-up" aria-hidden="true"></i></button>
+                <button type="button" class="btn btn-secondary" data-move="1" aria-label="Move {{ label }} down" {% if loop.last %}disabled{% endif %}><i class="fas fa-arrow-down" aria-hidden="true"></i></button>
+            </div>
+        </li>
         {% endfor %}
-    </div>
+    </ul>
+    <p class="cpu-field-announcement" role="status"></p>
 </fieldset>
 {% endmacro %}
 
@@ -26,21 +35,20 @@
     </div>
 </div>
 
-<div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
-    <label>Environment
-        <select id="cpu-environment" class="form-input"><option value="">All environments</option></select>
-    </label>
-    <label style="width:min(360px,100%);">Search reports
-        <input id="cpu-search" type="search" class="form-input" placeholder="Cluster, namespace, MAPID, or date">
-    </label>
-    <button id="cpu-show-all" class="btn btn-secondary" type="button" hidden>Show all reports</button>
-</div>
-<p id="cpu-status" role="status">Loading reports…</p>
-<details id="cpu-issues" hidden>
-    <summary id="cpu-issue-count"></summary>
-    <ul id="cpu-issue-list"></ul>
-</details>
-<section class="card" id="cpu-results" hidden>
+<section class="card" id="cpu-results">
+    <div class="resource-header cpu-report-toolbar">
+        <div class="inventory-search">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <input id="cpu-search" type="search" aria-label="Search reports" placeholder="Search reports...">
+        </div>
+        <div id="cpu-environment" class="cpu-environment-filters" role="group" aria-label="Filter by environment"></div>
+        <button id="cpu-show-all" class="btn btn-secondary" type="button" hidden>Show all reports</button>
+    </div>
+    <p id="cpu-status" role="status">Loading reports…</p>
+    <details id="cpu-issues" hidden>
+        <summary id="cpu-issue-count"></summary>
+        <ul id="cpu-issue-list"></ul>
+    </details>
     <div class="table-container">
         <table class="data-table">
             <thead><tr id="cpu-result-head"></tr></thead>
@@ -79,11 +87,11 @@
         <h2>Select dates and clusters</h2>
         <button class="close-btn" type="button" data-close="cpu-picker" aria-label="Close">&times;</button>
     </div>
-    <form id="cpu-report-form">
+    <form id="cpu-report-form" novalidate>
         <div class="modal-body" style="padding:1.5rem;">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
-                <label>From (ET)<input type="date" class="form-input" id="cpu-start" required></label>
-                <label>Through (ET)<input type="date" class="form-input" id="cpu-end" required></label>
+                <label>From (ET)<input type="date" class="form-input" id="cpu-start" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
+                <label>Through (ET)<input type="date" class="form-input" id="cpu-end" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
             </div>
             {{ report_cluster_picker('toggleCpuClusterFilter') }}
             <button class="btn btn-secondary btn-sm" type="button" id="cpu-select-matching">Select matching</button>
@@ -93,7 +101,7 @@
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" type="submit" value="export">Download CSV</button>
-            <button class="btn btn-primary" type="submit" value="view">View report</button>
+            <button class="btn btn-primary" id="cpu-view-report" type="submit" value="view" disabled>View report</button>
         </div>
     </form>
 </dialog>

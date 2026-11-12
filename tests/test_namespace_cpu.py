@@ -116,6 +116,20 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert client.get(base + "/clusters").json()[0]["collecting"] is False
     assert len(client.get(base, params=params).json()["rows"]) == 1
 
+    with Session(engine) as session:
+        existing = session.exec(select(NamespaceCPUDaily)).one()
+        extra = existing.model_dump()
+        extra.update(namespace="another-team", environment="UAT", usage_json="[8]", quota_json="[12]")
+        session.add(NamespaceCPUDaily(**extra))
+        session.commit()
+
+    filters = [("environment", "dev"), ("environment", "uat"), ("search", "TEAM"),
+               ("sort", "avg_vcpu"), ("descending", "true")]
+    sorted_rows = client.get(base, params=filters).json()["rows"]
+    assert [row["namespace"] for row in sorted_rows] == ["another-team", "team"]
+    download = client.get(base + "/export", params=[*filters, ("fields", "namespace")])
+    assert list(csv.reader(io.StringIO(download.text))) == [["namespace"], ["another-team"], ["team"]]
+
     assert client.post(base + "/run-now/1").status_code == 409
     assert client.post(base + "/run-now/2").status_code == 409
     assert http.get.call_count == 4

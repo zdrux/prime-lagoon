@@ -725,14 +725,11 @@ async function loadSummary(forceRefresh = false) {
 
                     <span style="font-weight:700; font-size:1rem;">Cluster Inventory</span>
 
-                    <div style="position:relative;">
+                    <div class="inventory-search">
 
-                        <i class="fas fa-search" style="position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); font-size:0.8rem; color:var(--text-secondary);"></i>
+                        <i class="fas fa-search" aria-hidden="true"></i>
 
-                        <input type="text" id="cluster-table-search" placeholder="Search clusters..." 
-
-                               style="padding:0.35rem 0.75rem 0.35rem 2rem; border-radius:15px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); font-size:0.8rem; width:220px;"
-
+                        <input type="search" id="cluster-table-search" aria-label="Search clusters" placeholder="Search clusters..."
                                oninput="applyDashboardFilters()">
 
                     </div>

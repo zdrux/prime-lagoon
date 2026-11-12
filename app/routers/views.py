@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -113,6 +115,7 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
     clusters_by_dc = _group_clusters_with_status(clusters, session)
 
     from app.routers.namespace_cpu import DEFAULT_FIELDS, REPORT_FIELDS
+    from app.services.namespace_cpu import eastern_today
 
     return templates.TemplateResponse(request, "reports.html", {
         "request": request,
@@ -123,6 +126,7 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
         "can_manage_reports": user.is_operator,
         "cpu_report_fields": REPORT_FIELDS,
         "cpu_default_fields": DEFAULT_FIELDS,
+        "cpu_latest_day": (eastern_today() - timedelta(days=1)).isoformat(),
         "page_access": template_page_access(user, session)
     })
 

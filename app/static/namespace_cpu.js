@@ -16,11 +16,6 @@
     const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
     const format = value => value === null ? '—' : number.format(value);
     const fieldLabels = JSON.parse(get('cpu-field-labels').textContent);
-    const dateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto',
-        year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
-    const datePart = type => dateParts.find(part => part.type === type).value;
-    const easternDate = Date.UTC(datePart('year'), Number(datePart('month')) - 1, datePart('day'));
-    const yesterday = new Date(easternDate - 86400000).toISOString().slice(0, 10);
 
     const fieldInputs = Array.from(document.querySelectorAll('input[name="cpu-field"]'));
     for (const input of fieldInputs) {
@@ -31,18 +26,161 @@
     }
     const selectedFields = form => Array.from(form.querySelectorAll('input[name="cpu-field"]:checked'),
         input => input.value);
+
+    const fieldLists = Array.from(document.querySelectorAll('.cpu-field-list'));
+    for (const list of fieldLists) {
+        let dragged;
+        let dropTarget;
+
+        function clearDropTarget() {
+            dropTarget?.classList.remove('drop-before', 'drop-after');
+            dropTarget = null;
+        }
+
+        function moveField(row, before) {
+            if (row === before) return;
+            list.insertBefore(row, before);
+            const order = Array.from(list.children, item => item.dataset.field);
+            for (const fieldList of fieldLists) {
+                if (fieldList !== list) {
+                    const rows = new Map(Array.from(fieldList.children, item => [item.dataset.field, item]));
+                    fieldList.append(...order.map(field => rows.get(field)));
+                }
+                for (const item of fieldList.children) {
+                    item.querySelector('[data-move="-1"]').disabled = !item.previousElementSibling;
+                    item.querySelector('[data-move="1"]').disabled = !item.nextElementSibling;
+                }
+            }
+            list.nextElementSibling.textContent = fieldLabels[row.dataset.field] + ' moved to position ' +
+                (order.indexOf(row.dataset.field) + 1) + ' of ' + order.length + '.';
+        }
+
+        list.addEventListener('click', event => {
+            const button = event.target.closest('[data-move]');
+            if (!button) return;
+            const row = button.closest('.cpu-field-row');
+            const before = button.dataset.move === '-1' ? row.previousElementSibling : row.nextElementSibling.nextElementSibling;
+            moveField(row, before);
+            (button.disabled ? row.querySelector('input') : button).focus();
+        });
+
+        list.addEventListener('dragstart', event => {
+            if (!event.target.closest('.cpu-field-handle')) return;
+            dragged = event.target.closest('.cpu-field-row');
+            event.dataTransfer.setData('text/plain', dragged.dataset.field);
+            event.dataTransfer.effectAllowed = 'move';
+        });
+        list.addEventListener('dragover', event => {
+            if (!dragged) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            clearDropTarget();
+            const target = event.target.closest('.cpu-field-row');
+            if (!target || target === dragged) return;
+            dropTarget = target;
+            const bounds = target.getBoundingClientRect();
+            target.classList.add(event.clientY < bounds.top + bounds.height / 2 ? 'drop-before' : 'drop-after');
+        });
+        list.addEventListener('drop', event => {
+            if (!dragged) return;
+            event.preventDefault();
+            if (dropTarget) {
+                moveField(dragged, dropTarget.classList.contains('drop-before') ? dropTarget : dropTarget.nextElementSibling);
+            }
+            clearDropTarget();
+            dragged = null;
+        });
+        list.addEventListener('dragend', () => {
+            clearDropTarget();
+            dragged = null;
+        });
+    }
     const environment = get('cpu-environment');
+    const activeEnvironments = new Set();
+    const sortableFields = new Set(['date_et', 'cluster', 'environment', 'namespace', 'mapid',
+        'cpu_limit_quota_vcpu', 'avg_vcpu', 'observed_cpu_vcpu_hours', 'hours_with_data']);
+    let sortField = '';
+    let descending = false;
+
+    function renderEnvironmentFilters(values) {
+        const focused = environment.contains(document.activeElement) ? document.activeElement.dataset.filter : null;
+        environment.replaceChildren();
+        for (const value of values) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'filter-btn';
+            button.dataset.filter = value;
+            button.textContent = value;
+            button.classList.toggle('active', activeEnvironments.has(value));
+            button.setAttribute('aria-pressed', String(activeEnvironments.has(value)));
+            button.addEventListener('click', () => {
+                if (activeEnvironments.has(value)) activeEnvironments.delete(value);
+                else activeEnvironments.add(value);
+                button.classList.toggle('active', activeEnvironments.has(value));
+                button.setAttribute('aria-pressed', String(activeEnvironments.has(value)));
+                loadPage(1);
+            });
+            environment.append(button);
+            if (focused === value) button.focus();
+        }
+    }
     const search = get('cpu-search');
     const defaultFields = selectedFields(get('cpu-report-form'));
+    const reportForm = get('cpu-report-form');
+    const viewButton = get('cpu-view-report');
+    let availabilityRequest;
+    let availabilityTimer;
+
+    function pickerParams() {
+        const ids = get('preview-cluster-list').querySelectorAll('input:checked');
+        const fields = selectedFields(reportForm);
+        if (!start.value || !end.value || start.value > end.value ||
+            start.value > start.max || end.value > end.max || !ids.length || !fields.length) return null;
+        const params = new URLSearchParams({ start: start.value, end: end.value });
+        ids.forEach(input => params.append('cluster_ids', input.value));
+        fields.forEach(field => params.append('fields', field));
+        return params;
+    }
+
+    function checkReportAvailability() {
+        viewButton.disabled = true;
+        availabilityRequest?.abort();
+        clearTimeout(availabilityTimer);
+        const params = pickerParams();
+        const status = get('cpu-picker-status');
+        if (!params) {
+            status.textContent = 'Choose a valid date range, at least one cluster, and at least one report field.';
+            return;
+        }
+        status.textContent = 'Checking for collected reports…';
+        availabilityTimer = setTimeout(async () => {
+            const controller = new AbortController();
+            availabilityRequest = controller;
+            try {
+                const data = await read(endpoint + '?' + params, { signal: controller.signal });
+                if (controller.signal.aborted) return;
+                viewButton.disabled = data.rows.length === 0;
+                const issue = data.collection_issues[0];
+                status.textContent = data.rows.length ? '' : issue
+                    ? [issue.day, issue.cluster, issue.status, issue.detail].filter(Boolean).join(' · ')
+                    : 'No collected reports match this selection.';
+            } catch (error) {
+                if (!controller.signal.aborted) status.textContent = error.message;
+            }
+        }, 200);
+    }
 
     function reportParams() {
         const params = new URLSearchParams(scope);
-        if (environment.value) params.set('environment', environment.value);
+        activeEnvironments.forEach(value => params.append('environment', value));
+        if (sortField) {
+            params.set('sort', sortField);
+            params.set('descending', String(descending));
+        }
         if (search.value.trim()) params.set('search', search.value.trim());
         if (!params.has('fields')) defaultFields.forEach(field => params.append('fields', field));
         return params;
     }
-    start.value = end.value = start.max = end.max = yesterday;
 
     async function read(url, options) {
         const response = await fetch(url, options);
@@ -74,7 +212,6 @@
             checkbox.addEventListener('change', () => {
                 if (checkbox.checked) selection.add(cluster.id);
                 else selection.delete(cluster.id);
-                get('cpu-picker-status').textContent = '';
             });
             const info = [cluster.environment, cluster.datacenter, cluster.collecting ? '' : 'historical only']
                 .filter(Boolean).join(' / ');
@@ -83,6 +220,7 @@
         }
         if (!matches.length) list.textContent = 'No clusters match these filters.';
         get('preview-count').textContent = matches.length;
+        checkReportAvailability();
     }
 
     window.toggleCpuClusterFilter = button => {
@@ -101,6 +239,8 @@
 
     get('cpu-open-picker').addEventListener('click', async () => {
         const status = get('cpu-picker-status');
+        viewButton.disabled = true;
+        get('preview-cluster-list').replaceChildren();
         status.textContent = 'Loading clusters…';
         picker.showModal();
         try {
@@ -110,7 +250,7 @@
                 initialized = true;
             }
             renderPicker();
-            status.textContent = clusters.length ? '' : 'Enable collection in Administration → Cluster Management.';
+            if (!clusters.length) status.textContent = 'Enable collection in Administration → Cluster Management.';
         } catch (error) {
             status.textContent = error.message;
         }
@@ -119,27 +259,23 @@
         button.addEventListener('click', () => get(button.dataset.close).close());
     });
 
-    get('cpu-report-form').addEventListener('submit', event => {
+    reportForm.addEventListener('input', checkReportAvailability);
+    picker.addEventListener('close', () => {
+        availabilityRequest?.abort();
+        clearTimeout(availabilityTimer);
+    });
+    reportForm.addEventListener('submit', event => {
         event.preventDefault();
-        const ids = Array.from(get('preview-cluster-list').querySelectorAll('input:checked'));
-        if (!ids.length || start.value > end.value) {
-            get('cpu-picker-status').textContent = ids.length ? 'Choose an end date on or after the start date.' : 'Select at least one matching cluster.';
-            return;
-        }
-        const fields = selectedFields(event.currentTarget);
-        if (!fields.length) {
-            get('cpu-picker-status').textContent = 'Choose at least one report field.';
-            return;
-        }
-        const query = new URLSearchParams({ start: start.value, end: end.value });
-        fields.forEach(field => query.append('fields', field));
-        ids.forEach(checkbox => query.append('cluster_ids', checkbox.value));
+        const query = pickerParams();
+        if (!query) return;
         if (event.submitter?.value === 'export') {
             window.location.assign(endpoint + '/export?' + query);
             return;
         }
+        if (viewButton.disabled) return;
         scope = query;
-        environment.value = search.value = '';
+        activeEnvironments.clear();
+        search.value = '';
         picker.close();
         loadPage(1);
     });
@@ -208,7 +344,8 @@
                 });
                 scope = new URLSearchParams({ start: job.day, end: job.day, cluster_ids: clusterId });
                 fields.forEach(field => scope.append('fields', field));
-                environment.value = search.value = '';
+                activeEnvironments.clear();
+                search.value = '';
                 run.close();
                 await loadPage(1);
             } catch (error) {
@@ -290,25 +427,46 @@
         const status = get('cpu-status');
         status.textContent = 'Loading report…';
         get('cpu-download-active').style.display = 'none';
-        get('cpu-results').hidden = true;
+        get('cpu-prev').disabled = get('cpu-next').disabled = true;
         get('cpu-issues').hidden = true;
         try {
             const data = await read(endpoint + '?' + params, { signal: request.signal });
             page = target;
-            const selectedEnvironment = environment.value;
-            environment.replaceChildren(new Option('All environments', ''));
-            for (const value of data.environments) environment.add(new Option(value, value));
-            environment.value = data.environments.includes(selectedEnvironment) ? selectedEnvironment : '';
+            renderEnvironmentFilters(data.environments);
             const body = get('cpu-result-rows');
             body.replaceChildren();
             const fields = params.getAll('fields');
             const header = get('cpu-result-head');
+            const focusedSort = header.contains(document.activeElement) ? document.activeElement.dataset.field : null;
             header.replaceChildren();
             for (const field of fields) {
                 const cell = document.createElement('th');
                 cell.scope = 'col';
-                cell.textContent = fieldLabels[field];
                 header.append(cell);
+                if (!sortableFields.has(field)) {
+                    cell.textContent = fieldLabels[field];
+                    continue;
+                }
+                cell.className = 'sortable-header';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'cpu-sort-button';
+                button.dataset.field = field;
+                const icon = document.createElement('i');
+                icon.className = 'fas sort-icon fa-sort';
+                icon.setAttribute('aria-hidden', 'true');
+                if (sortField === field) {
+                    cell.setAttribute('aria-sort', descending ? 'descending' : 'ascending');
+                    icon.className = 'fas sort-icon ' + (descending ? 'fa-sort-down' : 'fa-sort-up');
+                }
+                button.append(fieldLabels[field], icon);
+                button.addEventListener('click', () => {
+                    descending = sortField === field ? !descending : false;
+                    sortField = field;
+                    loadPage(1);
+                });
+                cell.append(button);
+                if (focusedSort === field) button.focus();
             }
             for (const row of data.rows) {
                 const line = body.insertRow();
@@ -339,12 +497,14 @@
             }
             get('cpu-issue-count').textContent = data.collection_issues.length + ' cluster-day collection issues';
             get('cpu-issues').hidden = !data.collection_issues.length;
-            get('cpu-results').hidden = false;
+            get('cpu-issues').open = !data.rows.length && data.collection_issues.length > 0;
             get('cpu-download-active').style.display = data.rows.length ? '' : 'none';
             get('cpu-prev').disabled = page === 1;
             get('cpu-next').disabled = !data.has_more;
             get('cpu-page').textContent = 'Page ' + page;
-            status.textContent = data.rows.length ? '' : 'No collected reports match this selection.';
+            status.textContent = data.rows.length ? '' : data.collection_issues.length
+                ? 'No collected reports match this selection. See the collection details below.'
+                : 'No collected reports match this selection.';
         } catch (error) {
             if (error.name !== 'AbortError') status.textContent = error.message;
         }
@@ -353,7 +513,6 @@
     get('cpu-prev').addEventListener('click', () => loadPage(page - 1));
     get('cpu-next').addEventListener('click', () => loadPage(page + 1));
     get('cpu-download-active').addEventListener('click', () => window.location.assign(endpoint + '/export?' + reportParams()));
-    environment.addEventListener('change', () => loadPage(1));
     search.addEventListener('input', () => {
         clearTimeout(searchTimer);
         request?.abort();
@@ -363,7 +522,8 @@
         const fields = scope.getAll('fields');
         scope = new URLSearchParams();
         fields.forEach(field => scope.append('fields', field));
-        environment.value = search.value = '';
+        activeEnvironments.clear();
+        search.value = '';
         loadPage(1);
     });
     loadPage(1);

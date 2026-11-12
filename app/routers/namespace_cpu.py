@@ -133,11 +133,11 @@ def scope_conditions(model, scope):
     return conditions
 
 
-def report_query(scope, environment: str, search: str):
+def report_query(scope, environments, search: str, sort: str, descending: bool):
     row = NamespaceCPUDaily
     statement = select(row).where(row.eastern_day == True, *scope_conditions(row, scope))
-    if environment:
-        statement = statement.where(func.upper(row.environment) == environment.upper())
+    if environments:
+        statement = statement.where(func.upper(row.environment).in_(environments))
     if search.strip():
         term = search.strip().lower()
         mapids = func.json_each(row.mapids_json).table_valued("value")
@@ -147,6 +147,22 @@ def report_query(scope, environment: str, search: str):
         ), select(1).select_from(mapids).where(
             func.lower(mapids.c.value).contains(term, autoescape=True)
         ).exists()))
+    usage = func.json_each(row.usage_json).table_valued("value")
+    labels = func.json_each(row.mapids_json).table_valued("value")
+    columns = {
+        "date_et": row.day,
+        "cluster": func.lower(row.cluster_name),
+        "environment": func.lower(row.environment),
+        "namespace": func.lower(row.namespace),
+        "mapid": select(func.min(func.lower(labels.c.value))).scalar_subquery(),
+        "cpu_limit_quota_vcpu": func.json_extract(row.quota_json, "$[#-1]"),
+        "avg_vcpu": select(func.avg(usage.c.value)).scalar_subquery(),
+        "observed_cpu_vcpu_hours": select(func.sum(usage.c.value)).scalar_subquery(),
+        "hours_with_data": select(func.count(usage.c.value)).scalar_subquery(),
+    }
+    column = columns.get(sort)
+    if column is not None:
+        statement = statement.order_by((column.desc() if descending else column.asc()).nulls_last())
     return statement.order_by(row.day.desc(), row.cluster_name, row.namespace, row.cluster_id)
 
 
@@ -177,17 +193,20 @@ def summarize(row: NamespaceCPUDaily):
 @router.get("")
 def view_report(
     scope=Depends(report_scope), page: int = Query(1, ge=1), session: Session = Depends(get_session),
-    environment: str = "", search: str = "",
+    environment: Annotated[list[str] | None, Query()] = None, search: str = "",
+    sort: str = "", descending: bool = False,
 ):
-    records = session.exec(report_query(scope, environment, search).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1)).all()
+    selected_envs = [value.upper() for value in environment or [] if value]
+    records = session.exec(report_query(scope, selected_envs, search, sort, descending)
+                           .offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE + 1)).all()
     environments = session.exec(select(func.upper(NamespaceCPUDaily.environment)).where(
         NamespaceCPUDaily.eastern_day == True, *scope_conditions(NamespaceCPUDaily, scope),
     ).distinct()).all()
     issues = select(NamespaceCPUCollection, Cluster.name).join(Cluster).where(
         *scope_conditions(NamespaceCPUCollection, scope),
     ).order_by(NamespaceCPUCollection.day.desc(), Cluster.name)
-    if environment:
-        issues = issues.where(func.upper(Cluster.environment) == environment.upper())
+    if selected_envs:
+        issues = issues.where(func.upper(Cluster.environment).in_(selected_envs))
     collections = session.exec(issues.where(
         NamespaceCPUCollection.status != "Collected",
         NamespaceCPUCollection.eastern_day == True,
@@ -202,7 +221,8 @@ def view_report(
             {"day": record.day, "cluster": name, "status": record.status, "detail": record.detail}
             for record, name in collections
         ] + [
-            {"day": record.day, "cluster": name, "status": "Awaiting Eastern time collection", "detail": record.detail}
+            {"day": record.day, "cluster": name, "status": "Awaiting Eastern time collection",
+             "detail": record.detail or "This report was collected in UTC and must be collected again."}
             for record, name in legacy
         ],
     }
@@ -218,7 +238,8 @@ def csv_cell(value):
 def export_report(
     scope=Depends(report_scope), session: Session = Depends(get_session),
     fields: Annotated[list[str] | None, Query()] = None,
-    environment: str = "", search: str = "",
+    environment: Annotated[list[str] | None, Query()] = None, search: str = "",
+    sort: str = "", descending: bool = False,
 ):
     selected = list(dict.fromkeys(fields)) if fields is not None else [*DEFAULT_FIELDS, "hourly_usage", "hourly_quota"]
     if not selected or any(field not in REPORT_FIELDS for field in selected):
@@ -245,7 +266,9 @@ def export_report(
                 columns.append(field)
         writer.writerow(columns)
         yield buffer.getvalue()
-        for row in session.exec(report_query(scope, environment, search).execution_options(yield_per=250)):
+        selected_envs = [value.upper() for value in environment or [] if value]
+        for row in session.exec(report_query(scope, selected_envs, search, sort, descending)
+                                .execution_options(yield_per=250)):
             values = summarize(row)
             keys = [hour.strftime("%H") + ("_repeat" if hour.fold else "") for hour in report_hours(row.day)]
             cells = []

@@ -24,6 +24,7 @@
     <h1 class="page-title">Namespace average vCPU by hour</h1>
     <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
         <a class="btn btn-secondary" id="cpu-download-active" style="display:none;">Download CSV</a>
+        <button class="btn btn-secondary" id="cpu-download-excel" type="button" hidden>Download Excel</button>
         {% if can_manage_reports %}
         <button class="btn btn-secondary" type="button" id="cpu-open-run">
             <i class="fas fa-play" aria-hidden="true"></i> Run Now
@@ -47,7 +48,7 @@
         <select id="cpu-result-day" class="form-input" style="width:auto;"></select>
         <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
             <button class="btn btn-secondary btn-sm" type="button" id="cpu-prev" disabled>Previous</button>
-            <span id="cpu-page"></span>
+            <span id="cpu-page" aria-live="polite"></span>
             <button class="btn btn-secondary btn-sm" type="button" id="cpu-next" disabled>Next</button>
         </div>
     </div>
@@ -72,8 +73,25 @@
     </div>
     <form id="cpu-run-form">
         <div class="modal-body">
-            <label for="cpu-run-cluster">Cluster</label>
-            <select id="cpu-run-cluster" class="form-input" required></select>
+            <fieldset>
+                <legend>Target clusters</legend>
+                <div class="cpu-report-toolbar" id="cpu-run-filters">
+                    {% for group, values in [('environment', ['DEV', 'UAT', 'PROD']), ('datacenter', ['AZURE', 'HCI'])] %}
+                    <div class="cpu-environment-filters" role="group" aria-label="Filter by {{ group }}">
+                        {% for value in values %}
+                        <button class="filter-btn" type="button" data-group="{{ group }}" data-value="{{ value }}" aria-pressed="false">{{ value }}</button>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="cpu-environment-filters">
+                        <button class="btn btn-secondary cpu-row-button" type="button" data-select="all">All</button>
+                        <button class="btn btn-secondary cpu-row-button" type="button" data-select="none">None</button>
+                        <button class="btn btn-secondary cpu-row-button" type="button" data-select="matching">Only Matching</button>
+                    </div>
+                </div>
+                <p id="cpu-run-selection" role="status"></p>
+                <div id="cpu-run-clusters" class="cpu-field-list"></div>
+            </fieldset>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1rem;">
                 <label>From (ET)<input type="date" class="form-input" id="cpu-run-start" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
                 <label>Through (ET)<input type="date" class="form-input" id="cpu-run-end" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
@@ -81,7 +99,7 @@
             {{ cpu_fields() }}
             <div id="cpu-run-progress" hidden>
                 <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                <progress id="cpu-run-days" aria-label="Days processed"></progress>
+                <progress id="cpu-run-days" aria-label="Cluster days processed"></progress>
             </div>
             <p id="cpu-run-status" role="status"></p>
         </div>
@@ -135,4 +153,4 @@
     </div>
 </dialog>
 <script id="cpu-field-labels" type="application/json">{{ cpu_report_fields | tojson }}</script>
-<script src="/static/namespace_cpu.js" defer></script>
+<script src="/static/namespace_cpu.js?v={{ namespace_cpu_script_version }}" defer></script>

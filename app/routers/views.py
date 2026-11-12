@@ -1,4 +1,6 @@
 from datetime import timedelta
+from hashlib import sha256
+from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,6 +14,8 @@ from app.services.page_access import require_page_access, template_page_access
 import json
 
 templates = Jinja2Templates(directory="app/templates")
+namespace_cpu_script = Path(__file__).resolve().parents[1] / "static" / "namespace_cpu.js"
+templates.env.globals["namespace_cpu_script_version"] = sha256(namespace_cpu_script.read_bytes()).hexdigest()[:16]
 templates.env.filters["fromjson"] = json.loads
 
 router = APIRouter(include_in_schema=False)

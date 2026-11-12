@@ -12,6 +12,7 @@
     let page = 1;
     const reportDay = get('cpu-result-day');
     const download = get('cpu-download-active');
+    const excel = get('cpu-download-excel');
     let request;
     let chart;
 
@@ -320,7 +321,67 @@
     const run = get('cpu-run');
     if (run) {
         const runForm = get('cpu-run-form');
-        const clusterPicker = get('cpu-run-cluster');
+        const clusterList = get('cpu-run-clusters');
+        const filters = get('cpu-run-filters');
+        const targets = new Set();
+        let available = [];
+
+        function matchingClusters() {
+            const groups = ['environment', 'datacenter'].map(group => [group, Array.from(
+                filters.querySelectorAll('[data-group="' + group + '"].active'), button => button.dataset.value
+            )]);
+            return available.filter(cluster => groups.every(([group, values]) =>
+                !values.length || values.includes((cluster[group] || '').toUpperCase())));
+        }
+
+        function updateSelection() {
+            get('cpu-run-selection').textContent = targets.size + ' of ' + available.length + ' clusters selected';
+            submit.disabled = running || !targets.size;
+        }
+
+        function renderTargets() {
+            clusterList.replaceChildren();
+            for (const cluster of matchingClusters()) {
+                const row = document.createElement('label');
+                row.className = 'cpu-field-row';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = targets.has(cluster.id);
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) targets.add(cluster.id);
+                    else targets.delete(cluster.id);
+                    updateSelection();
+                });
+                const name = document.createElement('strong');
+                name.style.flex = '1';
+                name.textContent = cluster.name;
+                row.append(checkbox, name);
+                for (const [value, color] of [[cluster.environment, 'green'], [cluster.datacenter, 'blue']]) {
+                    if (!value) continue;
+                    const badge = document.createElement('span');
+                    badge.className = 'badge badge-' + color;
+                    badge.textContent = value;
+                    row.append(badge);
+                }
+                clusterList.append(row);
+            }
+            if (!clusterList.children.length) clusterList.textContent = 'No matching opted-in clusters.';
+            updateSelection();
+        }
+
+        filters.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (!button || running) return;
+            if (button.dataset.group) {
+                button.setAttribute('aria-pressed', String(button.classList.toggle('active')));
+            } else {
+                const chosen = button.dataset.select === 'all' ? available
+                    : button.dataset.select === 'matching' ? matchingClusters() : [];
+                targets.clear();
+                chosen.forEach(cluster => targets.add(cluster.id));
+            }
+            renderTargets();
+        });
         const runStatus = get('cpu-run-status');
         const submit = get('cpu-run-submit');
         const runStart = get('cpu-run-start');
@@ -334,16 +395,15 @@
             if (running) return;
             submit.disabled = true;
             runStatus.textContent = 'Loading opted-in clusters…';
-            clusterPicker.replaceChildren(new Option('Select one cluster', ''));
             try {
-                const available = (await read(endpoint + '/clusters')).filter(cluster => cluster.collecting);
-                for (const cluster of available) {
-                    clusterPicker.add(new Option(cluster.name, cluster.id));
+                available = (await read(endpoint + '/clusters')).filter(cluster => cluster.collecting);
+                for (const id of targets) {
+                    if (!available.some(cluster => cluster.id === id)) targets.delete(id);
                 }
+                renderTargets();
                 runStatus.textContent = available.length
                     ? 'Choose the completed Eastern days to collect.'
                     : 'Enable collection in Administration → Cluster Management.';
-                submit.disabled = !available.length;
             } catch (error) {
                 runStatus.textContent = error.message;
             }
@@ -351,7 +411,7 @@
 
         runForm.addEventListener('submit', async event => {
             event.preventDefault();
-            if (running || !clusterPicker.value) return;
+            if (running || !targets.size) return;
             if (runStart.value > runEnd.value) {
                 runStatus.textContent = 'Choose an end date on or after the start date.';
                 return;
@@ -362,48 +422,56 @@
                 return;
             }
             running = true;
-            submit.disabled = clusterPicker.disabled = true;
+            submit.disabled = true;
+            const targetClusters = available.filter(cluster => targets.has(cluster.id));
+            filters.inert = clusterList.inert = true;
             runStart.disabled = runEnd.disabled = true;
             runDays.removeAttribute('value');
             runProgress.hidden = false;
             runStatus.textContent = 'Starting collection…';
             try {
-                const url = endpoint + '/run-now/' + clusterPicker.value;
                 const dates = new URLSearchParams({ start: runStart.value, end: runEnd.value });
-                const job = await read(url + '?' + dates, { method: 'POST' });
-                let outcome;
-                do {
-                    await new Promise(resolve => setTimeout(resolve, 1500));
-                    outcome = await read(url + '?' + dates);
-                    runDays.max = outcome.total;
-                    runDays.value = outcome.completed;
-                    runStatus.textContent = outcome.completed + ' of ' + outcome.total + ' days processed · ' +
-                        (outcome.detail || outcome.status);
-                } while (outcome.status === 'Running');
-                if (outcome.status === 'Failed') {
-                    runStatus.textContent = outcome.detail || 'No reports were collected.';
-                    if (!run.open) get('cpu-status').textContent = runStatus.textContent;
-                    return;
+                const days = (runEnd.valueAsNumber - runStart.valueAsNumber) / 86400000 + 1;
+                runDays.max = days * targetClusters.length;
+                const issues = [];
+                for (const [index, cluster] of targetClusters.entries()) {
+                    const url = endpoint + '/run-now/' + cluster.id + '?' + dates;
+                    runStatus.textContent = cluster.name + ' · Starting collection…';
+                    try {
+                        await read(url, { method: 'POST' });
+                        let outcome;
+                        do {
+                            await new Promise(resolve => setTimeout(resolve, 1500));
+                            outcome = await read(url);
+                            runDays.value = index * days + outcome.completed;
+                            runStatus.textContent = cluster.name + ' · ' + runDays.value + ' of ' +
+                                runDays.max + ' cluster days processed · ' + (outcome.detail || outcome.status);
+                        } while (outcome.status === 'Running');
+                        if (outcome.status !== 'Collected') issues.push(cluster.name + ' · ' + (outcome.detail || outcome.status));
+                    } catch (error) {
+                        issues.push(cluster.name + ' · ' + error.message);
+                    }
+                    runDays.value = (index + 1) * days;
                 }
 
-                const clusterId = Number(job.cluster_id);
-                start.value = job.start;
-                end.value = job.end;
+                start.value = runStart.value;
+                end.value = runEnd.value;
                 selection.clear();
-                selection.add(clusterId);
+                targetClusters.forEach(cluster => selection.add(cluster.id));
                 picker.querySelectorAll('.report-filter.active').forEach(button => {
                     button.classList.remove('active');
                     button.setAttribute('aria-pressed', 'false');
                 });
-                scope = new URLSearchParams({ start: job.start, end: job.end, cluster_ids: clusterId });
+                scope = new URLSearchParams(dates);
+                targetClusters.forEach(cluster => scope.append('cluster_ids', cluster.id));
                 reportDay.value = '';
                 fields.forEach(field => scope.append('fields', field));
                 activeEnvironments.clear();
                 search.value = '';
                 run.close();
                 await loadPage(1);
-                if (outcome.status === 'Partial') {
-                    get('cpu-status').textContent = 'Collection completed with issues · ' + outcome.detail;
+                if (issues.length) {
+                    get('cpu-status').textContent = 'Collection issues · ' + issues.join(' | ');
                     get('cpu-issues').open = true;
                 }
             } catch (error) {
@@ -411,7 +479,8 @@
                 if (!run.open) get('cpu-status').textContent = error.message;
             } finally {
                 running = false;
-                submit.disabled = clusterPicker.disabled = false;
+                filters.inert = clusterList.inert = false;
+                updateSelection();
                 runStart.disabled = runEnd.disabled = false;
                 runProgress.hidden = true;
             }
@@ -495,6 +564,7 @@
         const status = get('cpu-status');
         status.textContent = 'Loading report…';
         download.style.display = 'none';
+        excel.hidden = true;
         get('cpu-prev').disabled = get('cpu-next').disabled = true;
         get('cpu-issues').hidden = true;
         try {
@@ -578,6 +648,7 @@
             get('cpu-issues').open = !data.rows.length && data.collection_issues.length > 0;
             download.href = exportUrl;
             download.style.display = data.days.length ? '' : 'none';
+            excel.hidden = !data.days.length;
             download.textContent = scope.has('start') ? 'Download range CSV' : 'Download CSV';
             get('cpu-prev').disabled = page === 1;
             get('cpu-next').disabled = !data.has_more;
@@ -596,6 +667,57 @@
     get('cpu-prev').addEventListener('click', () => loadPage(page - 1));
     get('cpu-next').addEventListener('click', () => loadPage(page + 1));
     reportDay.addEventListener('change', () => loadPage(1));
+    excel.addEventListener('click', async () => {
+        const status = get('cpu-status');
+        excel.disabled = true;
+        try {
+            if (!window.XLSX) throw new Error('Excel export is unavailable. Use Download CSV.');
+            const url = new URL(download.href);
+            const fields = url.searchParams.getAll('fields');
+            const includeCluster = fields.includes('cluster');
+            if (!includeCluster) url.searchParams.append('fields', 'cluster');
+            url.searchParams.set('include_cluster_id', 'true');
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Unable to load data for Excel export.');
+            const csv = XLSX.read(await response.text(), { type: 'string', raw: true });
+            const [headers = [], ...rows] = XLSX.utils.sheet_to_json(csv.Sheets[csv.SheetNames[0]], {
+                header: 1, defval: '', blankrows: false,
+            });
+            const clusterColumn = headers.indexOf('cluster');
+            const idColumn = headers.indexOf('cluster_id');
+            if (clusterColumn < 0 || idColumn < 0) throw new Error('Unable to identify clusters in the export.');
+            const groups = new Map();
+            for (const row of rows) {
+                const id = row[idColumn];
+                if (!groups.has(id)) groups.set(id, { cluster: row[clusterColumn], values: [] });
+                groups.get(id).values.push(row);
+            }
+            if (!groups.size) throw new Error('No report rows are available to export.');
+            const workbook = XLSX.utils.book_new();
+            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_limit_quota_vcpu$|observed_cpu_vcpu_hours$|hours_with_data$)/.test(header));
+            for (const { cluster, values } of groups.values()) {
+                const base = (String(cluster).replace(/[\\/:?*\[\]]/g, ' ').replace(/^'+|'+$/g, '').trim() || 'Cluster').slice(0, 31);
+                let name = base;
+                let suffix = 2;
+                while (workbook.SheetNames.some(existing => existing.toLowerCase() === name.toLowerCase())) {
+                    const ending = ' (' + suffix++ + ')';
+                    name = base.slice(0, 31 - ending.length) + ending;
+                }
+                const visible = row => row.filter((_, index) => index !== idColumn && (includeCluster || index !== clusterColumn));
+                const sheet = XLSX.utils.aoa_to_sheet([visible(headers), ...values.map(row => visible(
+                    row.map((value, index) => numericColumns[index] && value !== '' ? {
+                        t: 'n', v: Number(value), z: headers[index] === 'hours_with_data' ? '0' : '0.00',
+                    } : value)
+                ))]);
+                XLSX.utils.book_append_sheet(workbook, sheet, name);
+            }
+            XLSX.writeFile(workbook, 'namespace-cpu.xlsx');
+        } catch (error) {
+            status.textContent = error.message;
+        } finally {
+            excel.disabled = false;
+        }
+    });
     search.addEventListener('input', () => {
         clearTimeout(searchTimer);
         request?.abort();

@@ -286,7 +286,7 @@ def export_report(
     scope=Depends(report_scope), session: Session = Depends(get_session),
     fields: Annotated[list[str] | None, Query()] = None,
     environment: Annotated[list[str] | None, Query()] = None, search: str = "",
-    sort: str = "", descending: bool = False,
+    sort: str = "", descending: bool = False, include_cluster_id: bool = False,
 ):
     selected = list(dict.fromkeys(fields)) if fields is not None else [*DEFAULT_FIELDS, "hourly_usage", "hourly_quota"]
     if not selected or any(field not in REPORT_FIELDS for field in selected):
@@ -311,7 +311,7 @@ def export_report(
                 columns.extend(f"{prefix}_{hour}_et" for hour in hour_keys)
             else:
                 columns.append(field)
-        writer.writerow(columns)
+        writer.writerow([*columns, "cluster_id"] if include_cluster_id else columns)
         yield buffer.getvalue()
         selected_envs = [value.upper() for value in environment or [] if value]
         for row in session.exec(report_query(scope, selected_envs, search, sort, descending)
@@ -327,7 +327,7 @@ def export_report(
                     cells.append(csv_cell(values[field]))
             buffer.seek(0)
             buffer.truncate()
-            writer.writerow(cells)
+            writer.writerow([*cells, row.cluster_id] if include_cluster_id else cells)
             yield buffer.getvalue()
 
     return StreamingResponse(generate(), media_type="text/csv", headers={

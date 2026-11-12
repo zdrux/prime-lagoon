@@ -7,7 +7,9 @@ WORKDIR /app
 
 # Copy requirements and install
 COPY requirements.txt .
-RUN pip install --no-cache-dir --progress-bar off -r requirements.txt
+COPY pip.config /tmp/pip.config
+RUN PIP_CONFIG_FILE=/tmp/pip.config \
+    pip install --no-cache-dir --progress-bar off -r requirements.txt && rm -f /tmp/pip.config
 
 # Copy application code
 COPY . .

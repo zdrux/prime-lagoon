@@ -255,12 +255,14 @@
         const runEnd = get('cpu-run-end');
         const runProgress = get('cpu-run-progress');
         const runDays = get('cpu-run-days');
-        const lastWeek = get('cpu-last-week');
+        const datePresets = get('cpu-date-presets');
         let running = false;
 
-        lastWeek.addEventListener('click', () => {
-            runStart.value = lastWeek.dataset.start;
-            runEnd.value = lastWeek.dataset.end;
+        datePresets.addEventListener('click', event => {
+            const preset = event.target.closest('button');
+            if (!preset || running) return;
+            runStart.value = preset.dataset.start;
+            runEnd.value = preset.dataset.end;
         });
 
         async function readRunStatus(url) {
@@ -321,7 +323,7 @@
             submit.disabled = true;
             const targetClusters = available.filter(cluster => targets.has(cluster.id));
             filters.inert = clusterList.inert = true;
-            runStart.disabled = runEnd.disabled = lastWeek.disabled = true;
+            runStart.disabled = runEnd.disabled = datePresets.inert = true;
             runDays.removeAttribute('value');
             runProgress.hidden = false;
             runStatus.textContent = 'Starting collection…';
@@ -394,7 +396,7 @@
                 running = false;
                 filters.inert = clusterList.inert = false;
                 updateSelection();
-                runStart.disabled = runEnd.disabled = lastWeek.disabled = false;
+                runStart.disabled = runEnd.disabled = datePresets.inert = false;
                 runProgress.hidden = true;
             }
         });

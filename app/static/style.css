@@ -847,9 +847,26 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
     border-radius: 0.35rem;
 }
 
-#cpu-last-week,
+.cpu-run-selection-actions {
+    margin-left: auto;
+}
+
+#cpu-date-presets,
 .cpu-run-fields {
     margin-top: 0.75rem;
+}
+
+.cpu-run-fields > summary {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.35rem;
+    background: var(--bg-primary);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cpu-run-fields > summary:hover {
+    border-color: var(--accent-color);
 }
 
 .data-table tbody tr:hover {

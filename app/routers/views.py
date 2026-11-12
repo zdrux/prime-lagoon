@@ -125,6 +125,7 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
 
     today = eastern_today()
     last_saturday = today - timedelta(days=(today.weekday() + 1) % 7 + 1)
+    prior_month_end = today.replace(day=1) - timedelta(days=1)
 
     return templates.TemplateResponse(request, "reports.html", {
         "request": request,
@@ -138,6 +139,8 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
         "cpu_latest_day": (today - timedelta(days=1)).isoformat(),
         "cpu_last_week_start": (last_saturday - timedelta(days=6)).isoformat(),
         "cpu_last_week_end": last_saturday.isoformat(),
+        "cpu_prior_month_start": prior_month_end.replace(day=1).isoformat(),
+        "cpu_prior_month_end": prior_month_end.isoformat(),
         "page_access": template_page_access(user, session)
     })
 

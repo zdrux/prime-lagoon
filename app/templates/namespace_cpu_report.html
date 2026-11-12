@@ -81,7 +81,7 @@
                         {% endfor %}
                     </div>
                     {% endfor %}
-                    <div class="cpu-environment-filters">
+                    <div class="cpu-environment-filters cpu-run-selection-actions" role="group" aria-label="Select target clusters">
                         <button class="btn btn-secondary cpu-row-button" type="button" data-select="all">All</button>
                         <button class="btn btn-secondary cpu-row-button" type="button" data-select="none">None</button>
                         <button class="btn btn-secondary cpu-row-button" type="button" data-select="matching">Only Matching</button>
@@ -94,8 +94,12 @@
                 <label>From (ET)<input type="date" class="form-input" id="cpu-run-start" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
                 <label>Through (ET)<input type="date" class="form-input" id="cpu-run-end" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
             </div>
-            <button class="btn btn-secondary cpu-row-button" id="cpu-last-week" type="button"
-                    data-start="{{ cpu_last_week_start }}" data-end="{{ cpu_last_week_end }}">Last week</button>
+            <div class="cpu-environment-filters" id="cpu-date-presets" role="group" aria-label="Date presets">
+                <button class="btn btn-secondary cpu-row-button" type="button"
+                        data-start="{{ cpu_last_week_start }}" data-end="{{ cpu_last_week_end }}">Prior week</button>
+                <button class="btn btn-secondary cpu-row-button" type="button"
+                        data-start="{{ cpu_prior_month_start }}" data-end="{{ cpu_prior_month_end }}">Prior month</button>
+            </div>
             <details class="cpu-run-fields">
                 <summary>Report fields</summary>
                 {{ cpu_fields() }}

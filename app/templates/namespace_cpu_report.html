@@ -1,8 +1,7 @@
 {% macro cpu_fields() %}
-<fieldset style="margin:1rem 0;">
-    <legend>Report fields</legend>
+<fieldset aria-label="Report fields" style="margin:0.5rem 0 1rem;">
     <p class="cpu-field-help">Choose fields and drag to reorder, or use the arrow buttons.</p>
-    <ul class="cpu-field-list">
+    <ul class="cpu-field-list" data-report-fields>
         {% for key, label in cpu_report_fields.items() %}
         <li class="cpu-field-row" data-field="{{ key }}">
             <span class="cpu-field-handle" draggable="true" aria-hidden="true"><i class="fas fa-grip-vertical"></i></span>
@@ -31,14 +30,15 @@
     </div>
 </div>
 
-<section class="card" id="cpu-results">
+<p id="cpu-run-summary" role="status">{% if can_manage_reports %}Use Run Now to collect a report.{% else %}Run Now requires report management access.{% endif %}</p>
+<ul id="cpu-run-failures" hidden></ul>
+<section class="card" id="cpu-results" hidden>
     <div class="resource-header cpu-report-toolbar">
         <div class="inventory-search">
             <i class="fas fa-search" aria-hidden="true"></i>
             <input id="cpu-search" type="search" aria-label="Search reports" placeholder="Search reports...">
         </div>
         <div id="cpu-environment" class="cpu-environment-filters" role="group" aria-label="Filter by environment"></div>
-        <button id="cpu-show-all" class="btn btn-secondary" type="button" hidden>Show all reports</button>
         <label for="cpu-result-day">Report day (ET)</label>
         <select id="cpu-result-day" class="form-input" style="width:auto;"></select>
         <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
@@ -47,8 +47,10 @@
             <button class="btn btn-secondary btn-sm" type="button" id="cpu-next" disabled>Next</button>
         </div>
     </div>
-    <p id="cpu-visible-scope" aria-label="Clusters and environments in the filtered report" hidden></p>
-    <p id="cpu-status" role="status">Loading reports…</p>
+    <div id="cpu-visible-scope" role="group" aria-label="Filter results by cluster" style="margin:0.5rem 0;" hidden>
+        <div id="cpu-cluster-filters" class="cpu-environment-filters"></div>
+    </div>
+    <p id="cpu-status" role="status"></p>
     <details id="cpu-issues" hidden>
         <summary id="cpu-issue-count"></summary>
         <ul id="cpu-issue-list"></ul>
@@ -92,7 +94,12 @@
                 <label>From (ET)<input type="date" class="form-input" id="cpu-run-start" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
                 <label>Through (ET)<input type="date" class="form-input" id="cpu-run-end" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
             </div>
-            {{ cpu_fields() }}
+            <button class="btn btn-secondary cpu-row-button" id="cpu-last-week" type="button"
+                    data-start="{{ cpu_last_week_start }}" data-end="{{ cpu_last_week_end }}">Last week</button>
+            <details class="cpu-run-fields">
+                <summary>Report fields</summary>
+                {{ cpu_fields() }}
+            </details>
             <div id="cpu-run-progress" hidden>
                 <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                 <progress id="cpu-run-days" aria-label="Cluster days processed"></progress>
@@ -124,6 +131,5 @@
         </details>
     </div>
 </dialog>
-<script id="cpu-default-fields" type="application/json">{{ cpu_default_fields | tojson }}</script>
 <script id="cpu-field-labels" type="application/json">{{ cpu_report_fields | tojson }}</script>
 <script src="/static/namespace_cpu.js?v={{ namespace_cpu_script_version }}" defer></script>

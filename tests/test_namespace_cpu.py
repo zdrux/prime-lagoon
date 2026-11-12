@@ -166,6 +166,14 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert http.get.call_count == 11
     assert len(client.get(base, params=params).json()["rows"]) == 1
 
+    http.get.side_effect = namespace_cpu.requests.ReadTimeout
+    assert client.post(run_url).status_code == 202
+    timed_out = client.get(run_url, params={"day": yesterday.isoformat()}).json()
+    assert timed_out["status"] == "Failed"
+    assert "timed out after 3 attempts" in timed_out["detail"]
+    assert timed_out["collected_days"] == []
+    assert http.get.call_count == 14
+
     from app.routers import namespace_cpu as report_api
 
     with Session(engine) as session:
@@ -181,6 +189,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     outcome = client.get(run_url, params=dates).json()
     assert outcome["status"] == "Partial"
     assert outcome["completed"] == outcome["total"] == 2
+    assert outcome["collected_days"] == [yesterday.isoformat()]
     assert [call.args[1] for call in collect.call_args_list] == [old_day, yesterday]
     assert client.post(run_url, params={**dates, "end": today.isoformat()}).status_code == 422
 
@@ -192,13 +201,27 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(report_api, "PAGE_SIZE", 1)
     first = client.get(base, params=dates).json()
     assert first["page_count"] == 2
-    assert first["targets"] == [{"cluster": "enabled", "environment": "DEV"}]
+    assert first["targets"] == [{"cluster": "enabled", "environment": "DEV", "id": 1}]
     assert first["has_more"]
     assert first["days"] == [{"day": day, "count": 1} for day in (dates["end"], dates["start"])]
     assert client.get(base, params={**dates, "page": 2}).json()["rows"][0]["date_et"] == dates["start"]
     assert client.get(base, params={**dates, "report_day": dates["start"]}).json()["total"] == 1
     exported_range = client.get(base + "/export", params={**dates, "fields": "date_et"})
     assert list(csv.reader(io.StringIO(exported_range.text))) == [["date_et"], [dates["end"]], [dates["start"]]]
+    run_results = {**dates, "collected_day": f"1:{outcome['collected_days'][0]}"}
+    assert [row["date_et"] for row in client.get(base, params=run_results).json()["rows"]] == [dates["end"]]
+    run_csv = client.get(base + "/export", params={**run_results, "fields": "date_et"})
+    assert list(csv.reader(io.StringIO(run_csv.text))) == [["date_et"], [dates["end"]]]
+
+    with Session(engine) as session:
+        session.add(NamespaceCPUDaily(**{**previous, "cluster_id": 2, "cluster_name": "disabled"}))
+        session.commit()
+    filtered = client.get(base, params={**dates, "result_cluster_id": 2}).json()
+    assert {target["id"] for target in filtered["targets"]} == {1, 2}
+    assert filtered["total"] == 1
+    assert filtered["rows"][0]["cluster"] == "disabled"
+    filtered_csv = client.get(base + "/export", params={**dates, "result_cluster_id": 2, "fields": "cluster"})
+    assert list(csv.reader(io.StringIO(filtered_csv.text))) == [["cluster"], ["disabled"]]
 
 
 

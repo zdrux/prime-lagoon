@@ -123,6 +123,9 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
     from app.routers.namespace_cpu import DEFAULT_FIELDS, REPORT_FIELDS
     from app.services.namespace_cpu import eastern_today
 
+    today = eastern_today()
+    last_saturday = today - timedelta(days=(today.weekday() + 1) % 7 + 1)
+
     return templates.TemplateResponse(request, "reports.html", {
         "request": request,
         "page": "reports",
@@ -132,7 +135,9 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
         "can_manage_reports": user.is_operator,
         "cpu_report_fields": REPORT_FIELDS,
         "cpu_default_fields": DEFAULT_FIELDS,
-        "cpu_latest_day": (eastern_today() - timedelta(days=1)).isoformat(),
+        "cpu_latest_day": (today - timedelta(days=1)).isoformat(),
+        "cpu_last_week_start": (last_saturday - timedelta(days=6)).isoformat(),
+        "cpu_last_week_end": last_saturday.isoformat(),
         "page_access": template_page_access(user, session)
     })
 

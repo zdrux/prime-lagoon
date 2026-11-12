@@ -1,12 +1,16 @@
 (() => {
     const endpoint = '/api/reporting/namespace-cpu';
     const get = id => document.getElementById(id);
-    let scope = new URLSearchParams();
+    let scope;
+    let activeCluster = null;
     let searchTimer;
     let page = 1;
     const reportDay = get('cpu-result-day');
     const download = get('cpu-download-active');
     const excel = get('cpu-download-excel');
+    const results = get('cpu-results');
+    const runSummary = get('cpu-run-summary');
+    const runFailures = get('cpu-run-failures');
     let request;
     let chart;
 
@@ -14,11 +18,10 @@
     const format = value => value === null ? '—' : number.format(value);
     const fieldLabels = JSON.parse(get('cpu-field-labels').textContent);
     const fieldStorageKey = 'ocp_namespace_cpu_report_fields';
-    const fieldLists = Array.from(document.querySelectorAll('.cpu-field-list'));
+    const fieldLists = Array.from(document.querySelectorAll('[data-report-fields]'));
     const reportForm = get('cpu-run-form');
     const selectedFields = form => Array.from(form.querySelectorAll('input[name="cpu-field"]:checked'),
         input => input.value);
-    const defaultFields = JSON.parse(get('cpu-default-fields').textContent);
 
     function saveFieldPreferences(list) {
         const preferences = Array.from(list.children, row => [row.dataset.field, row.querySelector('input').checked]);
@@ -55,15 +58,12 @@
     } catch {
         // Use the rendered defaults if stored preferences cannot be read.
     }
-    const restoredFields = reportForm ? selectedFields(reportForm) : [];
-    const initialFields = restoredFields.length ? restoredFields : defaultFields;
-
     const fieldInputs = Array.from(document.querySelectorAll('input[name="cpu-field"]'));
     for (const input of fieldInputs) {
         input.addEventListener('change', () => {
             fieldInputs.filter(other => other.value === input.value)
                 .forEach(other => { other.checked = input.checked; });
-            saveFieldPreferences(input.closest('.cpu-field-list'));
+            saveFieldPreferences(input.closest('[data-report-fields]'));
         });
     }
 
@@ -160,13 +160,13 @@
     const search = get('cpu-search');
     function reportParams() {
         const params = new URLSearchParams(scope);
+        if (activeCluster !== null) params.set('result_cluster_id', activeCluster);
         activeEnvironments.forEach(value => params.append('environment', value));
         if (sortField) {
             params.set('sort', sortField);
             params.set('descending', String(descending));
         }
         if (search.value.trim()) params.set('search', search.value.trim());
-        if (!params.has('fields')) initialFields.forEach(field => params.append('fields', field));
         return params;
     }
 
@@ -174,7 +174,9 @@
         const response = await fetch(url, options);
         if (!response.ok) {
             const error = await response.json().catch(() => ({}));
-            throw new Error(typeof error.detail === 'string' ? error.detail : 'Unable to load the report.');
+            const failure = new Error(typeof error.detail === 'string' ? error.detail : 'Request failed (HTTP ' + response.status + ').');
+            failure.status = response.status;
+            throw failure;
         }
         return response.json();
     }
@@ -253,7 +255,27 @@
         const runEnd = get('cpu-run-end');
         const runProgress = get('cpu-run-progress');
         const runDays = get('cpu-run-days');
+        const lastWeek = get('cpu-last-week');
         let running = false;
+
+        lastWeek.addEventListener('click', () => {
+            runStart.value = lastWeek.dataset.start;
+            runEnd.value = lastWeek.dataset.end;
+        });
+
+        async function readRunStatus(url) {
+            for (let attempt = 1; ; attempt++) {
+                try {
+                    return await read(url, { signal: AbortSignal.timeout(15000) });
+                } catch (error) {
+                    if (attempt === 3 || (error.status && error.status < 500 && ![408, 429].includes(error.status))) {
+                        if (error.name === 'TimeoutError') throw new Error('Timed out checking collection status.');
+                        throw error;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+                }
+            }
+        }
 
         get('cpu-open-run').addEventListener('click', async () => {
             run.showModal();
@@ -287,10 +309,19 @@
                 return;
             }
             running = true;
+            scope = null;
+            clearTimeout(searchTimer);
+            request?.abort();
+            results.hidden = true;
+            download.style.display = 'none';
+            excel.hidden = true;
+            runSummary.textContent = 'Collecting report…';
+            runFailures.replaceChildren();
+            runFailures.hidden = true;
             submit.disabled = true;
             const targetClusters = available.filter(cluster => targets.has(cluster.id));
             filters.inert = clusterList.inert = true;
-            runStart.disabled = runEnd.disabled = true;
+            runStart.disabled = runEnd.disabled = lastWeek.disabled = true;
             runDays.removeAttribute('value');
             runProgress.hidden = false;
             runStatus.textContent = 'Starting collection…';
@@ -299,46 +330,71 @@
                 const days = (runEnd.valueAsNumber - runStart.valueAsNumber) / 86400000 + 1;
                 runDays.max = days * targetClusters.length;
                 const issues = [];
+                const collectedDays = [];
                 for (const [index, cluster] of targetClusters.entries()) {
                     const url = endpoint + '/run-now/' + cluster.id + '?' + dates;
                     runStatus.textContent = cluster.name + ' · Starting collection…';
+                    let outcome;
                     try {
-                        await read(url, { method: 'POST' });
-                        let outcome;
+                        await read(url, { method: 'POST', signal: AbortSignal.timeout(15000) });
+                        // Allow four queries per day, each with up to three attempts and backoff.
+                        const dayTimeout = 15 * 60 * 1000;
+                        let deadline = performance.now() + dayTimeout;
                         do {
                             await new Promise(resolve => setTimeout(resolve, 1500));
-                            outcome = await read(url);
+                            const status = await readRunStatus(url);
+                            if (status.completed > (outcome?.completed ?? 0)) deadline = performance.now() + dayTimeout;
+                            outcome = status;
                             runDays.value = index * days + outcome.completed;
                             runStatus.textContent = cluster.name + ' · ' + runDays.value + ' of ' +
                                 runDays.max + ' cluster days processed · ' + (outcome.detail || outcome.status);
+                            if (outcome.status === 'Running' && performance.now() >= deadline) {
+                                throw new Error('Collection stopped making progress. Last status: ' + outcome.detail);
+                            }
                         } while (outcome.status === 'Running');
                         if (outcome.status !== 'Collected') issues.push(cluster.name + ' · ' + (outcome.detail || outcome.status));
                     } catch (error) {
-                        issues.push(cluster.name + ' · ' + error.message);
+                        const reason = error.name === 'TimeoutError' ? 'Timed out starting collection.' : error.message;
+                        issues.push(cluster.name + ' · ' + reason);
                     }
+                    for (const day of outcome?.collected_days || []) collectedDays.push(cluster.id + ':' + day);
                     runDays.value = (index + 1) * days;
                 }
 
+                run.close();
+                runSummary.textContent = issues.length ? 'Collection issues for ' + issues.length + ' cluster(s)' : '';
+                for (const issue of issues) {
+                    const item = document.createElement('li');
+                    item.textContent = issue;
+                    runFailures.append(item);
+                }
+                runFailures.hidden = !issues.length;
+                if (!collectedDays.length) {
+                    if (!issues.length) runSummary.textContent = 'This run collected no report rows.';
+                    return;
+                }
                 scope = new URLSearchParams(dates);
+                collectedDays.forEach(day => scope.append('collected_day', day));
+                activeCluster = null;
                 targetClusters.forEach(cluster => scope.append('cluster_ids', cluster.id));
                 reportDay.value = '';
                 fields.forEach(field => scope.append('fields', field));
                 activeEnvironments.clear();
                 search.value = '';
-                run.close();
+                get('cpu-result-rows').replaceChildren();
+                get('cpu-result-head').replaceChildren();
+                get('cpu-visible-scope').hidden = true;
+                environment.replaceChildren();
+                results.hidden = false;
                 await loadPage(1);
-                if (issues.length) {
-                    get('cpu-status').textContent = 'Collection issues · ' + issues.join(' | ');
-                    get('cpu-issues').open = true;
-                }
             } catch (error) {
                 runStatus.textContent = error.message;
-                if (!run.open) get('cpu-status').textContent = error.message;
+                runSummary.textContent = error.message;
             } finally {
                 running = false;
                 filters.inert = clusterList.inert = false;
                 updateSelection();
-                runStart.disabled = runEnd.disabled = false;
+                runStart.disabled = runEnd.disabled = lastWeek.disabled = false;
                 runProgress.hidden = true;
             }
         });
@@ -409,6 +465,7 @@
     }
 
     async function loadPage(target) {
+        if (!scope) return;
         clearTimeout(searchTimer);
         request?.abort();
         request = new AbortController();
@@ -417,16 +474,18 @@
         const day = reportDay.value;
         if (day) params.set('report_day', day);
         params.set('page', target);
-        get('cpu-show-all').hidden = !scope.has('start');
         const status = get('cpu-status');
         status.textContent = 'Loading report…';
-        get('cpu-visible-scope').hidden = true;
         download.style.display = 'none';
         excel.hidden = true;
         get('cpu-prev').disabled = get('cpu-next').disabled = true;
         get('cpu-issues').hidden = true;
         try {
             const data = await read(endpoint + '?' + params, { signal: request.signal });
+            if (activeCluster !== null && !data.targets.some(target => target.id === activeCluster)) {
+                activeCluster = null;
+                return loadPage(1);
+            }
             page = data.page;
             reportDay.replaceChildren(new Option('All collected days (' + data.days.length + ')', ''));
             for (const entry of data.days) {
@@ -507,13 +566,33 @@
             download.href = exportUrl;
             download.style.display = data.days.length ? '' : 'none';
             excel.hidden = !data.days.length;
-            download.textContent = scope.has('start') ? 'Download range CSV' : 'Download CSV';
             get('cpu-prev').disabled = page === 1;
             get('cpu-next').disabled = !data.has_more;
             get('cpu-page').textContent = 'Page ' + page + ' of ' + data.page_count;
-            get('cpu-visible-scope').textContent = data.targets.map(target =>
-                target.cluster + (target.environment ? ' (' + target.environment + ')' : '')
-            ).join(' · ');
+            const clusterFilters = get('cpu-cluster-filters');
+            const focused = clusterFilters.contains(document.activeElement) ? document.activeElement.dataset.cluster : null;
+            clusterFilters.replaceChildren();
+            const labels = new Map();
+            for (const { id, cluster, environment } of data.targets) {
+                if (!labels.has(id)) labels.set(id, new Set());
+                labels.get(id).add(cluster + (environment ? ' (' + environment + ')' : ''));
+            }
+            for (const [id, label] of [[null, 'All clusters'], ...Array.from(labels, ([id, names]) => [id, [...names].join(' / ')])]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'filter-btn';
+                button.dataset.cluster = id ?? '';
+                button.textContent = label;
+                button.classList.toggle('active', id === activeCluster);
+                button.setAttribute('aria-pressed', String(id === activeCluster));
+                button.addEventListener('click', () => {
+                    if (activeCluster === id) return;
+                    activeCluster = id;
+                    loadPage(1);
+                });
+                clusterFilters.append(button);
+                if (focused === button.dataset.cluster) button.focus();
+            }
             get('cpu-visible-scope').hidden = !data.targets.length;
             status.textContent = data.rows.length ? '' : data.collection_issues.length
                 ? 'No collected reports match this selection. See the collection details below.'
@@ -582,14 +661,4 @@
         request?.abort();
         searchTimer = setTimeout(() => loadPage(1), 250);
     });
-    get('cpu-show-all').addEventListener('click', () => {
-        const fields = scope.getAll('fields');
-        scope = new URLSearchParams();
-        reportDay.value = '';
-        fields.forEach(field => scope.append('fields', field));
-        activeEnvironments.clear();
-        search.value = '';
-        loadPage(1);
-    });
-    loadPage(1);
 })();

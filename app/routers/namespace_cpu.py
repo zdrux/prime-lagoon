@@ -8,7 +8,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, tuple_
 from sqlmodel import Session, select
 
 from app.database import get_session
@@ -42,8 +42,8 @@ manual_runs_lock = Lock()
 
 def run_collection(cluster_id: int, start: date, end: date, state: dict):
     failures = []
+    collected_days = []
     total = (end - start).days + 1
-    collected = 0
     for offset in range(total):
         day = start + timedelta(days=offset)
 
@@ -58,16 +58,18 @@ def run_collection(cluster_id: int, start: date, end: date, state: dict):
             logger.exception("Manual namespace CPU collection failed for cluster %s on %s", cluster_id, day)
             result = CollectionResult("Failed", "Unable to save the collection.")
         if result.status == "Collected":
-            collected += 1
+            collected_days.append(day.isoformat())
         else:
             failures.append(f"{day} · {result.detail or result.status}")
         with manual_runs_lock:
             state["completed"] = offset + 1
+            state["collected_days"] = collected_days.copy()
 
     with manual_runs_lock:
         state.update(
-            status="Collected" if not failures else "Partial" if collected else "Failed",
+            status="Collected" if not failures else "Partial" if collected_days else "Failed",
             detail="; ".join(failures) or None,
+            collected_days=collected_days,
         )
 
 
@@ -146,25 +148,37 @@ def list_clusters(session: Session = Depends(get_session), user: User = Depends(
 def report_scope(
     start: date | None = None, end: date | None = None,
     cluster_ids: Annotated[list[int] | None, Query(min_length=1)] = None,
+    collected_day: Annotated[list[str] | None, Query()] = None,
     session: Session = Depends(get_session), user: User = Depends(get_current_user),
 ):
     require_page_access("reports", user, session)
     today = eastern_today()
     cutoff = retention_start(session, today)
+    pairs = None
+    if collected_day is not None:
+        pairs = []
+        for value in collected_day:
+            try:
+                cluster_id, day = value.split(":", 1)
+                pairs.append((int(cluster_id), date.fromisoformat(day)))
+            except ValueError:
+                raise HTTPException(422, "Invalid collected cluster and day.") from None
     if start is None and end is None:
-        return cutoff, today - timedelta(days=1), cluster_ids
+        return cutoff, today - timedelta(days=1), cluster_ids, pairs
     if start is None or end is None:
         raise HTTPException(422, "Choose both a start date and an end date.")
     if start > end or end >= today:
         raise HTTPException(422, "Choose an inclusive date range ending on a completed Eastern day.")
-    return max(start, cutoff), end, cluster_ids
+    return max(start, cutoff), end, cluster_ids, pairs
 
 
 def scope_conditions(model, scope):
-    start, end, cluster_ids = scope
+    start, end, cluster_ids, pairs = scope
     conditions = [model.day.between(start, end)]
     if cluster_ids is not None:
         conditions.append(model.cluster_id.in_(cluster_ids))
+    if pairs is not None:
+        conditions.append(tuple_(model.cluster_id, model.day).in_(pairs))
     return conditions
 
 
@@ -230,18 +244,21 @@ def view_report(
     scope=Depends(report_scope), page: int = Query(1, ge=1), session: Session = Depends(get_session),
     environment: Annotated[list[str] | None, Query()] = None, search: str = "",
     sort: str = "", descending: bool = False, report_day: date | None = None,
+    result_cluster_id: int | None = None,
 ):
     selected_envs = [value.upper() for value in environment or [] if value]
     query = report_query(scope, selected_envs, search, sort, descending)
+    target_columns = (NamespaceCPUDaily.cluster_name, NamespaceCPUDaily.environment, NamespaceCPUDaily.cluster_id)
+    targets = session.execute(query.order_by(None).with_only_columns(*target_columns)
+                              .distinct().order_by(*target_columns)).all()
+    if result_cluster_id is not None:
+        query = query.where(NamespaceCPUDaily.cluster_id == result_cluster_id)
     matches = query.order_by(None).with_only_columns(NamespaceCPUDaily.day).subquery()
     day_counts = session.exec(select(matches.c.day, func.count()).group_by(matches.c.day)
                               .order_by(matches.c.day.desc())).all()
     total = sum(count for day, count in day_counts if report_day is None or day == report_day)
     if report_day is not None:
         query = query.where(NamespaceCPUDaily.day == report_day)
-    target_columns = (NamespaceCPUDaily.cluster_name, NamespaceCPUDaily.environment)
-    targets = session.execute(query.order_by(None).with_only_columns(*target_columns)
-                              .distinct().order_by(*target_columns)).all()
     page_count = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     page = min(page, page_count)
     records = session.exec(query.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)).all()
@@ -253,6 +270,8 @@ def view_report(
     ).order_by(NamespaceCPUCollection.day.desc(), Cluster.name)
     if selected_envs:
         issues = issues.where(func.upper(Cluster.environment).in_(selected_envs))
+    if result_cluster_id is not None:
+        issues = issues.where(Cluster.id == result_cluster_id)
     collections = session.exec(issues.where(
         NamespaceCPUCollection.status != "Collected",
         NamespaceCPUCollection.eastern_day == True,
@@ -262,7 +281,8 @@ def view_report(
     )).all()
     return {
         "environments": sorted(value for value in environments if value),
-        "targets": [{"cluster": cluster, "environment": environment} for cluster, environment in targets],
+        "targets": [{"cluster": cluster, "environment": environment, "id": cluster_id}
+                    for cluster, environment, cluster_id in targets],
         "rows": [summarize(row) for row in records], "has_more": page < page_count,
         "page": page, "page_count": page_count, "total": total, "page_size": PAGE_SIZE,
         "days": [{"day": day, "count": count} for day, count in day_counts],
@@ -291,12 +311,13 @@ def export_report(
     fields: Annotated[list[str] | None, Query()] = None,
     environment: Annotated[list[str] | None, Query()] = None, search: str = "",
     sort: str = "", descending: bool = False, include_cluster_id: bool = False,
+    result_cluster_id: int | None = None,
 ):
     selected = list(dict.fromkeys(fields)) if fields is not None else [*DEFAULT_FIELDS, "hourly_usage", "hourly_quota"]
     if not selected or any(field not in REPORT_FIELDS for field in selected):
         raise HTTPException(422, "Choose valid report fields.")
 
-    start, end, _ = scope
+    start, end, _, _ = scope
     has_repeated_hour = any(
         len(report_hours(start + timedelta(days=offset))) == 25
         for offset in range((end - start).days + 1)
@@ -318,8 +339,10 @@ def export_report(
         writer.writerow([*columns, "cluster_id"] if include_cluster_id else columns)
         yield buffer.getvalue()
         selected_envs = [value.upper() for value in environment or [] if value]
-        for row in session.exec(report_query(scope, selected_envs, search, sort, descending)
-                                .execution_options(yield_per=250)):
+        query = report_query(scope, selected_envs, search, sort, descending)
+        if result_cluster_id is not None:
+            query = query.where(NamespaceCPUDaily.cluster_id == result_cluster_id)
+        for row in session.exec(query.execution_options(yield_per=250)):
             values = summarize(row)
             keys = [hour.strftime("%H") + ("_repeat" if hour.fold else "") for hour in report_hours(row.day)]
             cells = []

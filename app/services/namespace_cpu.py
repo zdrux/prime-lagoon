@@ -117,9 +117,11 @@ def query_range(
                 allow_redirects=False,
                 verify=False,
             )
-        except (requests.Timeout, requests.ConnectionError):
+        except (requests.Timeout, requests.ConnectionError) as error:
             if attempt == attempts:
-                raise
+                reason = "timed out" if isinstance(error, requests.Timeout) else "could not connect to Thanos"
+                attempt_label = "attempt" if attempt == 1 else "attempts"
+                raise ThanosQueryError(f"{label} query {reason} after {attempt} {attempt_label}") from error
         else:
             if response.status_code not in (408, 429, 500, 502, 503, 504) or attempt == attempts:
                 break
@@ -127,7 +129,7 @@ def query_range(
             progress(f"Retrying {label} shortly (attempt {attempt + 1} of {attempts})")
         sleep(attempt)
     if response.status_code != 200:
-        raise ThanosQueryError(f"Thanos returned HTTP {response.status_code}")
+        raise ThanosQueryError(f"{label} query: Thanos returned HTTP {response.status_code} (attempt {attempt} of {attempts})")
     payload = response.json()
     if payload.get("status") != "success" or payload.get("warnings"):
         raise ThanosQueryError("Thanos did not return a complete query result")

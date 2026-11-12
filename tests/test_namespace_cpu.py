@@ -37,6 +37,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
         assert params["end"] == f"{today}T00:00:00+00:00"
         assert params["step"] == "1h"
         assert options["allow_redirects"] is False
+        assert options["verify"] is False
         first_hour = datetime.fromisoformat(params["start"]).timestamp()
         last_hour = datetime.fromisoformat(params["end"]).timestamp()
         samples = {

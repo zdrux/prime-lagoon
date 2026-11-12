@@ -67,7 +67,7 @@ def test_monitoring_connection(base_url: str, token: str) -> None:
     response = requests.get(
         f"{base_url.rstrip('/')}/api/v1/query",
         params={"query": "vector(1)"}, headers={"Authorization": f"Bearer {token}"},
-        timeout=(5, 10), allow_redirects=False,
+        timeout=(5, 10), allow_redirects=False, verify=False,
     )
     if response.status_code != 200:
         raise ThanosQueryError(f"Thanos returned HTTP {response.status_code}")
@@ -89,6 +89,7 @@ def query_range(client: requests.Session, base_url: str, query: str, midnight: d
         },
         timeout=(5, 55),
         allow_redirects=False,
+        verify=False,
     )
     if response.status_code != 200:
         raise ThanosQueryError(f"Thanos returned HTTP {response.status_code}")

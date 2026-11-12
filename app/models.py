@@ -48,6 +48,7 @@ class ClusterUpdate(SQLModel):
 class NamespaceCPUCollection(SQLModel, table=True):
     cluster_id: int = Field(primary_key=True, foreign_key="cluster.id")
     day: date = Field(primary_key=True, index=True)
+    eastern_day: bool = False
     status: str
     detail: Optional[str] = None
 
@@ -55,6 +56,7 @@ class NamespaceCPUCollection(SQLModel, table=True):
 class NamespaceCPUDaily(SQLModel, table=True):
     cluster_id: int = Field(primary_key=True, foreign_key="cluster.id")
     day: date = Field(primary_key=True, index=True)
+    eastern_day: bool = False
     namespace: str = Field(primary_key=True)
     cluster_name: str
     environment: Optional[str] = None

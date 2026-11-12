@@ -112,6 +112,8 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
     clusters = session.exec(select(Cluster).order_by(Cluster.name)).all()
     clusters_by_dc = _group_clusters_with_status(clusters, session)
 
+    from app.routers.namespace_cpu import DEFAULT_FIELDS, REPORT_FIELDS
+
     return templates.TemplateResponse(request, "reports.html", {
         "request": request,
         "page": "reports",
@@ -119,6 +121,8 @@ def reports_view(request: Request, session: Session = Depends(get_session), user
         "clusters_by_dc": clusters_by_dc,
         "user": user,
         "can_manage_reports": user.is_operator,
+        "cpu_report_fields": REPORT_FIELDS,
+        "cpu_default_fields": DEFAULT_FIELDS,
         "page_access": template_page_access(user, session)
     })
 

@@ -27,6 +27,12 @@ def create_db_and_tables():
                     conn.execute(text(f"ALTER TABLE cluster ADD COLUMN {name} {definition}"))
             conn.commit()
 
+            for table in ("namespacecpudaily", "namespacecpucollection"):
+                columns = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
+                if "eastern_day" not in columns:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN eastern_day BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+
             # Check if column exists (SQLite specific)
             res = conn.execute(text("PRAGMA table_info(licenserule)"))
             columns = [row[1] for row in res.fetchall()]

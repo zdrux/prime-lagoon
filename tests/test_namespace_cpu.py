@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
@@ -17,9 +17,10 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     engine = create_engine(f"sqlite:///{tmp_path / 'cpu.db'}", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
     monkeypatch.setattr(namespace_cpu, "engine", engine)
-    today = datetime.now(timezone.utc).date()
+    today = namespace_cpu.eastern_today()
     yesterday = today - timedelta(days=1)
     old_day = yesterday - timedelta(days=1)
+    day_start, day_end = namespace_cpu.day_bounds(yesterday)
     with Session(engine) as session:
         session.add_all([
             Cluster(id=1, name="enabled", api_url="https://api.example.test", token="test",
@@ -27,14 +28,15 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
                     namespace_cpu_since=yesterday),
             Cluster(id=2, name="disabled", api_url="https://api.example.test", token="test"),
             AppConfig(key="SNAPSHOT_RETENTION_DAYS", value="1"),
+            NamespaceCPUCollection(cluster_id=1, day=yesterday, status="Collected"),
             NamespaceCPUCollection(cluster_id=2, day=old_day, status="No data"),
         ])
         session.commit()
 
     def get_range(url, *, params, **options):
         assert url == "https://thanos.example.test/api/v1/query_range"
-        assert params["start"] == f"{yesterday}T01:00:00+00:00"
-        assert params["end"] == f"{today}T00:00:00+00:00"
+        assert params["start"] == (day_start + timedelta(hours=1)).isoformat()
+        assert params["end"] == day_end.isoformat()
         assert params["step"] == "1h"
         assert options["allow_redirects"] is False
         assert options["verify"] is False
@@ -43,7 +45,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
         samples = {
             namespace_cpu.USAGE_QUERY: [[first_hour, "0"], [last_hour, "2"]],
             namespace_cpu.QUOTA_QUERY: [[first_hour, "4"], [last_hour, "6"]],
-            namespace_cpu.AMBIGUOUS_QUERY: [[last_hour, "2"]],
+            namespace_cpu.AMBIGUOUS_QUERY: [],
             namespace_cpu.MAPID_QUERY: [],
         }
         values = samples[params["query"]]
@@ -83,16 +85,28 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert row["avg_vcpu"] == 1
     assert row["hours_with_data"] == 2
     assert row["mapid"] == ""
-    assert row["quota_status"] == "Multiple quota objects"
-    assert row["observed_quota_vcpu_hours"] == 4
+    assert row["quota_status"] == "Changed during day"
+    assert row["cpu_limit_quota_vcpu"] == 6
+    assert row["date_et"] == yesterday.isoformat()
+    assert client.get(base).json()["rows"] == [row]
+    assert client.get(base, params={"environment": "dev", "search": "TEAM"}).json()["rows"] == [row]
+    assert client.get(base, params={"environment": "prod", "search": "team"}).json()["rows"] == []
+    assert client.get(base, params={"search": "%"}).json()["rows"] == []
 
     export = client.get(base + "/export", params=params)
     assert export.status_code == 200
     exported = next(csv.DictReader(io.StringIO(export.text)))
-    assert exported["avg_vcpu_00"] == "0.0"
-    assert exported["avg_vcpu_01"] == ""
-    assert exported["avg_vcpu_23"] == "2.0"
-    assert exported["avg_quota_vcpu_23"] == ""
+    assert exported["avg_vcpu_00_et"] == "0.0"
+    assert exported["avg_vcpu_01_et"] == ""
+    assert exported["avg_vcpu_23_et"] == "2.0"
+    assert exported["cpu_quota_vcpu_23_et"] == "6.0"
+    subset = client.get(base + "/export", params={**params, "fields": ["date_et", "cpu_limit_quota_vcpu"]})
+    assert list(csv.reader(io.StringIO(subset.text))) == [
+        ["date_et", "cpu_limit_quota_vcpu"], [yesterday.isoformat(), "6.0"],
+    ]
+    assert client.get(base + "/export", params={**params, "fields": "invalid"}).status_code == 422
+    filtered = client.get(base + "/export", params={"search": "missing", "fields": "namespace"})
+    assert list(csv.reader(io.StringIO(filtered.text))) == [["namespace"]]
     assert client.get(base, params={**params, "end": today.isoformat()}).status_code == 422
     assert 'id="cpu-report-form"' in client.get("/reports?tab=namespace-cpu").text
 
@@ -128,3 +142,17 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert failed["status"] == "Failed"
     assert "HTTP 503" in failed["detail"]
     assert len(client.get(base, params=params).json()["rows"]) == 1
+
+
+
+def test_eastern_report_hours_follow_daylight_saving():
+    spring = namespace_cpu.report_hours(date(2026, 3, 8))
+    assert len(spring) == 23
+    assert [hour.strftime("%H:%M %Z") for hour in spring[:3]] == ["00:00 EST", "01:00 EST", "03:00 EDT"]
+
+    fall = namespace_cpu.report_hours(date(2026, 11, 1))
+    assert len(fall) == 25
+    assert [hour.strftime("%H:%M %Z") for hour in fall[:4]] == [
+        "00:00 EDT", "01:00 EDT", "01:00 EST", "02:00 EST",
+    ]
+    assert [hour.fold for hour in fall[:4]] == [0, 0, 1, 0]

@@ -7,15 +7,41 @@
     const selection = new Set();
     let clusters = [];
     let initialized = false;
-    let scope;
+    let scope = new URLSearchParams();
+    let searchTimer;
     let page = 1;
     let request;
     let chart;
 
     const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
     const format = value => value === null ? '—' : number.format(value);
-    const hours = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0') + ':00');
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const fieldLabels = JSON.parse(get('cpu-field-labels').textContent);
+    const dateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto',
+        year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    const datePart = type => dateParts.find(part => part.type === type).value;
+    const easternDate = Date.UTC(datePart('year'), Number(datePart('month')) - 1, datePart('day'));
+    const yesterday = new Date(easternDate - 86400000).toISOString().slice(0, 10);
+
+    const fieldInputs = Array.from(document.querySelectorAll('input[name="cpu-field"]'));
+    for (const input of fieldInputs) {
+        input.addEventListener('change', () => {
+            fieldInputs.filter(other => other.value === input.value)
+                .forEach(other => { other.checked = input.checked; });
+        });
+    }
+    const selectedFields = form => Array.from(form.querySelectorAll('input[name="cpu-field"]:checked'),
+        input => input.value);
+    const environment = get('cpu-environment');
+    const search = get('cpu-search');
+    const defaultFields = selectedFields(get('cpu-report-form'));
+
+    function reportParams() {
+        const params = new URLSearchParams(scope);
+        if (environment.value) params.set('environment', environment.value);
+        if (search.value.trim()) params.set('search', search.value.trim());
+        if (!params.has('fields')) defaultFields.forEach(field => params.append('fields', field));
+        return params;
+    }
     start.value = end.value = start.max = end.max = yesterday;
 
     async function read(url, options) {
@@ -100,13 +126,20 @@
             get('cpu-picker-status').textContent = ids.length ? 'Choose an end date on or after the start date.' : 'Select at least one matching cluster.';
             return;
         }
+        const fields = selectedFields(event.currentTarget);
+        if (!fields.length) {
+            get('cpu-picker-status').textContent = 'Choose at least one report field.';
+            return;
+        }
         const query = new URLSearchParams({ start: start.value, end: end.value });
+        fields.forEach(field => query.append('fields', field));
         ids.forEach(checkbox => query.append('cluster_ids', checkbox.value));
         if (event.submitter?.value === 'export') {
             window.location.assign(endpoint + '/export?' + query);
             return;
         }
         scope = query;
+        environment.value = search.value = '';
         picker.close();
         loadPage(1);
     });
@@ -131,7 +164,7 @@
                     clusterPicker.add(new Option(cluster.name, cluster.id));
                 }
                 runStatus.textContent = available.length
-                    ? 'Collects the previous completed UTC day.'
+                    ? 'Collects the previous completed Eastern day.'
                     : 'Enable collection in Administration → Cluster Management.';
                 submit.disabled = !available.length;
             } catch (error) {
@@ -142,6 +175,11 @@
         runForm.addEventListener('submit', async event => {
             event.preventDefault();
             if (running || !clusterPicker.value) return;
+            const fields = selectedFields(runForm);
+            if (!fields.length) {
+                runStatus.textContent = 'Choose at least one report field.';
+                return;
+            }
             running = true;
             submit.disabled = clusterPicker.disabled = true;
             runStatus.textContent = 'Collecting yesterday’s report from Thanos…';
@@ -169,6 +207,8 @@
                     button.setAttribute('aria-pressed', 'false');
                 });
                 scope = new URLSearchParams({ start: job.day, end: job.day, cluster_ids: clusterId });
+                fields.forEach(field => scope.append('fields', field));
+                environment.value = search.value = '';
                 run.close();
                 await loadPage(1);
             } catch (error) {
@@ -188,62 +228,106 @@
     }
 
     function showHourly(row) {
-        get('cpu-hourly-title').textContent = row.namespace + ' · ' + row.cluster + ' · ' + row.date_utc;
+        get('cpu-hourly-title').textContent = row.namespace + ' · ' + row.cluster + ' · ' + row.date_et;
         const body = get('cpu-hourly-rows');
         body.replaceChildren();
-        hours.forEach((hour, index) => {
+        row.hours_et.forEach((hour, index) => {
             const line = body.insertRow();
-            [hour, format(row.hourly_usage[index]), format(row.hourly_quota[index]), row.hourly_mapid[index] || 'Unmapped']
+            [hour, format(row.hourly_usage[index])]
                 .forEach(value => appendCell(line, value));
         });
+        get('cpu-hourly-quota').textContent = row.cpu_limit_quota_vcpu === null
+            ? row.quota_status : 'CPU limits quota at day end: ' + format(row.cpu_limit_quota_vcpu) + ' vCPU';
+        get('cpu-hourly-coverage').textContent = row.hours_with_data ? '' : 'No hourly CPU samples for this day.';
         get('cpu-hourly').showModal();
         if (typeof Chart === 'undefined') {
             body.closest('details').open = true;
             return;
         }
         chart?.destroy();
+        const usageColor = '#60a5fa';
+        const quotaColor = '#fbbf24';
+        const textColor = getComputedStyle(get('cpu-hourly')).color;
+        const datasets = [{
+            label: 'Hourly average CPU', data: row.hourly_usage, yAxisID: 'cpu',
+            borderColor: usageColor, backgroundColor: usageColor, pointRadius: 3, pointHoverRadius: 6,
+        }];
+        if (row.cpu_limit_quota_vcpu !== null) {
+            datasets.push({
+                label: 'CPU limits quota', data: row.hours_et.map(() => row.cpu_limit_quota_vcpu),
+                yAxisID: 'quota', borderColor: quotaColor, borderDash: [6, 4], pointRadius: 0,
+            });
+        }
         chart = new Chart(get('cpu-chart'), {
             type: 'line',
-            data: {
-                labels: hours,
-                datasets: [
-                    { label: 'Avg CPU', data: row.hourly_usage, borderColor: '#3b82f6' },
-                    { label: 'Avg quota', data: row.hourly_quota, borderColor: '#d97706' },
-                ],
+            data: { labels: row.hours_et, datasets },
+            options: {
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { labels: { color: textColor } } },
+                scales: {
+                    x: { ticks: { color: textColor } },
+                    cpu: {
+                        type: 'linear', position: 'left', beginAtZero: true, ticks: { color: usageColor },
+                        title: { display: true, text: 'Hourly average CPU (vCPU)', color: usageColor },
+                    },
+                    quota: {
+                        type: 'linear', position: 'right', display: row.cpu_limit_quota_vcpu !== null,
+                        beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: quotaColor },
+                        title: { display: true, text: 'CPU limits quota (vCPU)', color: quotaColor },
+                    },
+                },
             },
-            options: { scales: { y: { beginAtZero: true, title: { display: true, text: 'vCPU' } } } },
         });
     }
 
     async function loadPage(target) {
+        clearTimeout(searchTimer);
         request?.abort();
         request = new AbortController();
+        const params = reportParams();
+        params.set('page', target);
+        get('cpu-show-all').hidden = !scope.has('start');
         const status = get('cpu-status');
         status.textContent = 'Loading report…';
         get('cpu-download-active').style.display = 'none';
         get('cpu-results').hidden = true;
         get('cpu-issues').hidden = true;
         try {
-            const data = await read(endpoint + '?' + scope + '&page=' + target, { signal: request.signal });
+            const data = await read(endpoint + '?' + params, { signal: request.signal });
             page = target;
+            const selectedEnvironment = environment.value;
+            environment.replaceChildren(new Option('All environments', ''));
+            for (const value of data.environments) environment.add(new Option(value, value));
+            environment.value = data.environments.includes(selectedEnvironment) ? selectedEnvironment : '';
             const body = get('cpu-result-rows');
             body.replaceChildren();
+            const fields = params.getAll('fields');
+            const header = get('cpu-result-head');
+            header.replaceChildren();
+            for (const field of fields) {
+                const cell = document.createElement('th');
+                cell.scope = 'col';
+                cell.textContent = fieldLabels[field];
+                header.append(cell);
+            }
             for (const row of data.rows) {
                 const line = body.insertRow();
-                appendCell(line, row.date_utc);
-                appendCell(line, [row.cluster, row.environment].filter(Boolean).join(' / '));
-                const link = document.createElement('button');
-                link.type = 'button';
-                link.className = 'btn btn-secondary btn-sm';
-                link.textContent = row.namespace;
-                link.addEventListener('click', () => showHourly(row));
-                line.insertCell().append(link);
-                [row.mapid || 'Unmapped', format(row.avg_vcpu), format(row.observed_cpu_vcpu_hours),
-                    row.hours_with_data + ' / 24', format(row.avg_quota_vcpu),
-                    format(row.observed_quota_vcpu_hours), row.quota_hours_with_data + ' / 24']
-                    .forEach(value => appendCell(line, value));
-                if (row.quota_status === 'Multiple quota objects' || row.quota_status === 'Varied') {
-                    line.lastElementChild.append(' · ' + row.quota_status);
+                for (const field of fields) {
+                    const value = row[field];
+                    if (field === 'namespace' || field.startsWith('hourly_')) {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'btn btn-secondary cpu-row-button';
+                        button.textContent = field === 'namespace' ? value : 'View hourly values';
+                        button.addEventListener('click', () => showHourly(row));
+                        line.insertCell().append(button);
+                    } else if (field === 'hours_with_data') {
+                        appendCell(line, value + ' / ' + row.hours_et.length);
+                    } else if (typeof value === 'number' || value === null) {
+                        appendCell(line, format(value));
+                    } else {
+                        appendCell(line, value || (field === 'mapid' ? 'Unmapped' : '—'));
+                    }
                 }
             }
             const issues = get('cpu-issue-list');
@@ -255,13 +339,12 @@
             }
             get('cpu-issue-count').textContent = data.collection_issues.length + ' cluster-day collection issues';
             get('cpu-issues').hidden = !data.collection_issues.length;
-            get('cpu-results').hidden = !data.rows.length && page === 1;
+            get('cpu-results').hidden = false;
             get('cpu-download-active').style.display = data.rows.length ? '' : 'none';
             get('cpu-prev').disabled = page === 1;
             get('cpu-next').disabled = !data.has_more;
             get('cpu-page').textContent = 'Page ' + page;
-            const range = scope.get('start') + ' through ' + scope.get('end') + ' (UTC)';
-            status.textContent = data.rows.length ? range : 'No collected namespace data for ' + range + '.';
+            status.textContent = data.rows.length ? '' : 'No collected reports match this selection.';
         } catch (error) {
             if (error.name !== 'AbortError') status.textContent = error.message;
         }
@@ -269,5 +352,19 @@
 
     get('cpu-prev').addEventListener('click', () => loadPage(page - 1));
     get('cpu-next').addEventListener('click', () => loadPage(page + 1));
-    get('cpu-download-active').addEventListener('click', () => window.location.assign(endpoint + '/export?' + scope));
+    get('cpu-download-active').addEventListener('click', () => window.location.assign(endpoint + '/export?' + reportParams()));
+    environment.addEventListener('change', () => loadPage(1));
+    search.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        request?.abort();
+        searchTimer = setTimeout(() => loadPage(1), 250);
+    });
+    get('cpu-show-all').addEventListener('click', () => {
+        const fields = scope.getAll('fields');
+        scope = new URLSearchParams();
+        fields.forEach(field => scope.append('fields', field));
+        environment.value = search.value = '';
+        loadPage(1);
+    });
+    loadPage(1);
 })();

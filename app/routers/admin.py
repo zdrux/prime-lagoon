@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from datetime import datetime, timezone
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, SQLModel
 from typing import List, Optional
@@ -8,7 +7,7 @@ import asyncio
 from pydantic import BaseModel
 from app.database import get_session
 from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, NamespaceCPUCollection, NamespaceCPUDaily, User
-from app.services.namespace_cpu import ThanosQueryError, test_monitoring_connection, valid_thanos_url
+from app.services.namespace_cpu import ThanosQueryError, eastern_today, test_monitoring_connection, valid_thanos_url
 from app.services.scheduler import refresh_jobs
 from app.dependencies import admin_required, operator_allowed
 import os
@@ -604,7 +603,7 @@ def configure_namespace_cpu(cluster: Cluster, enabled: bool, url: str | None):
     if (enabled or url) and not valid_thanos_url(url):
         raise HTTPException(status_code=422, detail="Enter an HTTPS Thanos base URL to configure Namespace CPU collection.")
     if enabled and (not cluster.namespace_cpu_since or not cluster.namespace_cpu_enabled):
-        cluster.namespace_cpu_since = datetime.now(timezone.utc).date()
+        cluster.namespace_cpu_since = eastern_today()
     cluster.namespace_cpu_enabled = enabled
     cluster.thanos_url = url
 

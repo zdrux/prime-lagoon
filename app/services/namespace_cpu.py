@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 import requests
 from sqlalchemy import delete, text
@@ -13,6 +14,24 @@ from app.database import engine
 from app.models import AppConfig, Cluster, NamespaceCPUCollection, NamespaceCPUDaily
 
 logger = logging.getLogger(__name__)
+EASTERN = ZoneInfo("America/Toronto")
+
+
+def eastern_today() -> date:
+    return datetime.now(EASTERN).date()
+
+
+def day_bounds(day: date) -> tuple[datetime, datetime]:
+    start = datetime.combine(day, time.min, tzinfo=EASTERN)
+    end = datetime.combine(day + timedelta(days=1), time.min, tzinfo=EASTERN)
+    return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+
+
+def report_hours(day: date) -> list[datetime]:
+    start, end = day_bounds(day)
+    count = (end - start) // timedelta(hours=1)
+    return [(start + timedelta(hours=hour)).astimezone(EASTERN) for hour in range(count)]
+
 
 USAGE_QUERY = (
     'avg_over_time((sum by (namespace) (rate(container_cpu_usage_seconds_total'
@@ -24,10 +43,9 @@ QUOTA_OBJECTS = (
 )
 QUOTA_COUNT = f'count by (namespace) ({QUOTA_OBJECTS})'
 QUOTA_QUERY = (
-    f'avg_over_time((sum by (namespace) ({QUOTA_OBJECTS}) '
-    f'and on (namespace) ({QUOTA_COUNT} == 1))[1h:5m])'
+    f'sum by (namespace) ({QUOTA_OBJECTS}) and on (namespace) ({QUOTA_COUNT} == 1)'
 )
-AMBIGUOUS_QUERY = f'max_over_time(({QUOTA_COUNT})[1h:5m]) > 1'
+AMBIGUOUS_QUERY = f'{QUOTA_COUNT} > 1'
 MAPID_QUERY = (
     'max by (namespace, label_mapid) (kube_namespace_labels'
     '{label_mapid!="",namespace!="",namespace!~"openshift-.*"})'
@@ -76,13 +94,13 @@ def test_monitoring_connection(base_url: str, token: str) -> None:
         raise ThanosQueryError("Thanos did not return a valid query result")
 
 
-def query_range(client: requests.Session, base_url: str, query: str, midnight: datetime):
+def query_range(client: requests.Session, base_url: str, query: str, start: datetime, end: datetime):
     response = client.get(
         f"{base_url.rstrip('/')}/api/v1/query_range",
         params={
             "query": query,
-            "start": (midnight + timedelta(hours=1)).isoformat(),
-            "end": (midnight + timedelta(days=1)).isoformat(),
+            "start": (start + timedelta(hours=1)).isoformat(),
+            "end": end.isoformat(),
             "step": "1h",
             "timeout": "45s",
             "partial_response": "false",
@@ -100,8 +118,8 @@ def query_range(client: requests.Session, base_url: str, query: str, midnight: d
         raise ThanosQueryError("Thanos did not return a range result")
     for series in payload["data"]["result"]:
         for timestamp, raw_value in series["values"]:
-            seconds = timestamp - midnight.timestamp()
-            if seconds % 3600 or not 3600 <= seconds <= 86400:
+            seconds = timestamp - start.timestamp()
+            if seconds % 3600 or not 3600 <= seconds <= (end - start).total_seconds():
                 raise ThanosQueryError("Thanos returned an unexpected hour boundary")
             value = float(raw_value)
             if math.isfinite(value):
@@ -109,35 +127,36 @@ def query_range(client: requests.Session, base_url: str, query: str, midnight: d
 
 
 def fetch_day(cluster: Cluster, day: date) -> list[NamespaceCPUDaily]:
-    midnight = datetime.combine(day, time.min, tzinfo=timezone.utc)
+    start, end = day_bounds(day)
+    hours = (end - start) // timedelta(hours=1)
     usage, quota, ambiguous, mapids = {}, {}, {}, {}
     if not valid_thanos_url(cluster.thanos_url):
         raise ThanosQueryError("Configure an HTTPS Thanos base URL")
     with requests.Session() as client:
         client.headers["Authorization"] = f"Bearer {cluster.token}"
         for query, data in ((USAGE_QUERY, usage), (QUOTA_QUERY, quota), (AMBIGUOUS_QUERY, ambiguous)):
-            for metric, hour, value in query_range(client, cluster.thanos_url, query, midnight):
-                data.setdefault(metric["namespace"], [None] * 24)[hour] = value
-        for metric, hour, _ in query_range(client, cluster.thanos_url, MAPID_QUERY, midnight):
-            labels = mapids.setdefault(metric["namespace"], [set() for _ in range(24)])
+            for metric, hour, value in query_range(client, cluster.thanos_url, query, start, end):
+                data.setdefault(metric["namespace"], [None] * hours)[hour] = value
+        for metric, hour, _ in query_range(client, cluster.thanos_url, MAPID_QUERY, start, end):
+            labels = mapids.setdefault(metric["namespace"], [set() for _ in range(hours)])
             labels[hour].add(metric["label_mapid"])
 
     rows = []
     for namespace in usage.keys() | quota.keys() | ambiguous.keys():
-        hourly_quota = quota.get(namespace, [None] * 24)
+        hourly_quota = quota.get(namespace, [None] * hours)
         for hour, count in enumerate(ambiguous.get(namespace, [])):
             if count is not None:
                 hourly_quota[hour] = None
         rows.append(NamespaceCPUDaily(
-            cluster_id=cluster.id, day=day, namespace=namespace,
+            cluster_id=cluster.id, day=day, eastern_day=True, namespace=namespace,
             cluster_name=cluster.name, environment=cluster.environment,
-            usage_json=json.dumps(usage.get(namespace, [None] * 24)),
+            usage_json=json.dumps(usage.get(namespace, [None] * hours)),
             quota_json=json.dumps(hourly_quota),
             mapids_json=json.dumps([
                 next(iter(labels)) if len(labels) == 1 else None
-                for labels in mapids.get(namespace, [set()] * 24)
+                for labels in mapids.get(namespace, [set()] * hours)
             ]),
-            ambiguous_quota=namespace in ambiguous,
+            ambiguous_quota=ambiguous.get(namespace, [None])[-1] is not None,
         ))
     return rows
 
@@ -147,10 +166,8 @@ def collect_day(cluster_id: int, day: date, *, manual: bool = False) -> Collecti
         cluster = session.get(Cluster, cluster_id)
         if not cluster or not cluster.namespace_cpu_enabled:
             return CollectionResult("Skipped", "Namespace CPU collection is disabled for this cluster.")
-        if not manual and cluster.namespace_cpu_since and cluster.namespace_cpu_since > day:
-            return CollectionResult("Skipped")
         existing = session.get(NamespaceCPUCollection, (cluster_id, day))
-        if not manual and existing and existing.status == "Collected":
+        if not manual and existing and existing.eastern_day and existing.status == "Collected":
             return CollectionResult("Collected")
     try:
         rows = fetch_day(cluster, day)
@@ -168,10 +185,14 @@ def collect_day(cluster_id: int, day: date, *, manual: bool = False) -> Collecti
             current.thanos_url, current.token, current.unique_id, current.namespace_cpu_since
         ) != (cluster.thanos_url, cluster.token, cluster.unique_id, cluster.namespace_cpu_since):
             return CollectionResult("Skipped", "The cluster's monitoring configuration changed during collection.")
-        if day < retention_start(session, datetime.now(timezone.utc).date()):
+        if day < retention_start(session, eastern_today()):
             return CollectionResult("Skipped", "This day is outside snapshot retention.")
         existing = session.get(NamespaceCPUCollection, (cluster.id, day))
-        if existing and existing.status == "Collected":
+        if existing and not existing.eastern_day and status != "Collected":
+            existing.detail = detail or "Thanos returned no namespace data for the Eastern day."
+            session.commit()
+            return CollectionResult(status, existing.detail)
+        if existing and existing.eastern_day and existing.status == "Collected":
             if not manual:
                 return CollectionResult("Collected")
             if status != "Collected":
@@ -182,25 +203,32 @@ def collect_day(cluster_id: int, day: date, *, manual: bool = False) -> Collecti
                 NamespaceCPUDaily.cluster_id == cluster.id, NamespaceCPUDaily.day == day,
             ))
             session.add_all(rows)
-        session.merge(NamespaceCPUCollection(cluster_id=cluster.id, day=day, status=status, detail=detail))
+        session.merge(NamespaceCPUCollection(cluster_id=cluster.id, day=day, eastern_day=True, status=status, detail=detail))
         session.commit()
     return CollectionResult(status, detail)
 
 
 def collect_namespace_cpu():
-    today = datetime.now(timezone.utc).date()
+    today = eastern_today()
     with Session(engine) as session:
         cutoff = retention_start(session, today)
         for model in (NamespaceCPUDaily, NamespaceCPUCollection):
             session.execute(delete(model).where(model.day < cutoff))
         session.commit()
         clusters = session.exec(select(Cluster).where(Cluster.namespace_cpu_enabled == True)).all()
+        legacy_starts = {}
+        for cluster_id, day in session.exec(select(
+            NamespaceCPUCollection.cluster_id, NamespaceCPUCollection.day,
+        ).where(NamespaceCPUCollection.eastern_day == False)):
+            legacy_starts[cluster_id] = min(day, legacy_starts.get(cluster_id, day))
         completed = set(session.exec(select(
             NamespaceCPUCollection.cluster_id, NamespaceCPUCollection.day,
-        ).where(NamespaceCPUCollection.status.in_(["Collected", "No data"]))).all())
+        ).where(NamespaceCPUCollection.eastern_day == True,
+                NamespaceCPUCollection.status.in_(["Collected", "No data"]))).all())
 
     for cluster in clusters:
-        first = max(cutoff, cluster.namespace_cpu_since or today - timedelta(days=1))
+        first = cluster.namespace_cpu_since or today - timedelta(days=1)
+        first = max(cutoff, min(first, legacy_starts.get(cluster.id, first)))
         for offset in range(1, (today - first).days + 1):
             day = today - timedelta(days=offset)
             if (cluster.id, day) not in completed:

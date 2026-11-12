@@ -1,10 +1,18 @@
 {% from "report_cluster_picker.html" import report_cluster_picker %}
 
-<div class="page-header">
-    <div>
-        <h1 class="page-title">Namespace CPU</h1>
-        <p>Hourly CPU usage and hard CPU quota for completed UTC days.</p>
+{% macro cpu_fields() %}
+<fieldset style="margin:1rem 0;">
+    <legend>Report fields</legend>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.5rem;">
+        {% for key, label in cpu_report_fields.items() %}
+        <label><input type="checkbox" name="cpu-field" value="{{ key }}" {% if key in cpu_default_fields %}checked{% endif %}> {{ label }}</label>
+        {% endfor %}
     </div>
+</fieldset>
+{% endmacro %}
+
+<div class="page-header">
+    <h1 class="page-title">Namespace average vCPU by hour</h1>
     <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
         <button class="btn btn-secondary" type="button" id="cpu-download-active" style="display:none;">Download CSV</button>
         {% if can_manage_reports %}
@@ -18,7 +26,16 @@
     </div>
 </div>
 
-<p id="cpu-status" role="status">Select a date range and clusters to view collected data.</p>
+<div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+    <label>Environment
+        <select id="cpu-environment" class="form-input"><option value="">All environments</option></select>
+    </label>
+    <label style="width:min(360px,100%);">Search reports
+        <input id="cpu-search" type="search" class="form-input" placeholder="Cluster, namespace, MAPID, or date">
+    </label>
+    <button id="cpu-show-all" class="btn btn-secondary" type="button" hidden>Show all reports</button>
+</div>
+<p id="cpu-status" role="status">Loading reports…</p>
 <details id="cpu-issues" hidden>
     <summary id="cpu-issue-count"></summary>
     <ul id="cpu-issue-list"></ul>
@@ -26,11 +43,7 @@
 <section class="card" id="cpu-results" hidden>
     <div class="table-container">
         <table class="data-table">
-            <thead><tr>
-                <th>Date (UTC)</th><th>Cluster</th><th>Namespace</th><th>MAPID</th>
-                <th>Avg CPU (vCPU)</th><th>Observed CPU (vCPU-hours)</th><th>CPU hours</th>
-                <th>Avg quota (vCPU)</th><th>Observed quota (vCPU-hours)</th><th>Quota hours</th>
-            </tr></thead>
+            <thead><tr id="cpu-result-head"></tr></thead>
             <tbody id="cpu-result-rows"></tbody>
         </table>
     </div>
@@ -42,7 +55,7 @@
 </section>
 
 {% if can_manage_reports %}
-<dialog id="cpu-run" class="card" style="width:min(500px, 95vw); color:inherit; margin:auto;">
+<dialog id="cpu-run" class="card" style="width:min(600px, 95vw); max-height:90vh; overflow:auto; color:inherit; margin:auto;">
     <div class="modal-header">
         <h2>Collect yesterday’s report</h2>
         <button class="close-btn" type="button" data-close="cpu-run" aria-label="Close">&times;</button>
@@ -51,6 +64,7 @@
         <div class="modal-body">
             <label for="cpu-run-cluster">Cluster</label>
             <select id="cpu-run-cluster" class="form-input" required></select>
+            {{ cpu_fields() }}
             <p id="cpu-run-status" role="status"></p>
         </div>
         <div class="modal-footer">
@@ -68,12 +82,13 @@
     <form id="cpu-report-form">
         <div class="modal-body" style="padding:1.5rem;">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
-                <label>From (UTC)<input type="date" class="form-input" id="cpu-start" required></label>
-                <label>Through (UTC)<input type="date" class="form-input" id="cpu-end" required></label>
+                <label>From (ET)<input type="date" class="form-input" id="cpu-start" required></label>
+                <label>Through (ET)<input type="date" class="form-input" id="cpu-end" required></label>
             </div>
             {{ report_cluster_picker('toggleCpuClusterFilter') }}
             <button class="btn btn-secondary btn-sm" type="button" id="cpu-select-matching">Select matching</button>
             <button class="btn btn-secondary btn-sm" type="button" id="cpu-clear-selection">Clear selection</button>
+            {{ cpu_fields() }}
             <p role="status" id="cpu-picker-status"></p>
         </div>
         <div class="modal-footer">
@@ -89,14 +104,17 @@
         <button class="close-btn" type="button" data-close="cpu-hourly" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
+        <p id="cpu-hourly-quota"></p>
+        <p id="cpu-hourly-coverage" role="status"></p>
         <canvas id="cpu-chart" aria-label="Hourly CPU usage and quota in vCPU" role="img"></canvas>
         <details>
             <summary>Hourly values</summary>
             <table class="data-table">
-                <thead><tr><th>Hour (UTC)</th><th>Avg CPU (vCPU)</th><th>Avg quota (vCPU)</th><th>MAPID</th></tr></thead>
+                <thead><tr><th>Hour (ET)</th><th>Hourly average CPU (vCPU)</th></tr></thead>
                 <tbody id="cpu-hourly-rows"></tbody>
             </table>
         </details>
     </div>
 </dialog>
+<script id="cpu-field-labels" type="application/json">{{ cpu_report_fields | tojson }}</script>
 <script src="/static/namespace_cpu.js" defer></script>

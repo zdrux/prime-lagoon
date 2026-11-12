@@ -550,8 +550,7 @@ input[type="date"] {
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-    opacity: 0.6;
+    opacity: 0.85;
     cursor: pointer;
 }
 
@@ -690,6 +689,26 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 
+
+#cpu-status:empty {
+    margin: 0;
+}
+
+#cpu-results {
+    padding: 0.75rem;
+}
+
+#cpu-results .data-table th,
+#cpu-results .data-table td {
+    padding: 0.35rem 0.6rem;
+}
+
+#cpu-results .cpu-row-button {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    border-radius: 0.35rem;
+}
 
 .data-table tbody tr:hover {
 

@@ -1,12 +1,6 @@
 (() => {
     const endpoint = '/api/reporting/namespace-cpu';
     const get = id => document.getElementById(id);
-    const picker = get('cpu-picker');
-    const start = get('cpu-start');
-    const end = get('cpu-end');
-    const selection = new Set();
-    let clusters = [];
-    let initialized = false;
     let scope = new URLSearchParams();
     let searchTimer;
     let page = 1;
@@ -21,10 +15,10 @@
     const fieldLabels = JSON.parse(get('cpu-field-labels').textContent);
     const fieldStorageKey = 'ocp_namespace_cpu_report_fields';
     const fieldLists = Array.from(document.querySelectorAll('.cpu-field-list'));
-    const reportForm = get('cpu-report-form');
+    const reportForm = get('cpu-run-form');
     const selectedFields = form => Array.from(form.querySelectorAll('input[name="cpu-field"]:checked'),
         input => input.value);
-    const defaultFields = selectedFields(reportForm);
+    const defaultFields = JSON.parse(get('cpu-default-fields').textContent);
 
     function saveFieldPreferences(list) {
         const preferences = Array.from(list.children, row => [row.dataset.field, row.querySelector('input').checked]);
@@ -46,7 +40,7 @@
 
     try {
         const saved = JSON.parse(localStorage.getItem(fieldStorageKey));
-        if (Array.isArray(saved)) {
+        if (reportForm && Array.isArray(saved)) {
             const preferences = new Map(saved.filter(entry => Array.isArray(entry) &&
                 Object.hasOwn(fieldLabels, entry[0]) && typeof entry[1] === 'boolean'));
             const renderedOrder = Array.from(reportForm.querySelectorAll('.cpu-field-row'), row => row.dataset.field);
@@ -61,7 +55,7 @@
     } catch {
         // Use the rendered defaults if stored preferences cannot be read.
     }
-    const restoredFields = selectedFields(reportForm);
+    const restoredFields = reportForm ? selectedFields(reportForm) : [];
     const initialFields = restoredFields.length ? restoredFields : defaultFields;
 
     const fieldInputs = Array.from(document.querySelectorAll('input[name="cpu-field"]'));
@@ -164,49 +158,6 @@
         }
     }
     const search = get('cpu-search');
-    const viewButton = get('cpu-view-report');
-    let availabilityRequest;
-    let availabilityTimer;
-
-    function pickerParams() {
-        const ids = get('preview-cluster-list').querySelectorAll('input:checked');
-        const fields = selectedFields(reportForm);
-        if (!start.value || !end.value || start.value > end.value ||
-            start.value > start.max || end.value > end.max || !ids.length || !fields.length) return null;
-        const params = new URLSearchParams({ start: start.value, end: end.value });
-        ids.forEach(input => params.append('cluster_ids', input.value));
-        fields.forEach(field => params.append('fields', field));
-        return params;
-    }
-
-    function checkReportAvailability() {
-        viewButton.disabled = true;
-        availabilityRequest?.abort();
-        clearTimeout(availabilityTimer);
-        const params = pickerParams();
-        const status = get('cpu-picker-status');
-        if (!params) {
-            status.textContent = 'Choose a valid date range, at least one cluster, and at least one report field.';
-            return;
-        }
-        status.textContent = 'Checking for collected reports…';
-        availabilityTimer = setTimeout(async () => {
-            const controller = new AbortController();
-            availabilityRequest = controller;
-            try {
-                const data = await read(endpoint + '?' + params, { signal: controller.signal });
-                if (controller.signal.aborted) return;
-                viewButton.disabled = data.rows.length === 0;
-                const issue = data.collection_issues[0];
-                status.textContent = data.rows.length ? '' : issue
-                    ? [issue.day, issue.cluster, issue.status, issue.detail].filter(Boolean).join(' · ')
-                    : 'No collected reports match this selection.';
-            } catch (error) {
-                if (!controller.signal.aborted) status.textContent = error.message;
-            }
-        }, 200);
-    }
-
     function reportParams() {
         const params = new URLSearchParams(scope);
         activeEnvironments.forEach(value => params.append('environment', value));
@@ -228,94 +179,8 @@
         return response.json();
     }
 
-    function renderPicker() {
-        const filters = type => Array.from(picker.querySelectorAll('.report-filter.active[data-type="' + type + '"]'))
-            .map(button => button.dataset.val);
-        const environments = filters('env');
-        const datacenters = filters('dc');
-        const matches = clusters.filter(cluster =>
-            (!environments.length || environments.includes((cluster.environment || '').toUpperCase())) &&
-            (!datacenters.length || datacenters.includes((cluster.datacenter || '').toUpperCase()))
-        );
-        const list = get('preview-cluster-list');
-        list.replaceChildren();
-        for (const cluster of matches) {
-            const label = document.createElement('label');
-            label.style.display = 'block';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.value = cluster.id;
-            checkbox.checked = selection.has(cluster.id);
-            checkbox.addEventListener('change', () => {
-                if (checkbox.checked) selection.add(cluster.id);
-                else selection.delete(cluster.id);
-            });
-            const info = [cluster.environment, cluster.datacenter, cluster.collecting ? '' : 'historical only']
-                .filter(Boolean).join(' / ');
-            label.append(checkbox, ' ' + cluster.name + (info ? ' (' + info + ')' : ''));
-            list.append(label);
-        }
-        if (!matches.length) list.textContent = 'No clusters match these filters.';
-        get('preview-count').textContent = matches.length;
-        checkReportAvailability();
-    }
-
-    window.toggleCpuClusterFilter = button => {
-        button.setAttribute('aria-pressed', String(button.classList.toggle('active')));
-        renderPicker();
-    };
-
-    get('cpu-select-matching').addEventListener('click', () => {
-        get('preview-cluster-list').querySelectorAll('input').forEach(input => selection.add(Number(input.value)));
-        renderPicker();
-    });
-    get('cpu-clear-selection').addEventListener('click', () => {
-        selection.clear();
-        renderPicker();
-    });
-
-    get('cpu-open-picker').addEventListener('click', async () => {
-        const status = get('cpu-picker-status');
-        viewButton.disabled = true;
-        get('preview-cluster-list').replaceChildren();
-        status.textContent = 'Loading clusters…';
-        picker.showModal();
-        try {
-            clusters = await read(endpoint + '/clusters');
-            if (!initialized && clusters.length) {
-                clusters.forEach(cluster => selection.add(cluster.id));
-                initialized = true;
-            }
-            renderPicker();
-            if (!clusters.length) status.textContent = 'Enable collection in Administration → Cluster Management.';
-        } catch (error) {
-            status.textContent = error.message;
-        }
-    });
     document.querySelectorAll('[data-close]').forEach(button => {
         button.addEventListener('click', () => get(button.dataset.close).close());
-    });
-
-    reportForm.addEventListener('input', checkReportAvailability);
-    picker.addEventListener('close', () => {
-        availabilityRequest?.abort();
-        clearTimeout(availabilityTimer);
-    });
-    reportForm.addEventListener('submit', event => {
-        event.preventDefault();
-        const query = pickerParams();
-        if (!query) return;
-        if (event.submitter?.value === 'export') {
-            window.location.assign(endpoint + '/export?' + query);
-            return;
-        }
-        if (viewButton.disabled) return;
-        scope = query;
-        reportDay.value = '';
-        activeEnvironments.clear();
-        search.value = '';
-        picker.close();
-        loadPage(1);
     });
 
     const run = get('cpu-run');
@@ -454,14 +319,6 @@
                     runDays.value = (index + 1) * days;
                 }
 
-                start.value = runStart.value;
-                end.value = runEnd.value;
-                selection.clear();
-                targetClusters.forEach(cluster => selection.add(cluster.id));
-                picker.querySelectorAll('.report-filter.active').forEach(button => {
-                    button.classList.remove('active');
-                    button.setAttribute('aria-pressed', 'false');
-                });
                 scope = new URLSearchParams(dates);
                 targetClusters.forEach(cluster => scope.append('cluster_ids', cluster.id));
                 reportDay.value = '';
@@ -563,6 +420,7 @@
         get('cpu-show-all').hidden = !scope.has('start');
         const status = get('cpu-status');
         status.textContent = 'Loading report…';
+        get('cpu-visible-scope').hidden = true;
         download.style.display = 'none';
         excel.hidden = true;
         get('cpu-prev').disabled = get('cpu-next').disabled = true;
@@ -652,10 +510,11 @@
             download.textContent = scope.has('start') ? 'Download range CSV' : 'Download CSV';
             get('cpu-prev').disabled = page === 1;
             get('cpu-next').disabled = !data.has_more;
-            const firstRow = data.rows.length ? (page - 1) * data.page_size + 1 : 0;
-            const lastRow = firstRow ? firstRow + data.rows.length - 1 : 0;
-            get('cpu-page').textContent = 'Page ' + page + ' of ' + data.page_count +
-                ' · ' + firstRow + '–' + lastRow + ' of ' + data.total + ' rows';
+            get('cpu-page').textContent = 'Page ' + page + ' of ' + data.page_count;
+            get('cpu-visible-scope').textContent = data.targets.map(target =>
+                target.cluster + (target.environment ? ' (' + target.environment + ')' : '')
+            ).join(' · ');
+            get('cpu-visible-scope').hidden = !data.targets.length;
             status.textContent = data.rows.length ? '' : data.collection_issues.length
                 ? 'No collected reports match this selection. See the collection details below.'
                 : 'No collected reports match this selection.';

@@ -108,7 +108,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     filtered = client.get(base + "/export", params={"search": "missing", "fields": "namespace"})
     assert list(csv.reader(io.StringIO(filtered.text))) == [["namespace"]]
     assert client.get(base, params={**params, "end": today.isoformat()}).status_code == 422
-    assert 'id="cpu-report-form"' in client.get("/reports?tab=namespace-cpu").text
+    assert 'id="cpu-visible-scope"' in client.get("/reports?tab=namespace-cpu").text
 
     disabled = client.patch("/api/admin/clusters/1", json={"namespace_cpu_enabled": False})
     assert disabled.status_code == 200
@@ -141,6 +141,13 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert 'id="cpu-open-run"' in client.get("/reports?tab=namespace-cpu").text
 
     run_url = base + "/run-now/1"
+    with Session(engine) as session:
+        session.add(AppConfig(key="NAMESPACE_CPU_AUTO_COLLECT", value="false"))
+        session.delete(session.get(NamespaceCPUCollection, (1, yesterday)))
+        session.get(Cluster, 1).namespace_cpu_since = yesterday
+        session.commit()
+    namespace_cpu.collect_namespace_cpu()
+    assert http.get.call_count == 4
     started = client.post(run_url)
     assert started.status_code == 202
     assert started.json() == {"day": yesterday.isoformat(), "cluster_id": 1}
@@ -185,6 +192,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(report_api, "PAGE_SIZE", 1)
     first = client.get(base, params=dates).json()
     assert first["page_count"] == 2
+    assert first["targets"] == [{"cluster": "enabled", "environment": "DEV"}]
     assert first["has_more"]
     assert first["days"] == [{"day": day, "count": 1} for day in (dates["end"], dates["start"])]
     assert client.get(base, params={**dates, "page": 2}).json()["rows"][0]["date_et"] == dates["start"]

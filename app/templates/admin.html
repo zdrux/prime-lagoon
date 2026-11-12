@@ -241,6 +241,14 @@
                         <div style="margin-top:0.8rem;"></div>
 
                         <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                            <input type="checkbox" id="namespace-cpu-auto-collect" {% if namespace_cpu_auto_collect %}checked{% endif %}>
+                            <span>Automatically collect Namespace CPU reports</span>
+                        </label>
+                        <div style="font-size:0.8rem; color:var(--text-secondary); margin-left:1.5rem; margin-bottom:0.8rem;">
+                            Turn off scheduled collection to collect reports on demand with Run Now.
+                        </div>
+
+                        <label class="form-label" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
                             <input type="checkbox" id="enable-vacuum" {% if enable_db_vacuum %}checked{% endif %}>
                             <span>Enable Weekly Database Optimization</span>
                         </label>
@@ -1012,6 +1020,7 @@
                     dashboard_cache_ttl_minutes: parseInt(cacheTtl),
                     collect_olm: collectOlm,
                     run_compliance: runCompliance,
+                    namespace_cpu_auto_collect: document.getElementById('namespace-cpu-auto-collect').checked,
                     enable_db_vacuum: enableVacuum
                 })
             });

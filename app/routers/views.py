@@ -11,6 +11,7 @@ from app.models import Cluster, AuditRule, AuditBundle, User
 
 from app.dependencies import get_current_user_optional, is_ldap_enabled
 from app.services.page_access import require_page_access, template_page_access
+from app.services.namespace_cpu import namespace_cpu_schedule_enabled
 import json
 
 templates = Jinja2Templates(directory="app/templates")
@@ -64,6 +65,7 @@ def admin_view(request: Request, tab: str = 'clusters', session: Session = Depen
         "collect_olm": collect_olm,
         "run_compliance": run_compliance,
         "enable_db_vacuum": enable_vacuum,
+        "namespace_cpu_auto_collect": namespace_cpu_schedule_enabled(session),
         "user": user,
         "page_access": template_page_access(user, session)
     })

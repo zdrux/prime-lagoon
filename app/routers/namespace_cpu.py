@@ -239,6 +239,9 @@ def view_report(
     total = sum(count for day, count in day_counts if report_day is None or day == report_day)
     if report_day is not None:
         query = query.where(NamespaceCPUDaily.day == report_day)
+    target_columns = (NamespaceCPUDaily.cluster_name, NamespaceCPUDaily.environment)
+    targets = session.execute(query.order_by(None).with_only_columns(*target_columns)
+                              .distinct().order_by(*target_columns)).all()
     page_count = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     page = min(page, page_count)
     records = session.exec(query.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)).all()
@@ -259,6 +262,7 @@ def view_report(
     )).all()
     return {
         "environments": sorted(value for value in environments if value),
+        "targets": [{"cluster": cluster, "environment": environment} for cluster, environment in targets],
         "rows": [summarize(row) for row in records], "has_more": page < page_count,
         "page": page, "page_count": page_count, "total": total, "page_size": PAGE_SIZE,
         "days": [{"day": day, "count": count} for day, count in day_counts],

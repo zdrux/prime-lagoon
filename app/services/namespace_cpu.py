@@ -232,6 +232,11 @@ def collect_day(cluster_id: int, day: date, *, manual: bool = False, progress=No
     return CollectionResult(status, detail)
 
 
+def namespace_cpu_schedule_enabled(session: Session) -> bool:
+    config = session.get(AppConfig, "NAMESPACE_CPU_AUTO_COLLECT")
+    return config is None or config.value.lower() == "true"
+
+
 def collect_namespace_cpu():
     today = eastern_today()
     with Session(engine) as session:
@@ -239,6 +244,8 @@ def collect_namespace_cpu():
         for model in (NamespaceCPUDaily, NamespaceCPUCollection):
             session.execute(delete(model).where(model.day < cutoff))
         session.commit()
+        if not namespace_cpu_schedule_enabled(session):
+            return
         clusters = session.exec(select(Cluster).where(Cluster.namespace_cpu_enabled == True)).all()
         legacy_starts = {}
         for cluster_id, day in session.exec(select(

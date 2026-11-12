@@ -19,6 +19,7 @@ class ConfigUpdate(BaseModel):
     run_compliance: bool
     dashboard_cache_ttl_minutes: int
     enable_db_vacuum: bool = True
+    namespace_cpu_auto_collect: bool | None = None
 
 class CleanupRequest(BaseModel):
     days: int
@@ -185,6 +186,9 @@ def read_clusters(offset: int = 0, limit: int = 100, session: Session = Depends(
 
 @router.post("/clusters/config/scheduler")
 def update_scheduler_config(config: ConfigUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
+    if config.namespace_cpu_auto_collect is not None:
+        session.merge(AppConfig(key="NAMESPACE_CPU_AUTO_COLLECT", value=str(config.namespace_cpu_auto_collect)))
+
     # Update Interval
     db_interval = session.get(AppConfig, "POLL_INTERVAL_MINUTES")
     if not db_interval:

@@ -3,6 +3,7 @@ import logging
 import math
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
+from time import sleep
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
@@ -94,21 +95,37 @@ def test_monitoring_connection(base_url: str, token: str) -> None:
         raise ThanosQueryError("Thanos did not return a valid query result")
 
 
-def query_range(client: requests.Session, base_url: str, query: str, start: datetime, end: datetime):
-    response = client.get(
-        f"{base_url.rstrip('/')}/api/v1/query_range",
-        params={
-            "query": query,
-            "start": (start + timedelta(hours=1)).isoformat(),
-            "end": end.isoformat(),
-            "step": "1h",
-            "timeout": "45s",
-            "partial_response": "false",
-        },
-        timeout=(5, 55),
-        allow_redirects=False,
-        verify=False,
-    )
+def query_range(
+    client: requests.Session, base_url: str, query: str, start: datetime, end: datetime,
+    *, label: str, progress, attempts: int,
+):
+    for attempt in range(1, attempts + 1):
+        if progress:
+            progress(f"Querying {label} (attempt {attempt} of {attempts})")
+        try:
+            response = client.get(
+                f"{base_url.rstrip('/')}/api/v1/query_range",
+                params={
+                    "query": query,
+                    "start": (start + timedelta(hours=1)).isoformat(),
+                    "end": end.isoformat(),
+                    "step": "1h",
+                    "timeout": "45s",
+                    "partial_response": "false",
+                },
+                timeout=(5, 55),
+                allow_redirects=False,
+                verify=False,
+            )
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt == attempts:
+                raise
+        else:
+            if response.status_code not in (408, 429, 500, 502, 503, 504) or attempt == attempts:
+                break
+        if progress:
+            progress(f"Retrying {label} shortly (attempt {attempt + 1} of {attempts})")
+        sleep(attempt)
     if response.status_code != 200:
         raise ThanosQueryError(f"Thanos returned HTTP {response.status_code}")
     payload = response.json()
@@ -126,7 +143,7 @@ def query_range(client: requests.Session, base_url: str, query: str, start: date
                 yield series["metric"], int(seconds // 3600) - 1, value
 
 
-def fetch_day(cluster: Cluster, day: date) -> list[NamespaceCPUDaily]:
+def fetch_day(cluster: Cluster, day: date, *, progress=None, attempts=1) -> list[NamespaceCPUDaily]:
     start, end = day_bounds(day)
     hours = (end - start) // timedelta(hours=1)
     usage, quota, ambiguous, mapids = {}, {}, {}, {}
@@ -134,10 +151,15 @@ def fetch_day(cluster: Cluster, day: date) -> list[NamespaceCPUDaily]:
         raise ThanosQueryError("Configure an HTTPS Thanos base URL")
     with requests.Session() as client:
         client.headers["Authorization"] = f"Bearer {cluster.token}"
-        for query, data in ((USAGE_QUERY, usage), (QUOTA_QUERY, quota), (AMBIGUOUS_QUERY, ambiguous)):
-            for metric, hour, value in query_range(client, cluster.thanos_url, query, start, end):
+        for label, query, data in (
+            ("CPU usage", USAGE_QUERY, usage), ("CPU limits quota", QUOTA_QUERY, quota),
+            ("quota conflicts", AMBIGUOUS_QUERY, ambiguous),
+        ):
+            for metric, hour, value in query_range(client, cluster.thanos_url, query, start, end,
+                                                  label=label, progress=progress, attempts=attempts):
                 data.setdefault(metric["namespace"], [None] * hours)[hour] = value
-        for metric, hour, _ in query_range(client, cluster.thanos_url, MAPID_QUERY, start, end):
+        for metric, hour, _ in query_range(client, cluster.thanos_url, MAPID_QUERY, start, end,
+                                           label="MAPIDs", progress=progress, attempts=attempts):
             labels = mapids.setdefault(metric["namespace"], [set() for _ in range(hours)])
             labels[hour].add(metric["label_mapid"])
 
@@ -161,7 +183,7 @@ def fetch_day(cluster: Cluster, day: date) -> list[NamespaceCPUDaily]:
     return rows
 
 
-def collect_day(cluster_id: int, day: date, *, manual: bool = False) -> CollectionResult:
+def collect_day(cluster_id: int, day: date, *, manual: bool = False, progress=None) -> CollectionResult:
     with Session(engine) as session:
         cluster = session.get(Cluster, cluster_id)
         if not cluster or not cluster.namespace_cpu_enabled:
@@ -170,7 +192,7 @@ def collect_day(cluster_id: int, day: date, *, manual: bool = False) -> Collecti
         if not manual and existing and existing.eastern_day and existing.status == "Collected":
             return CollectionResult("Collected")
     try:
-        rows = fetch_day(cluster, day)
+        rows = fetch_day(cluster, day, progress=progress, attempts=3 if manual else 1)
     except Exception as error:
         detail = str(error) if isinstance(error, ThanosQueryError) else type(error).__name__
         logger.warning("Namespace CPU collection failed for cluster %s on %s (%s)", cluster.id, day, detail)
@@ -178,6 +200,8 @@ def collect_day(cluster_id: int, day: date, *, manual: bool = False) -> Collecti
     else:
         status, detail = ("Collected", None) if rows else ("No data", None)
 
+    if progress:
+        progress("Saving collection results")
     with Session(engine) as session:
         session.execute(text("BEGIN IMMEDIATE"))
         current = session.get(Cluster, cluster.id)

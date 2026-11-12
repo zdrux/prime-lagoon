@@ -2,7 +2,6 @@ import csv
 import io
 import json
 import logging
-from concurrent.futures import Future
 from datetime import date, timedelta
 from threading import Lock
 from typing import Annotated
@@ -27,7 +26,7 @@ REPORT_FIELDS = {
     "environment": "Environment",
     "namespace": "Namespace",
     "mapid": "MAPID",
-    "cpu_limit_quota_vcpu": "CPU limits quota at day end (vCPU)",
+    "cpu_limit_quota_vcpu": "CPU limits",
     "avg_vcpu": "Avg CPU (vCPU)",
     "observed_cpu_vcpu_hours": "Observed CPU (vCPU-hours)",
     "hours_with_data": "CPU hours",
@@ -37,22 +36,46 @@ REPORT_FIELDS = {
 }
 DEFAULT_FIELDS = tuple(field for field in REPORT_FIELDS if not field.startswith("hourly_"))
 
-manual_runs: dict[tuple[int, date], Future[CollectionResult]] = {}
+manual_runs: dict[tuple[int, date, date], dict] = {}
 manual_runs_lock = Lock()
 
 
-def run_collection(cluster_id: int, day: date, result: Future[CollectionResult]):
-    try:
-        result.set_result(collect_day(cluster_id, day, manual=True))
-    except Exception:
-        logger.exception("Manual namespace CPU collection failed for cluster %s", cluster_id)
-        result.set_result(CollectionResult("Failed", "Unable to save the collection. Check the application logs."))
+def run_collection(cluster_id: int, start: date, end: date, state: dict):
+    failures = []
+    total = (end - start).days + 1
+    collected = 0
+    for offset in range(total):
+        day = start + timedelta(days=offset)
+
+        def progress(message):
+            with manual_runs_lock:
+                state["detail"] = f"{day} ET · {message}"
+
+        progress("Starting collection")
+        try:
+            result = collect_day(cluster_id, day, manual=True, progress=progress)
+        except Exception:
+            logger.exception("Manual namespace CPU collection failed for cluster %s on %s", cluster_id, day)
+            result = CollectionResult("Failed", "Unable to save the collection.")
+        if result.status == "Collected":
+            collected += 1
+        else:
+            failures.append(f"{day} · {result.detail or result.status}")
+        with manual_runs_lock:
+            state["completed"] = offset + 1
+
+    with manual_runs_lock:
+        state.update(
+            status="Collected" if not failures else "Partial" if collected else "Failed",
+            detail="; ".join(failures) or None,
+        )
 
 
 @router.post("/run-now/{cluster_id}", status_code=202)
 def start_manual_run(
     cluster_id: int, background: BackgroundTasks,
     session: Session = Depends(get_session), user: User = Depends(operator_allowed),
+    start: date | None = None, end: date | None = None,
 ):
     require_page_access("reports", user, session)
     cluster = session.get(Cluster, cluster_id)
@@ -61,36 +84,48 @@ def start_manual_run(
     if not cluster.namespace_cpu_enabled:
         raise HTTPException(409, "Enable Namespace CPU collection for this cluster first.")
     today = eastern_today()
-    day = today - timedelta(days=1)
-    if day < retention_start(session, today):
-        raise HTTPException(409, "Yesterday is outside snapshot retention.")
+    legacy = start is None and end is None
+    if legacy:
+        start = end = today - timedelta(days=1)
+    if start is None or end is None or start > end or end >= today:
+        raise HTTPException(422, "Select a date range ending on a completed Eastern day.")
+    cutoff = retention_start(session, today)
+    if start < cutoff:
+        raise HTTPException(409, f"Select a start date on or after {cutoff} ET to stay within snapshot retention.")
 
+    key = (cluster_id, start, end)
     with manual_runs_lock:
-        for key, result in list(manual_runs.items()):
-            if key[1] < day and result.done():
-                del manual_runs[key]
-        key = (cluster_id, day)
-        result = manual_runs.get(key)
-        if result is None or result.done():
-            result = Future()
-            manual_runs[key] = result
-            background.add_task(run_collection, cluster_id, day, result)
-    return {"day": day, "cluster_id": cluster_id}
+        for old_key, state in list(manual_runs.items()):
+            if old_key[2] < cutoff and state["status"] != "Running":
+                del manual_runs[old_key]
+        for active_key, state in manual_runs.items():
+            if active_key[0] == cluster_id and state["status"] == "Running" and active_key != key:
+                raise HTTPException(409, "A collection is already running for this cluster.")
+        state = manual_runs.get(key)
+        if state is None or state["status"] != "Running":
+            state = {"status": "Running", "detail": "Waiting to start", "completed": 0,
+                     "total": (end - start).days + 1}
+            manual_runs[key] = state
+            background.add_task(run_collection, cluster_id, start, end, state)
+    if legacy:
+        return {"day": start, "cluster_id": cluster_id}
+    return {"start": start, "end": end, "cluster_id": cluster_id}
 
 
 @router.get("/run-now/{cluster_id}")
 def get_manual_run(
-    cluster_id: int, day: date,
+    cluster_id: int, day: date | None = None,
     session: Session = Depends(get_session), user: User = Depends(operator_allowed),
+    start: date | None = None, end: date | None = None,
 ):
     require_page_access("reports", user, session)
+    if day is not None:
+        start = end = day
     with manual_runs_lock:
-        result = manual_runs.get((cluster_id, day))
-    if result is None:
-        raise HTTPException(404, "This collection is no longer available. Open the report or start another run.")
-    if not result.done():
-        return {"status": "Running"}
-    return result.result()
+        state = manual_runs.get((cluster_id, start, end))
+        if state is not None:
+            return state.copy()
+    raise HTTPException(404, "This collection is no longer available. Open the report or start another run.")
 
 
 @router.get("/clusters")
@@ -229,6 +264,8 @@ def view_report(
 
 
 def csv_cell(value):
+    if isinstance(value, float):
+        return f"{value:.2f}"
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
@@ -275,7 +312,7 @@ def export_report(
             for field in selected:
                 if field in ("hourly_usage", "hourly_quota"):
                     by_hour = dict(zip(keys, values[field]))
-                    cells.extend(by_hour.get(hour) for hour in hour_keys)
+                    cells.extend(csv_cell(by_hour.get(hour)) for hour in hour_keys)
                 else:
                     cells.append(csv_cell(values[field]))
             buffer.seek(0)

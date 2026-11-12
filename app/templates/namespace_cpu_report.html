@@ -65,14 +65,22 @@
 {% if can_manage_reports %}
 <dialog id="cpu-run" class="card" style="width:min(600px, 95vw); max-height:90vh; overflow:auto; color:inherit; margin:auto;">
     <div class="modal-header">
-        <h2>Collect yesterday’s report</h2>
+        <h2>Collect Namespace CPU reports</h2>
         <button class="close-btn" type="button" data-close="cpu-run" aria-label="Close">&times;</button>
     </div>
     <form id="cpu-run-form">
         <div class="modal-body">
             <label for="cpu-run-cluster">Cluster</label>
             <select id="cpu-run-cluster" class="form-input" required></select>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:1rem;">
+                <label>From (ET)<input type="date" class="form-input" id="cpu-run-start" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
+                <label>Through (ET)<input type="date" class="form-input" id="cpu-run-end" value="{{ cpu_latest_day }}" max="{{ cpu_latest_day }}" required></label>
+            </div>
             {{ cpu_fields() }}
+            <div id="cpu-run-progress" hidden>
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <progress id="cpu-run-days" aria-label="Days processed"></progress>
+            </div>
             <p id="cpu-run-status" role="status"></p>
         </div>
         <div class="modal-footer">

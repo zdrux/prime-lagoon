@@ -13,21 +13,63 @@
     let request;
     let chart;
 
-    const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
+    const number = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const format = value => value === null ? '—' : number.format(value);
     const fieldLabels = JSON.parse(get('cpu-field-labels').textContent);
+    const fieldStorageKey = 'ocp_namespace_cpu_report_fields';
+    const fieldLists = Array.from(document.querySelectorAll('.cpu-field-list'));
+    const reportForm = get('cpu-report-form');
+    const selectedFields = form => Array.from(form.querySelectorAll('input[name="cpu-field"]:checked'),
+        input => input.value);
+    const defaultFields = selectedFields(reportForm);
+
+    function saveFieldPreferences(list) {
+        const preferences = Array.from(list.children, row => [row.dataset.field, row.querySelector('input').checked]);
+        try {
+            localStorage.setItem(fieldStorageKey, JSON.stringify(preferences));
+        } catch {
+            // The controls still work when browser storage is unavailable.
+        }
+    }
+
+    function applyFieldOrder(list, order) {
+        const rows = new Map(Array.from(list.children, row => [row.dataset.field, row]));
+        list.append(...order.map(field => rows.get(field)));
+        for (const row of list.children) {
+            row.querySelector('[data-move="-1"]').disabled = !row.previousElementSibling;
+            row.querySelector('[data-move="1"]').disabled = !row.nextElementSibling;
+        }
+    }
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(fieldStorageKey));
+        if (Array.isArray(saved)) {
+            const preferences = new Map(saved.filter(entry => Array.isArray(entry) &&
+                Object.hasOwn(fieldLabels, entry[0]) && typeof entry[1] === 'boolean'));
+            const renderedOrder = Array.from(reportForm.querySelectorAll('.cpu-field-row'), row => row.dataset.field);
+            const order = [...preferences.keys(), ...renderedOrder.filter(field => !preferences.has(field))];
+            for (const list of fieldLists) {
+                applyFieldOrder(list, order);
+                for (const input of list.querySelectorAll('input[name="cpu-field"]')) {
+                    if (preferences.has(input.value)) input.checked = preferences.get(input.value);
+                }
+            }
+        }
+    } catch {
+        // Use the rendered defaults if stored preferences cannot be read.
+    }
+    const restoredFields = selectedFields(reportForm);
+    const initialFields = restoredFields.length ? restoredFields : defaultFields;
 
     const fieldInputs = Array.from(document.querySelectorAll('input[name="cpu-field"]'));
     for (const input of fieldInputs) {
         input.addEventListener('change', () => {
             fieldInputs.filter(other => other.value === input.value)
                 .forEach(other => { other.checked = input.checked; });
+            saveFieldPreferences(input.closest('.cpu-field-list'));
         });
     }
-    const selectedFields = form => Array.from(form.querySelectorAll('input[name="cpu-field"]:checked'),
-        input => input.value);
 
-    const fieldLists = Array.from(document.querySelectorAll('.cpu-field-list'));
     for (const list of fieldLists) {
         let dragged;
         let dropTarget;
@@ -42,15 +84,9 @@
             list.insertBefore(row, before);
             const order = Array.from(list.children, item => item.dataset.field);
             for (const fieldList of fieldLists) {
-                if (fieldList !== list) {
-                    const rows = new Map(Array.from(fieldList.children, item => [item.dataset.field, item]));
-                    fieldList.append(...order.map(field => rows.get(field)));
-                }
-                for (const item of fieldList.children) {
-                    item.querySelector('[data-move="-1"]').disabled = !item.previousElementSibling;
-                    item.querySelector('[data-move="1"]').disabled = !item.nextElementSibling;
-                }
+                applyFieldOrder(fieldList, order);
             }
+            saveFieldPreferences(list);
             list.nextElementSibling.textContent = fieldLabels[row.dataset.field] + ' moved to position ' +
                 (order.indexOf(row.dataset.field) + 1) + ' of ' + order.length + '.';
         }
@@ -125,8 +161,6 @@
         }
     }
     const search = get('cpu-search');
-    const defaultFields = selectedFields(get('cpu-report-form'));
-    const reportForm = get('cpu-report-form');
     const viewButton = get('cpu-view-report');
     let availabilityRequest;
     let availabilityTimer;
@@ -178,7 +212,7 @@
             params.set('descending', String(descending));
         }
         if (search.value.trim()) params.set('search', search.value.trim());
-        if (!params.has('fields')) defaultFields.forEach(field => params.append('fields', field));
+        if (!params.has('fields')) initialFields.forEach(field => params.append('fields', field));
         return params;
     }
 
@@ -286,6 +320,10 @@
         const clusterPicker = get('cpu-run-cluster');
         const runStatus = get('cpu-run-status');
         const submit = get('cpu-run-submit');
+        const runStart = get('cpu-run-start');
+        const runEnd = get('cpu-run-end');
+        const runProgress = get('cpu-run-progress');
+        const runDays = get('cpu-run-days');
         let running = false;
 
         get('cpu-open-run').addEventListener('click', async () => {
@@ -300,7 +338,7 @@
                     clusterPicker.add(new Option(cluster.name, cluster.id));
                 }
                 runStatus.textContent = available.length
-                    ? 'Collects the previous completed Eastern day.'
+                    ? 'Choose the completed Eastern days to collect.'
                     : 'Enable collection in Administration → Cluster Management.';
                 submit.disabled = !available.length;
             } catch (error) {
@@ -311,6 +349,10 @@
         runForm.addEventListener('submit', async event => {
             event.preventDefault();
             if (running || !clusterPicker.value) return;
+            if (runStart.value > runEnd.value) {
+                runStatus.textContent = 'Choose an end date on or after the start date.';
+                return;
+            }
             const fields = selectedFields(runForm);
             if (!fields.length) {
                 runStatus.textContent = 'Choose at least one report field.';
@@ -318,42 +360,56 @@
             }
             running = true;
             submit.disabled = clusterPicker.disabled = true;
-            runStatus.textContent = 'Collecting yesterday’s report from Thanos…';
+            runStart.disabled = runEnd.disabled = true;
+            runDays.removeAttribute('value');
+            runProgress.hidden = false;
+            runStatus.textContent = 'Starting collection…';
             try {
                 const url = endpoint + '/run-now/' + clusterPicker.value;
-                const job = await read(url, { method: 'POST' });
+                const dates = new URLSearchParams({ start: runStart.value, end: runEnd.value });
+                const job = await read(url + '?' + dates, { method: 'POST' });
                 let outcome;
                 do {
                     await new Promise(resolve => setTimeout(resolve, 1500));
-                    outcome = await read(url + '?day=' + job.day);
+                    outcome = await read(url + '?' + dates);
+                    runDays.max = outcome.total;
+                    runDays.value = outcome.completed;
+                    runStatus.textContent = outcome.completed + ' of ' + outcome.total + ' days processed · ' +
+                        (outcome.detail || outcome.status);
                 } while (outcome.status === 'Running');
-                if (outcome.status !== 'Collected') {
-                    runStatus.textContent = outcome.detail || 'Thanos returned no namespace data for yesterday.';
+                if (outcome.status === 'Failed') {
+                    runStatus.textContent = outcome.detail || 'No reports were collected.';
                     if (!run.open) get('cpu-status').textContent = runStatus.textContent;
                     return;
                 }
 
                 const clusterId = Number(job.cluster_id);
-                if (job.day > end.max) start.max = end.max = job.day;
-                start.value = end.value = job.day;
+                start.value = job.start;
+                end.value = job.end;
                 selection.clear();
                 selection.add(clusterId);
                 picker.querySelectorAll('.report-filter.active').forEach(button => {
                     button.classList.remove('active');
                     button.setAttribute('aria-pressed', 'false');
                 });
-                scope = new URLSearchParams({ start: job.day, end: job.day, cluster_ids: clusterId });
+                scope = new URLSearchParams({ start: job.start, end: job.end, cluster_ids: clusterId });
                 fields.forEach(field => scope.append('fields', field));
                 activeEnvironments.clear();
                 search.value = '';
                 run.close();
                 await loadPage(1);
+                if (outcome.status === 'Partial') {
+                    get('cpu-status').textContent = 'Collection completed with issues · ' + outcome.detail;
+                    get('cpu-issues').open = true;
+                }
             } catch (error) {
                 runStatus.textContent = error.message;
                 if (!run.open) get('cpu-status').textContent = error.message;
             } finally {
                 running = false;
                 submit.disabled = clusterPicker.disabled = false;
+                runStart.disabled = runEnd.disabled = false;
+                runProgress.hidden = true;
             }
         });
     }
@@ -400,16 +456,21 @@
             data: { labels: row.hours_et, datasets },
             options: {
                 interaction: { mode: 'index', intersect: false },
-                plugins: { legend: { labels: { color: textColor } } },
+                plugins: {
+                    legend: { labels: { color: textColor } },
+                    tooltip: { callbacks: {
+                        label: item => item.dataset.label + ': ' + format(item.parsed.y) + ' vCPU',
+                    } },
+                },
                 scales: {
                     x: { ticks: { color: textColor } },
                     cpu: {
-                        type: 'linear', position: 'left', beginAtZero: true, ticks: { color: usageColor },
+                        type: 'linear', position: 'left', beginAtZero: true, ticks: { color: usageColor, callback: format },
                         title: { display: true, text: 'Hourly average CPU (vCPU)', color: usageColor },
                     },
                     quota: {
                         type: 'linear', position: 'right', display: row.cpu_limit_quota_vcpu !== null,
-                        beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: quotaColor },
+                        beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: quotaColor, callback: format },
                         title: { display: true, text: 'CPU limits quota (vCPU)', color: quotaColor },
                     },
                 },

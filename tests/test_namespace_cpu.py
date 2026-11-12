@@ -96,13 +96,13 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     export = client.get(base + "/export", params=params)
     assert export.status_code == 200
     exported = next(csv.DictReader(io.StringIO(export.text)))
-    assert exported["avg_vcpu_00_et"] == "0.0"
+    assert exported["avg_vcpu_00_et"] == "0.00"
     assert exported["avg_vcpu_01_et"] == ""
-    assert exported["avg_vcpu_23_et"] == "2.0"
-    assert exported["cpu_quota_vcpu_23_et"] == "6.0"
+    assert exported["avg_vcpu_23_et"] == "2.00"
+    assert exported["cpu_quota_vcpu_23_et"] == "6.00"
     subset = client.get(base + "/export", params={**params, "fields": ["date_et", "cpu_limit_quota_vcpu"]})
     assert list(csv.reader(io.StringIO(subset.text))) == [
-        ["date_et", "cpu_limit_quota_vcpu"], [yesterday.isoformat(), "6.0"],
+        ["date_et", "cpu_limit_quota_vcpu"], [yesterday.isoformat(), "6.00"],
     ]
     assert client.get(base + "/export", params={**params, "fields": "invalid"}).status_code == 422
     filtered = client.get(base + "/export", params={"search": "missing", "fields": "namespace"})
@@ -151,11 +151,31 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
 
     http.get.side_effect = None
     http.get.return_value = Mock(status_code=503)
+    monkeypatch.setattr(namespace_cpu, "sleep", lambda seconds: None)
     assert client.post(run_url).status_code == 202
     failed = client.get(run_url, params={"day": yesterday.isoformat()}).json()
     assert failed["status"] == "Failed"
     assert "HTTP 503" in failed["detail"]
+    assert http.get.call_count == 11
     assert len(client.get(base, params=params).json()["rows"]) == 1
+
+    from app.routers import namespace_cpu as report_api
+
+    with Session(engine) as session:
+        session.get(AppConfig, "SNAPSHOT_RETENTION_DAYS").value = "2"
+        session.commit()
+    collect = Mock(side_effect=[
+        namespace_cpu.CollectionResult("Failed", "Thanos returned HTTP 503"),
+        namespace_cpu.CollectionResult("Collected"),
+    ])
+    monkeypatch.setattr(report_api, "collect_day", collect)
+    dates = {"start": old_day.isoformat(), "end": yesterday.isoformat()}
+    assert client.post(run_url, params=dates).status_code == 202
+    outcome = client.get(run_url, params=dates).json()
+    assert outcome["status"] == "Partial"
+    assert outcome["completed"] == outcome["total"] == 2
+    assert [call.args[1] for call in collect.call_args_list] == [old_day, yesterday]
+    assert client.post(run_url, params={**dates, "end": today.isoformat()}).status_code == 422
 
 
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "report_cluster_picker.html" import report_cluster_picker %}
 
 {% block content %}
 <style>
@@ -365,47 +366,7 @@
 
             <!-- Filters & Preview Combined -->
             <div id="report-main-view">
-                <div style="margin-bottom:1.5rem;">
-                    <h4
-                        style="margin-bottom:0.5rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem; margin-top: 0;">
-                        Filters</h4>
-
-                    <div style="margin-bottom:1rem;">
-                        <label style="font-weight:600; font-size:0.9rem;">Environment</label>
-                        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-                            <button class="filter-btn report-filter" data-type="env" data-val="DEV"
-                                onclick="toggleReportFilter(this)">DEV</button>
-                            <button class="filter-btn report-filter" data-type="env" data-val="UAT"
-                                onclick="toggleReportFilter(this)">UAT</button>
-                            <button class="filter-btn report-filter" data-type="env" data-val="PROD"
-                                onclick="toggleReportFilter(this)">PROD</button>
-                        </div>
-                    </div>
-
-                    <div style="margin-bottom:1rem;">
-                        <label style="font-weight:600; font-size:0.9rem;">Datacenter</label>
-                        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-                            <button class="filter-btn report-filter" data-type="dc" data-val="AZURE"
-                                onclick="toggleReportFilter(this)">AZURE</button>
-                            <button class="filter-btn report-filter" data-type="dc" data-val="HCI"
-                                onclick="toggleReportFilter(this)">HCI</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:1.5rem;">
-                    <h4
-                        style="margin-bottom:0.5rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
-                        Matching Clusters</h4>
-                    <div id="preview-cluster-list"
-                        style="max-height:150px; overflow-y:auto; background:var(--bg-secondary); padding:0.5rem; border-radius:4px; margin-bottom:0.5rem; font-size:0.85rem; font-family:monospace;">
-                        <div style="text-align:center; padding:1rem;"><i class="fas fa-circle-notch fa-spin"></i>
-                            Loading...</div>
-                    </div>
-                    <div style="text-align:right; font-size:0.9rem;">
-                        Total: <span id="preview-count" style="font-weight:bold;">-</span>
-                    </div>
-                </div>
+                {{ report_cluster_picker('toggleReportFilter') }}
 
                 <!-- Advanced Options -->
                 <div>

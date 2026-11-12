@@ -1,0 +1,102 @@
+{% from "report_cluster_picker.html" import report_cluster_picker %}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Namespace CPU</h1>
+        <p>Hourly CPU usage and hard CPU quota for completed UTC days.</p>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+        <button class="btn btn-secondary" type="button" id="cpu-download-active" style="display:none;">Download CSV</button>
+        {% if can_manage_reports %}
+        <button class="btn btn-secondary" type="button" id="cpu-open-run">
+            <i class="fas fa-play" aria-hidden="true"></i> Run Now
+        </button>
+        {% endif %}
+        <button class="btn btn-primary" type="button" id="cpu-open-picker">
+            <i class="fas fa-filter" aria-hidden="true"></i> Select dates and clusters
+        </button>
+    </div>
+</div>
+
+<p id="cpu-status" role="status">Select a date range and clusters to view collected data.</p>
+<details id="cpu-issues" hidden>
+    <summary id="cpu-issue-count"></summary>
+    <ul id="cpu-issue-list"></ul>
+</details>
+<section class="card" id="cpu-results" hidden>
+    <div class="table-container">
+        <table class="data-table">
+            <thead><tr>
+                <th>Date (UTC)</th><th>Cluster</th><th>Namespace</th><th>MAPID</th>
+                <th>Avg CPU (vCPU)</th><th>Observed CPU (vCPU-hours)</th><th>CPU hours</th>
+                <th>Avg quota (vCPU)</th><th>Observed quota (vCPU-hours)</th><th>Quota hours</th>
+            </tr></thead>
+            <tbody id="cpu-result-rows"></tbody>
+        </table>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:flex-end; gap:0.75rem; padding:1rem;">
+        <button class="btn btn-secondary btn-sm" type="button" id="cpu-prev">Previous</button>
+        <span id="cpu-page"></span>
+        <button class="btn btn-secondary btn-sm" type="button" id="cpu-next">Next</button>
+    </div>
+</section>
+
+{% if can_manage_reports %}
+<dialog id="cpu-run" class="card" style="width:min(500px, 95vw); color:inherit; margin:auto;">
+    <div class="modal-header">
+        <h2>Collect yesterday’s report</h2>
+        <button class="close-btn" type="button" data-close="cpu-run" aria-label="Close">&times;</button>
+    </div>
+    <form id="cpu-run-form">
+        <div class="modal-body">
+            <label for="cpu-run-cluster">Cluster</label>
+            <select id="cpu-run-cluster" class="form-input" required></select>
+            <p id="cpu-run-status" role="status"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" id="cpu-run-submit" type="submit">Run Now</button>
+        </div>
+    </form>
+</dialog>
+{% endif %}
+
+<dialog id="cpu-picker" class="card" style="width:min(600px, 95vw); max-height:90vh; overflow:auto; color:inherit; margin:auto;">
+    <div class="modal-header">
+        <h2>Select dates and clusters</h2>
+        <button class="close-btn" type="button" data-close="cpu-picker" aria-label="Close">&times;</button>
+    </div>
+    <form id="cpu-report-form">
+        <div class="modal-body" style="padding:1.5rem;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.5rem;">
+                <label>From (UTC)<input type="date" class="form-input" id="cpu-start" required></label>
+                <label>Through (UTC)<input type="date" class="form-input" id="cpu-end" required></label>
+            </div>
+            {{ report_cluster_picker('toggleCpuClusterFilter') }}
+            <button class="btn btn-secondary btn-sm" type="button" id="cpu-select-matching">Select matching</button>
+            <button class="btn btn-secondary btn-sm" type="button" id="cpu-clear-selection">Clear selection</button>
+            <p role="status" id="cpu-picker-status"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" type="submit" value="export">Download CSV</button>
+            <button class="btn btn-primary" type="submit" value="view">View report</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog id="cpu-hourly" class="card" style="width:min(860px, 95vw); max-height:90vh; overflow:auto; color:inherit; margin:auto;">
+    <div class="modal-header">
+        <h2 id="cpu-hourly-title">Hourly CPU</h2>
+        <button class="close-btn" type="button" data-close="cpu-hourly" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+        <canvas id="cpu-chart" aria-label="Hourly CPU usage and quota in vCPU" role="img"></canvas>
+        <details>
+            <summary>Hourly values</summary>
+            <table class="data-table">
+                <thead><tr><th>Hour (UTC)</th><th>Avg CPU (vCPU)</th><th>Avg quota (vCPU)</th><th>MAPID</th></tr></thead>
+                <tbody id="cpu-hourly-rows"></tbody>
+            </table>
+        </details>
+    </div>
+</dialog>
+<script src="/static/namespace_cpu.js" defer></script>

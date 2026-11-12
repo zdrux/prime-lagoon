@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from sqlmodel import Field, SQLModel, Column, Text, Boolean
 from pydantic import field_validator
 
@@ -15,9 +15,12 @@ class ClusterBase(SQLModel):
     datacenter: Optional[str] = Field(default="Azure")
     environment: Optional[str] = Field(default="DEV")
     tags: Optional[str] = None # JSON string of KV pairs
+    namespace_cpu_enabled: bool = False
+    thanos_url: Optional[str] = None
 
 class Cluster(ClusterBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    namespace_cpu_since: Optional[date] = None
 
 class ClusterCreate(ClusterBase):
     tags: Optional[str] = None # JSON string
@@ -38,6 +41,27 @@ class ClusterUpdate(SQLModel):
     datacenter: Optional[str] = None
     environment: Optional[str] = None
     tags: Optional[str] = None # JSON string of KV pairs
+    namespace_cpu_enabled: Optional[bool] = None
+    thanos_url: Optional[str] = None
+
+
+class NamespaceCPUCollection(SQLModel, table=True):
+    cluster_id: int = Field(primary_key=True, foreign_key="cluster.id")
+    day: date = Field(primary_key=True, index=True)
+    status: str
+    detail: Optional[str] = None
+
+
+class NamespaceCPUDaily(SQLModel, table=True):
+    cluster_id: int = Field(primary_key=True, foreign_key="cluster.id")
+    day: date = Field(primary_key=True, index=True)
+    namespace: str = Field(primary_key=True)
+    cluster_name: str
+    environment: Optional[str] = None
+    usage_json: str
+    quota_json: str
+    mapids_json: str
+    ambiguous_quota: bool = False
 
 class AuditBundle(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

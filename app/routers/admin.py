@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from datetime import datetime, timezone
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, SQLModel
 from typing import List, Optional
@@ -6,7 +7,8 @@ import json
 import asyncio
 from pydantic import BaseModel
 from app.database import get_session
-from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, User
+from app.models import Cluster, ClusterCreate, ClusterRead, ClusterUpdate, AppConfig, ClusterSnapshot, NamespaceCPUCollection, NamespaceCPUDaily, User
+from app.services.namespace_cpu import ThanosQueryError, test_monitoring_connection, valid_thanos_url
 from app.services.scheduler import refresh_jobs
 from app.dependencies import admin_required, operator_allowed
 import os
@@ -118,9 +120,37 @@ def test_connection_endpoint(data: ClusterTestRequest, session: Session = Depend
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+class MonitoringTestRequest(BaseModel):
+    thanos_url: str
+    token: str
+    cluster_id: Optional[int] = None
+
+
+@router.post("/clusters/test-monitoring")
+def test_cluster_monitoring(
+    data: MonitoringTestRequest, session: Session = Depends(get_session),
+    user: User = Depends(admin_required),
+):
+    if not valid_thanos_url(data.thanos_url):
+        raise HTTPException(422, "Enter an HTTPS Thanos base URL.")
+    token = data.token
+    if token == "********":
+        cluster = session.get(Cluster, data.cluster_id) if data.cluster_id is not None else None
+        token = cluster.token if cluster else ""
+    if not token:
+        raise HTTPException(422, "Enter the cluster token.")
+    try:
+        test_monitoring_connection(data.thanos_url, token)
+    except Exception as error:
+        detail = str(error) if isinstance(error, ThanosQueryError) else type(error).__name__
+        raise HTTPException(502, f"Monitoring connection failed ({detail}).") from error
+    return {"message": "Thanos accepted the cluster token and returned a query result."}
+
+
 @router.post("/clusters/", response_model=ClusterRead)
 def create_cluster(cluster: ClusterCreate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     db_cluster = Cluster.model_validate(cluster)
+    configure_namespace_cpu(db_cluster, cluster.namespace_cpu_enabled, cluster.thanos_url)
     
     # Try to fetch unique ID immediately
     try:
@@ -455,6 +485,9 @@ def delete_cluster(cluster_id: int, session: Session = Depends(get_session), use
     cluster = session.get(Cluster, cluster_id)
     if not cluster:
         raise HTTPException(status_code=404, detail="Cluster not found")
+    from sqlalchemy import delete
+    for model in (NamespaceCPUDaily, NamespaceCPUCollection):
+        session.execute(delete(model).where(model.cluster_id == cluster_id))
     session.delete(cluster)
     session.commit()
     return {"ok": True}
@@ -567,6 +600,15 @@ def vacuum_db(background_tasks: BackgroundTasks, session: Session = Depends(get_
     background_tasks.add_task(run_vacuum_task)
     return {"status": "accepted", "message": "Database optimization started in background."}
 
+def configure_namespace_cpu(cluster: Cluster, enabled: bool, url: str | None):
+    if (enabled or url) and not valid_thanos_url(url):
+        raise HTTPException(status_code=422, detail="Enter an HTTPS Thanos base URL to configure Namespace CPU collection.")
+    if enabled and (not cluster.namespace_cpu_since or not cluster.namespace_cpu_enabled):
+        cluster.namespace_cpu_since = datetime.now(timezone.utc).date()
+    cluster.namespace_cpu_enabled = enabled
+    cluster.thanos_url = url
+
+
 @router.patch("/clusters/{cluster_id}", response_model=ClusterRead)
 def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = Depends(get_session), user: User = Depends(admin_required)):
     db_cluster = session.get(Cluster, cluster_id)
@@ -574,6 +616,11 @@ def update_cluster(cluster_id: int, cluster: ClusterUpdate, session: Session = D
         raise HTTPException(status_code=404, detail="Cluster not found")
     
     cluster_data = cluster.model_dump(exclude_unset=True)
+    enabled = cluster_data.pop("namespace_cpu_enabled", db_cluster.namespace_cpu_enabled)
+    thanos_url = cluster_data.pop("thanos_url", db_cluster.thanos_url)
+    if enabled is None:
+        raise HTTPException(status_code=422, detail="Namespace CPU collection must be enabled or disabled.")
+    configure_namespace_cpu(db_cluster, enabled, thanos_url)
     
     # If token is masked, remove it from update so we don't overwrite with '********'
     if cluster_data.get('token') == "********":

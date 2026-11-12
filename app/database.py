@@ -17,6 +17,16 @@ def create_db_and_tables():
     # Migration: Add 'order' column to LicenseRule if missing
     try:
         with engine.connect() as conn:
+            cluster_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(cluster)"))}
+            for name, definition in {
+                "namespace_cpu_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+                "thanos_url": "TEXT",
+                "namespace_cpu_since": "DATE",
+            }.items():
+                if name not in cluster_columns:
+                    conn.execute(text(f"ALTER TABLE cluster ADD COLUMN {name} {definition}"))
+            conn.commit()
+
             # Check if column exists (SQLite specific)
             res = conn.execute(text("PRAGMA table_info(licenserule)"))
             columns = [row[1] for row in res.fetchall()]

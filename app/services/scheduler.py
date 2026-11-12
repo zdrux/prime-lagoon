@@ -41,6 +41,12 @@ def start_scheduler():
     )
     
     # Add Maintenance Job
+    from app.services.namespace_cpu import collect_namespace_cpu
+    scheduler.add_job(
+        collect_namespace_cpu, "cron", minute=15, timezone="UTC",
+        id="namespace_cpu", replace_existing=True, coalesce=True, max_instances=1,
+    )
+
     from app.services.maintenance import run_vacuum_task
     if settings['enable_vacuum']:
         scheduler.add_job(

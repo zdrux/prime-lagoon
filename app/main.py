@@ -30,6 +30,7 @@ app.include_router(auth.router)
 app.include_router(settings.router)
 app.include_router(operators.router)
 
-from app.routers import reports, reporting
+from app.routers import namespace_cpu, reports, reporting
 app.include_router(reports.router)
 app.include_router(reporting.router)
+app.include_router(namespace_cpu.router)

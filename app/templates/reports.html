@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set cpu_tab = request.query_params.get('tab') == 'namespace-cpu' %}
+<nav aria-label="Report types" style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+    <a href="/reports" class="btn {{ 'btn-secondary' if cpu_tab else 'btn-primary' }}" {% if not cpu_tab %}aria-current="page"{% endif %}>RBAC Access</a>
+    <a href="/reports?tab=namespace-cpu" class="btn {{ 'btn-primary' if cpu_tab else 'btn-secondary' }}" {% if cpu_tab %}aria-current="page"{% endif %}>Namespace CPU</a>
+</nav>
+{% if cpu_tab %}
+{% include "namespace_cpu_report.html" %}
+{% else %}
 <div class="page-header">
     <div>
         <h1 class="page-title">Reports</h1>
@@ -577,4 +585,5 @@
     document.addEventListener('click', closeReportMenus);
     document.addEventListener('keydown', event => { if (event.key === 'Escape') closeReportMenus(); });
 </script>
+{% endif %}
 {% endblock %}

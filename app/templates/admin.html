@@ -512,6 +512,19 @@
                 <input type="password" id="c-token" class="form-input" placeholder="sha256~...">
             </div>
 
+            <div class="form-group">
+                <label><input type="checkbox" id="c-namespace-cpu"> Collect namespace CPU reports</label>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="c-thanos-url">Thanos base URL</label>
+                <input type="url" id="c-thanos-url" class="form-input" placeholder="https://thanos-querier.example.com">
+                <small>The cluster token must have monitoring read access. Enter the URL without /api/v1/query_range.</small>
+                <div>
+                    <button class="btn btn-secondary btn-sm" type="button" onclick="testMonitoring(this)">Test monitoring</button>
+                    <small id="monitoring-status" role="status"></small>
+                </div>
+            </div>
+
             <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
                 <div>
                     <label class="form-label">Datacenter</label>
@@ -582,6 +595,30 @@
                 btn.classList.remove('btn-success');
             }, 2000);
         });
+    }
+
+    async function testMonitoring(button) {
+        const status = document.getElementById('monitoring-status');
+        const id = document.getElementById('c-id').value;
+        status.textContent = 'Testing…';
+        button.disabled = true;
+        try {
+            const response = await fetch('/api/admin/clusters/test-monitoring', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cluster_id: id ? Number(id) : null,
+                    thanos_url: document.getElementById('c-thanos-url').value.trim(),
+                    token: document.getElementById('c-token').value
+                })
+            });
+            const result = await response.json();
+            status.textContent = result.message || result.detail || 'Monitoring connection failed.';
+        } catch {
+            status.textContent = 'Unable to test the monitoring connection.';
+        } finally {
+            button.disabled = false;
+        }
     }
 
     async function testConnection() {
@@ -1208,6 +1245,9 @@
         document.getElementById('c-name').value = '';
         document.getElementById('c-url').value = '';
         document.getElementById('c-token').value = '';
+        document.getElementById('c-namespace-cpu').checked = false;
+        document.getElementById('c-thanos-url').value = '';
+        document.getElementById('monitoring-status').textContent = '';
         document.getElementById('modal-title').innerText = "Add Cluster";
 
         // Reset status
@@ -1231,6 +1271,9 @@
         document.getElementById('c-name').value = c.name;
         document.getElementById('c-url').value = c.api_url;
         document.getElementById('c-token').value = c.token; // usually hidden
+        document.getElementById('c-namespace-cpu').checked = c.namespace_cpu_enabled;
+        document.getElementById('c-thanos-url').value = c.thanos_url || '';
+        document.getElementById('monitoring-status').textContent = '';
         document.getElementById('c-dc').value = c.datacenter || 'Azure';
         document.getElementById('c-env').value = c.environment || 'DEV';
 
@@ -1256,16 +1299,23 @@
             name: document.getElementById('c-name').value,
             api_url: document.getElementById('c-url').value,
             token: document.getElementById('c-token').value,
+            namespace_cpu_enabled: document.getElementById('c-namespace-cpu').checked,
+            thanos_url: document.getElementById('c-thanos-url').value.trim() || null,
             datacenter: document.getElementById('c-dc').value,
             environment: document.getElementById('c-env').value,
             tags: JSON.stringify(currentTags)
         };
 
-        await fetch(url, {
+        const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            alert(typeof error.detail === 'string' ? error.detail : 'Unable to save cluster.');
+            return;
+        }
         window.location.reload();
     }
 

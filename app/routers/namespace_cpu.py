@@ -196,7 +196,7 @@ def report_query(scope, environments, search: str, sort: str, descending: bool):
         ), select(1).select_from(mapids).where(
             func.lower(mapids.c.value).contains(term, autoescape=True)
         ).exists()))
-    usage = func.json_each(row.usage_json).table_valued("value")
+    usage = func.json_each(row.usage_json).table_valued("key", "value")
     labels = func.json_each(row.mapids_json).table_valued("value")
     columns = {
         "date_et": row.day,
@@ -206,7 +206,10 @@ def report_query(scope, environments, search: str, sort: str, descending: bool):
         "mapid": select(func.min(func.lower(labels.c.value))).scalar_subquery(),
         "cpu_limit_quota_vcpu": func.json_extract(row.quota_json, "$[#-1]"),
         "avg_vcpu": select(func.avg(usage.c.value)).scalar_subquery(),
-        "sum_avg_vcpu_hours": select(func.sum(usage.c.value)).scalar_subquery(),
+        # A 25-hour Eastern day repeats 01:00 at index 2.
+        "sum_avg_vcpu_hours": select(func.sum(usage.c.value)).where(or_(
+            func.json_array_length(row.usage_json) != 25, usage.c.key != 2,
+        )).scalar_subquery(),
         "hours_with_data": select(func.count(usage.c.value)).scalar_subquery(),
     }
     column = columns.get("sum_avg_vcpu_hours" if sort == "observed_cpu_vcpu_hours" else sort)
@@ -221,7 +224,9 @@ def summarize(row: NamespaceCPUDaily):
     labels = json.loads(row.mapids_json)
     mapids = sorted({label for label in labels if label is not None})
     measured = [value for value in usage if value is not None]
-    cpu_hours = sum(measured) if measured else None
+    hours = report_hours(row.day)
+    exported_usage = [value for hour, value in zip(hours, usage) if not hour.fold and value is not None]
+    cpu_hours = sum(exported_usage) if exported_usage else None
     return {
         "date_et": row.day, "cluster": row.cluster_name, "environment": row.environment,
         "namespace": row.namespace, "mapid": ", ".join(mapids),
@@ -236,7 +241,7 @@ def summarize(row: NamespaceCPUDaily):
             "Changed during day" if any(value is not None and value != quota[-1] for value in quota) else
             "Reported"
         ),
-        "hours_et": [hour.strftime("%H:%M %Z") for hour in report_hours(row.day)],
+        "hours_et": [hour.strftime("%H:%M %Z") for hour in hours],
         "hourly_usage": usage, "hourly_quota": quota, "hourly_mapid": labels,
     }
 

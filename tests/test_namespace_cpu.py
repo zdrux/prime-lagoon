@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 from datetime import date, datetime, timedelta
 from unittest.mock import Mock
 
@@ -227,7 +228,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(report_api, "eastern_today", lambda: fall_back_day + timedelta(days=1))
     with Session(engine) as session:
         session.add(NamespaceCPUDaily(**{
-            **previous, "day": fall_back_day, "usage_json": "[0.0, 1.0, 10.0, 2.0]",
+            **previous, "day": fall_back_day, "usage_json": json.dumps([0.0, 1.0, 10.0, 2.0] + [None] * 21),
         }))
         session.commit()
     fall_export = client.get(base + "/export", params={
@@ -239,7 +240,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert exported["avg_vcpu_01_et"] == "1.00"
     assert exported["avg_vcpu_02_et"] == "2.00"
     assert "avg_vcpu_01_repeat_et" not in exported
-    assert exported["sum_avg_vcpu_hours"] == "13.00"
+    assert exported["sum_avg_vcpu_hours"] == "3.00"
 
 
 

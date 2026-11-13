@@ -27,14 +27,26 @@ REPORT_FIELDS = {
     "namespace": "Namespace",
     "mapid": "MAPID",
     "cpu_limit_quota_vcpu": "CPU limits",
+    "cpu_request_quota_vcpu": "CPU requests",
     "avg_vcpu": "Avg CPU (vCPU)",
     "sum_avg_vcpu_hours": "Sum of avg vCPU hours",
     "hours_with_data": "CPU hours",
     "quota_status": "Quota status",
     "hourly_usage": "Hourly average CPU",
     "hourly_quota": "Hourly CPU quota",
+    "hourly_memory_usage": "Hourly average memory (GiB)",
+    "hourly_memory_requests": "Hourly memory requests quota (GiB)",
+    "hourly_memory_limits": "Hourly memory limits quota (GiB)",
 }
-DEFAULT_FIELDS = tuple(field for field in REPORT_FIELDS if not field.startswith("hourly_"))
+HOURLY_EXPORT_PREFIXES = {
+    "hourly_usage": "avg_vcpu",
+    "hourly_quota": "cpu_quota_vcpu",
+    "hourly_memory_usage": "avg_memory_gib",
+    "hourly_memory_requests": "memory_requests_gib",
+    "hourly_memory_limits": "memory_limits_gib",
+}
+DEFAULT_FIELDS = tuple(field for field in REPORT_FIELDS
+                       if not field.startswith("hourly_") and field != "cpu_request_quota_vcpu")
 
 manual_runs: dict[tuple[int, date, date], dict] = {}
 manual_runs_lock = Lock()
@@ -205,6 +217,7 @@ def report_query(scope, environments, search: str, sort: str, descending: bool):
         "namespace": func.lower(row.namespace),
         "mapid": select(func.min(func.lower(labels.c.value))).scalar_subquery(),
         "cpu_limit_quota_vcpu": func.json_extract(row.quota_json, "$[#-1]"),
+        "cpu_request_quota_vcpu": row.cpu_request_quota_vcpu,
         "avg_vcpu": select(func.avg(usage.c.value)).scalar_subquery(),
         # A 25-hour Eastern day repeats 01:00 at index 2.
         "sum_avg_vcpu_hours": select(func.sum(usage.c.value)).where(or_(
@@ -225,6 +238,7 @@ def summarize(row: NamespaceCPUDaily):
     mapids = sorted({label for label in labels if label is not None})
     measured = [value for value in usage if value is not None]
     hours = report_hours(row.day)
+    memory = json.loads(row.memory_json) if row.memory_json else {}
     exported_usage = [value for hour, value in zip(hours, usage) if not hour.fold and value is not None]
     cpu_hours = sum(exported_usage) if exported_usage else None
     return {
@@ -235,6 +249,7 @@ def summarize(row: NamespaceCPUDaily):
         "observed_cpu_vcpu_hours": cpu_hours,
         "hours_with_data": len(measured),
         "cpu_limit_quota_vcpu": quota[-1],
+        "cpu_request_quota_vcpu": row.cpu_request_quota_vcpu,
         "quota_status": (
             "Multiple quota objects at day end" if row.ambiguous_quota else
             "No quota at day end" if quota[-1] is None else
@@ -243,6 +258,8 @@ def summarize(row: NamespaceCPUDaily):
         ),
         "hours_et": [hour.strftime("%H:%M %Z") for hour in hours],
         "hourly_usage": usage, "hourly_quota": quota, "hourly_mapid": labels,
+        **{field: memory.get(field, [None] * len(hours))
+           for field in HOURLY_EXPORT_PREFIXES if field.startswith("hourly_memory_")},
     }
 
 
@@ -335,8 +352,8 @@ def export_report(
         writer = csv.writer(buffer)
         columns = []
         for field in selected:
-            if field in ("hourly_usage", "hourly_quota"):
-                prefix = "avg_vcpu" if field == "hourly_usage" else "cpu_quota_vcpu"
+            if field in HOURLY_EXPORT_PREFIXES:
+                prefix = HOURLY_EXPORT_PREFIXES[field]
                 columns.extend(f"{prefix}_{hour}_et" for hour in hour_keys)
             else:
                 columns.append(field)
@@ -351,7 +368,7 @@ def export_report(
             hours = report_hours(row.day)
             cells = []
             for field in selected:
-                if field in ("hourly_usage", "hourly_quota"):
+                if field in HOURLY_EXPORT_PREFIXES:
                     by_hour = {hour.strftime("%H"): value for hour, value in zip(hours, values[field])
                                if not hour.fold}
                     cells.extend(csv_cell(by_hour.get(hour)) for hour in hour_keys)

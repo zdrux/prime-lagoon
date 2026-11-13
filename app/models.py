@@ -62,6 +62,8 @@ class NamespaceCPUDaily(SQLModel, table=True):
     environment: Optional[str] = None
     usage_json: str
     quota_json: str
+    cpu_request_quota_vcpu: float | None = None
+    memory_json: str | None = None
     mapids_json: str
     ambiguous_quota: bool = False
 

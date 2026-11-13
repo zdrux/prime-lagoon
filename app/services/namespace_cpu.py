@@ -47,6 +47,14 @@ QUOTA_QUERY = (
     f'sum by (namespace) ({QUOTA_OBJECTS}) and on (namespace) ({QUOTA_COUNT} == 1)'
 )
 AMBIGUOUS_QUERY = f'{QUOTA_COUNT} > 1'
+REQUEST_QUOTA_QUERY = QUOTA_QUERY.replace('limits.cpu', 'requests.cpu')
+MEMORY_QUERIES = {
+    "hourly_memory_usage": ("memory working set",
+        'avg_over_time((sum by (namespace) (container_memory_working_set_bytes'
+        '{container!="",image!="",namespace!="",namespace!~"openshift-.*"}))[1h:5m])'),
+    "hourly_memory_requests": ("memory requests quota", QUOTA_QUERY.replace('limits.cpu', 'requests.memory')),
+    "hourly_memory_limits": ("memory limits quota", QUOTA_QUERY.replace('limits.cpu', 'limits.memory')),
+}
 MAPID_QUERY = (
     'max by (namespace, label_mapid) (kube_namespace_labels'
     '{label_mapid!="",namespace!="",namespace!~"openshift-.*"})'
@@ -148,13 +156,15 @@ def query_range(
 def fetch_day(cluster: Cluster, day: date, *, progress=None, attempts=1) -> list[NamespaceCPUDaily]:
     start, end = day_bounds(day)
     hours = (end - start) // timedelta(hours=1)
-    usage, quota, ambiguous, mapids = {}, {}, {}, {}
+    usage, quota, request_quota, ambiguous, mapids = {}, {}, {}, {}, {}
+    memory = {field: {} for field in MEMORY_QUERIES}
     if not valid_thanos_url(cluster.thanos_url):
         raise ThanosQueryError("Configure an HTTPS Thanos base URL")
     with requests.Session() as client:
         client.headers["Authorization"] = f"Bearer {cluster.token}"
         for label, query, data in (
             ("CPU usage", USAGE_QUERY, usage), ("CPU limits quota", QUOTA_QUERY, quota),
+            ("CPU requests quota", REQUEST_QUOTA_QUERY, request_quota),
             ("quota conflicts", AMBIGUOUS_QUERY, ambiguous),
         ):
             for metric, hour, value in query_range(client, cluster.thanos_url, query, start, end,
@@ -164,9 +174,16 @@ def fetch_day(cluster: Cluster, day: date, *, progress=None, attempts=1) -> list
                                            label="MAPIDs", progress=progress, attempts=attempts):
             labels = mapids.setdefault(metric["namespace"], [set() for _ in range(hours)])
             labels[hour].add(metric["label_mapid"])
+        for field, (label, query) in MEMORY_QUERIES.items():
+            for metric, hour, value in query_range(client, cluster.thanos_url, query, start, end,
+                                                  label=label, progress=progress, attempts=attempts):
+                memory[field].setdefault(metric["namespace"], [None] * hours)[hour] = value / 1024**3
 
     rows = []
-    for namespace in usage.keys() | quota.keys() | ambiguous.keys():
+    namespaces = usage.keys() | quota.keys() | request_quota.keys() | ambiguous.keys()
+    for samples in memory.values():
+        namespaces.update(samples)
+    for namespace in namespaces:
         hourly_quota = quota.get(namespace, [None] * hours)
         for hour, count in enumerate(ambiguous.get(namespace, [])):
             if count is not None:
@@ -176,6 +193,9 @@ def fetch_day(cluster: Cluster, day: date, *, progress=None, attempts=1) -> list
             cluster_name=cluster.name, environment=cluster.environment,
             usage_json=json.dumps(usage.get(namespace, [None] * hours)),
             quota_json=json.dumps(hourly_quota),
+            cpu_request_quota_vcpu=request_quota.get(namespace, [None])[-1],
+            memory_json=json.dumps({field: samples[namespace] for field, samples in memory.items()
+                                    if namespace in samples}),
             mapids_json=json.dumps([
                 next(iter(labels)) if len(labels) == 1 else None
                 for labels in mapids.get(namespace, [set()] * hours)

@@ -46,6 +46,9 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
         samples = {
             namespace_cpu.USAGE_QUERY: [[first_hour, "0"], [last_hour, "2"]],
             namespace_cpu.QUOTA_QUERY: [[first_hour, "4"], [last_hour, "6"]],
+            namespace_cpu.REQUEST_QUOTA_QUERY: [[first_hour, "1"], [last_hour, "2.5"]],
+            **{query: [[first_hour, str(value * 1024**3)]]
+               for (_, query), value in zip(namespace_cpu.MEMORY_QUERIES.values(), (1.5, 2, 4))},
             namespace_cpu.AMBIGUOUS_QUERY: [],
             namespace_cpu.MAPID_QUERY: [],
         }
@@ -64,7 +67,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     monkeypatch.setattr(namespace_cpu.requests, "Session", lambda: session_context)
     namespace_cpu.collect_namespace_cpu()
     namespace_cpu.collect_namespace_cpu()
-    assert http.get.call_count == 4
+    assert http.get.call_count == 8
     assert http.headers["Authorization"] == "Bearer test"
     with Session(engine) as session:
         assert session.get(NamespaceCPUCollection, (2, old_day)) is None
@@ -88,6 +91,8 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert row["mapid"] == ""
     assert row["quota_status"] == "Changed during day"
     assert row["cpu_limit_quota_vcpu"] == 6
+    assert row["cpu_request_quota_vcpu"] == 2.5
+    assert [row[field][0] for field in namespace_cpu.MEMORY_QUERIES] == [1.5, 2, 4]
     assert row["date_et"] == yesterday.isoformat()
     assert client.get(base).json()["rows"] == [row]
     assert client.get(base, params={"environment": "dev", "search": "TEAM"}).json()["rows"] == [row]
@@ -101,9 +106,16 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert exported["avg_vcpu_01_et"] == ""
     assert exported["avg_vcpu_23_et"] == "2.00"
     assert exported["cpu_quota_vcpu_23_et"] == "6.00"
-    subset = client.get(base + "/export", params={**params, "fields": ["date_et", "cpu_limit_quota_vcpu"]})
+    memory_export = client.get(base + "/export", params={**params, "fields": list(namespace_cpu.MEMORY_QUERIES)})
+    memory_row = next(csv.DictReader(io.StringIO(memory_export.text)))
+    assert [memory_row[key] for key in ("avg_memory_gib_00_et", "memory_requests_gib_00_et",
+                                       "memory_limits_gib_00_et")] == ["1.50", "2.00", "4.00"]
+    subset = client.get(base + "/export", params={
+        **params, "fields": ["date_et", "cpu_limit_quota_vcpu", "cpu_request_quota_vcpu"],
+    })
     assert list(csv.reader(io.StringIO(subset.text))) == [
-        ["date_et", "cpu_limit_quota_vcpu"], [yesterday.isoformat(), "6.00"],
+        ["date_et", "cpu_limit_quota_vcpu", "cpu_request_quota_vcpu"],
+        [yesterday.isoformat(), "6.00", "2.50"],
     ]
     assert client.get(base + "/export", params={**params, "fields": "invalid"}).status_code == 422
     filtered = client.get(base + "/export", params={"search": "missing", "fields": "namespace"})
@@ -133,7 +145,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
 
     assert client.post(base + "/run-now/1").status_code == 409
     assert client.post(base + "/run-now/2").status_code == 409
-    assert http.get.call_count == 4
+    assert http.get.call_count == 8
 
     enabled = client.patch("/api/admin/clusters/1", json={"namespace_cpu_enabled": True})
     assert enabled.status_code == 200
@@ -148,13 +160,13 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
         session.get(Cluster, 1).namespace_cpu_since = yesterday
         session.commit()
     namespace_cpu.collect_namespace_cpu()
-    assert http.get.call_count == 4
+    assert http.get.call_count == 8
     started = client.post(run_url)
     assert started.status_code == 202
     assert started.json() == {"day": yesterday.isoformat(), "cluster_id": 1}
     status = client.get(run_url, params={"day": yesterday.isoformat()})
     assert status.json()["status"] == "Collected"
-    assert http.get.call_count == 8
+    assert http.get.call_count == 16
     assert len(list(csv.DictReader(io.StringIO(client.get(base + "/export", params=params).text)))) == 1
 
     http.get.side_effect = None
@@ -164,7 +176,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     failed = client.get(run_url, params={"day": yesterday.isoformat()}).json()
     assert failed["status"] == "Failed"
     assert "HTTP 503" in failed["detail"]
-    assert http.get.call_count == 11
+    assert http.get.call_count == 19
     assert len(client.get(base, params=params).json()["rows"]) == 1
 
     http.get.side_effect = namespace_cpu.requests.ReadTimeout
@@ -173,7 +185,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert timed_out["status"] == "Failed"
     assert "timed out after 3 attempts" in timed_out["detail"]
     assert timed_out["collected_days"] == []
-    assert http.get.call_count == 14
+    assert http.get.call_count == 22
 
     from app.routers import namespace_cpu as report_api
 

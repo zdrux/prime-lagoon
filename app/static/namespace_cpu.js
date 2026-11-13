@@ -136,7 +136,7 @@
     const environment = get('cpu-environment');
     const activeEnvironments = new Set();
     const sortableFields = new Set(['date_et', 'cluster', 'environment', 'namespace', 'mapid',
-        'cpu_limit_quota_vcpu', 'avg_vcpu', 'sum_avg_vcpu_hours', 'hours_with_data']);
+        'cpu_limit_quota_vcpu', 'cpu_request_quota_vcpu', 'avg_vcpu', 'sum_avg_vcpu_hours', 'hours_with_data']);
     let sortField = '';
     let descending = false;
 
@@ -344,8 +344,8 @@
                     let outcome;
                     try {
                         await read(url, { method: 'POST', signal: AbortSignal.timeout(15000) });
-                        // Allow four queries per day, each with up to three attempts and backoff.
-                        const dayTimeout = 15 * 60 * 1000;
+                        // Allow eight queries per day, each with up to three attempts and backoff.
+                        const dayTimeout = 30 * 60 * 1000;
                         let deadline = performance.now() + dayTimeout;
                         do {
                             await new Promise(resolve => setTimeout(resolve, 1500));
@@ -413,20 +413,31 @@
         return cell;
     }
 
-    function showHourly(row) {
+    function showHourly(row, field) {
         get('cpu-hourly-title').textContent = row.namespace + ' · ' + row.cluster + ' · ' + row.date_et;
         const body = get('cpu-hourly-rows');
+        const memory = field.startsWith('hourly_memory_');
+        const fields = memory ? ['hourly_memory_usage', 'hourly_memory_requests', 'hourly_memory_limits'] : ['hourly_usage'];
+        const header = get('cpu-hourly-head');
+        header.replaceChildren();
+        for (const label of ['Hour (ET)', ...fields.map(key => fieldLabels[key] + (memory ? '' : ' (vCPU)'))]) {
+            const cell = document.createElement('th');
+            cell.scope = 'col';
+            cell.textContent = label;
+            header.append(cell);
+        }
         body.replaceChildren();
         row.hours_et.forEach((hour, index) => {
             const line = body.insertRow();
-            [hour, format(row.hourly_usage[index])]
+            [hour, ...fields.map(key => format(row[key][index]))]
                 .forEach(value => appendCell(line, value));
         });
+        get('cpu-hourly-quota').hidden = get('cpu-hourly-coverage').hidden = get('cpu-chart').hidden = memory;
         get('cpu-hourly-quota').textContent = row.cpu_limit_quota_vcpu === null
             ? row.quota_status : 'CPU limits quota at day end: ' + format(row.cpu_limit_quota_vcpu) + ' vCPU';
         get('cpu-hourly-coverage').textContent = row.hours_with_data ? '' : 'No hourly CPU samples for this day.';
         get('cpu-hourly').showModal();
-        if (typeof Chart === 'undefined') {
+        if (memory || typeof Chart === 'undefined') {
             body.closest('details').open = true;
             return;
         }
@@ -549,7 +560,7 @@
                         button.type = 'button';
                         button.className = 'btn btn-secondary cpu-row-button';
                         button.textContent = field === 'namespace' ? value : 'View hourly values';
-                        button.addEventListener('click', () => showHourly(row));
+                        button.addEventListener('click', () => showHourly(row, field));
                         line.insertCell().append(button);
                     } else if (field === 'hours_with_data') {
                         appendCell(line, value + ' / ' + row.hours_et.length);
@@ -639,7 +650,7 @@
             }
             if (!groups.size) throw new Error('No report rows are available to export.');
             const workbook = XLSX.utils.book_new();
-            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_limit_quota_vcpu$|sum_avg_vcpu_hours$|hours_with_data$)/.test(header));
+            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_(?:limit|request)_quota_vcpu$|(?:avg_memory|memory_requests|memory_limits)_gib_|sum_avg_vcpu_hours$|hours_with_data$)/.test(header));
             for (const { cluster, values } of groups.values()) {
                 const base = (String(cluster).replace(/[\\/:?*\[\]]/g, ' ').replace(/^'+|'+$/g, '').trim() || 'Cluster').slice(0, 31);
                 let name = base;

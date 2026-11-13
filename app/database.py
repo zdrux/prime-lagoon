@@ -31,6 +31,10 @@ def create_db_and_tables():
                 columns = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
                 if "eastern_day" not in columns:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN eastern_day BOOLEAN NOT NULL DEFAULT 0"))
+                if table == "namespacecpudaily" and "cpu_request_quota_vcpu" not in columns:
+                    conn.execute(text("ALTER TABLE namespacecpudaily ADD COLUMN cpu_request_quota_vcpu FLOAT"))
+                if table == "namespacecpudaily" and "memory_json" not in columns:
+                    conn.execute(text("ALTER TABLE namespacecpudaily ADD COLUMN memory_json TEXT"))
             conn.commit()
 
             # Check if column exists (SQLite specific)

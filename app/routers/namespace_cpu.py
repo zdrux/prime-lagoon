@@ -35,18 +35,21 @@ REPORT_FIELDS = {
     "hourly_usage": "Hourly average CPU",
     "hourly_quota": "Hourly CPU quota",
     "hourly_memory_usage": "Hourly average memory (GiB)",
-    "hourly_memory_requests": "Hourly memory requests quota (GiB)",
-    "hourly_memory_limits": "Hourly memory limits quota (GiB)",
+    "memory_requests_gib": "Memory requests (GiB)",
+    "memory_limits_gib": "Memory limits (GiB)",
 }
 HOURLY_EXPORT_PREFIXES = {
     "hourly_usage": "avg_vcpu",
     "hourly_quota": "cpu_quota_vcpu",
     "hourly_memory_usage": "avg_memory_gib",
-    "hourly_memory_requests": "memory_requests_gib",
-    "hourly_memory_limits": "memory_limits_gib",
+}
+MEMORY_QUOTA_FIELDS = {
+    "memory_requests_gib": "hourly_memory_requests",
+    "memory_limits_gib": "hourly_memory_limits",
 }
 DEFAULT_FIELDS = tuple(field for field in REPORT_FIELDS
-                       if not field.startswith("hourly_") and field != "cpu_request_quota_vcpu")
+                       if not field.startswith("hourly_")
+                       and field != "cpu_request_quota_vcpu" and field not in MEMORY_QUOTA_FIELDS)
 
 manual_runs: dict[tuple[int, date, date], dict] = {}
 manual_runs_lock = Lock()
@@ -225,6 +228,8 @@ def report_query(scope, environments, search: str, sort: str, descending: bool):
         )).scalar_subquery(),
         "hours_with_data": select(func.count(usage.c.value)).scalar_subquery(),
     }
+    columns.update({field: func.json_extract(row.memory_json, f"$.{key}[#-1]")
+                    for field, key in MEMORY_QUOTA_FIELDS.items()})
     column = columns.get("sum_avg_vcpu_hours" if sort == "observed_cpu_vcpu_hours" else sort)
     if column is not None:
         statement = statement.order_by((column.desc() if descending else column.asc()).nulls_last())
@@ -258,8 +263,8 @@ def summarize(row: NamespaceCPUDaily):
         ),
         "hours_et": [hour.strftime("%H:%M %Z") for hour in hours],
         "hourly_usage": usage, "hourly_quota": quota, "hourly_mapid": labels,
-        **{field: memory.get(field, [None] * len(hours))
-           for field in HOURLY_EXPORT_PREFIXES if field.startswith("hourly_memory_")},
+        "hourly_memory_usage": memory.get("hourly_memory_usage", [None] * len(hours)),
+        **{field: memory.get(key, [None])[-1] for field, key in MEMORY_QUOTA_FIELDS.items()},
     }
 
 

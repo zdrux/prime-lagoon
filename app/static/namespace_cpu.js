@@ -44,11 +44,16 @@
     try {
         const saved = JSON.parse(localStorage.getItem(fieldStorageKey));
         if (reportForm && Array.isArray(saved)) {
+            const renamedFields = new Map([
+                ['observed_cpu_vcpu_hours', 'sum_avg_vcpu_hours'],
+                ['hourly_memory_requests', 'memory_requests_gib'],
+                ['hourly_memory_limits', 'memory_limits_gib'],
+            ]);
             const preferences = new Map();
             for (const entry of saved) {
                 if (!Array.isArray(entry)) continue;
                 const [savedField, checked] = entry;
-                const field = savedField === 'observed_cpu_vcpu_hours' ? 'sum_avg_vcpu_hours' : savedField;
+                const field = renamedFields.get(savedField) ?? savedField;
                 if (Object.hasOwn(fieldLabels, field) && typeof checked === 'boolean') preferences.set(field, checked);
             }
             const renderedOrder = Array.from(reportForm.querySelectorAll('.cpu-field-row'), row => row.dataset.field);
@@ -136,7 +141,8 @@
     const environment = get('cpu-environment');
     const activeEnvironments = new Set();
     const sortableFields = new Set(['date_et', 'cluster', 'environment', 'namespace', 'mapid',
-        'cpu_limit_quota_vcpu', 'cpu_request_quota_vcpu', 'avg_vcpu', 'sum_avg_vcpu_hours', 'hours_with_data']);
+        'cpu_limit_quota_vcpu', 'cpu_request_quota_vcpu', 'memory_requests_gib', 'memory_limits_gib',
+        'avg_vcpu', 'sum_avg_vcpu_hours', 'hours_with_data']);
     let sortField = '';
     let descending = false;
 
@@ -417,7 +423,7 @@
         get('cpu-hourly-title').textContent = row.namespace + ' · ' + row.cluster + ' · ' + row.date_et;
         const body = get('cpu-hourly-rows');
         const memory = field.startsWith('hourly_memory_');
-        const fields = memory ? ['hourly_memory_usage', 'hourly_memory_requests', 'hourly_memory_limits'] : ['hourly_usage'];
+        const fields = memory ? ['hourly_memory_usage'] : ['hourly_usage'];
         const header = get('cpu-hourly-head');
         header.replaceChildren();
         for (const label of ['Hour (ET)', ...fields.map(key => fieldLabels[key] + (memory ? '' : ' (vCPU)'))]) {
@@ -650,7 +656,7 @@
             }
             if (!groups.size) throw new Error('No report rows are available to export.');
             const workbook = XLSX.utils.book_new();
-            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_(?:limit|request)_quota_vcpu$|(?:avg_memory|memory_requests|memory_limits)_gib_|sum_avg_vcpu_hours$|hours_with_data$)/.test(header));
+            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_(?:limit|request)_quota_vcpu$|avg_memory_gib_|memory_(?:requests|limits)_gib$|sum_avg_vcpu_hours$|hours_with_data$)/.test(header));
             for (const { cluster, values } of groups.values()) {
                 const base = (String(cluster).replace(/[\\/:?*\[\]]/g, ' ').replace(/^'+|'+$/g, '').trim() || 'Cluster').slice(0, 31);
                 let name = base;

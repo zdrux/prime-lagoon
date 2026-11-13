@@ -47,7 +47,7 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
             namespace_cpu.USAGE_QUERY: [[first_hour, "0"], [last_hour, "2"]],
             namespace_cpu.QUOTA_QUERY: [[first_hour, "4"], [last_hour, "6"]],
             namespace_cpu.REQUEST_QUOTA_QUERY: [[first_hour, "1"], [last_hour, "2.5"]],
-            **{query: [[first_hour, str(value * 1024**3)]]
+            **{query: [[first_hour, str(value * 1024**3)], [last_hour, str((value + 1) * 1024**3)]]
                for (_, query), value in zip(namespace_cpu.MEMORY_QUERIES.values(), (1.5, 2, 4))},
             namespace_cpu.AMBIGUOUS_QUERY: [],
             namespace_cpu.MAPID_QUERY: [],
@@ -92,7 +92,9 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert row["quota_status"] == "Changed during day"
     assert row["cpu_limit_quota_vcpu"] == 6
     assert row["cpu_request_quota_vcpu"] == 2.5
-    assert [row[field][0] for field in namespace_cpu.MEMORY_QUERIES] == [1.5, 2, 4]
+    assert row["hourly_memory_usage"][0] == 1.5
+    assert row["memory_requests_gib"] == 3
+    assert row["memory_limits_gib"] == 5
     assert row["date_et"] == yesterday.isoformat()
     assert client.get(base).json()["rows"] == [row]
     assert client.get(base, params={"environment": "dev", "search": "TEAM"}).json()["rows"] == [row]
@@ -106,10 +108,13 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     assert exported["avg_vcpu_01_et"] == ""
     assert exported["avg_vcpu_23_et"] == "2.00"
     assert exported["cpu_quota_vcpu_23_et"] == "6.00"
-    memory_export = client.get(base + "/export", params={**params, "fields": list(namespace_cpu.MEMORY_QUERIES)})
+    memory_export = client.get(base + "/export", params={
+        **params, "fields": ["hourly_memory_usage", "memory_requests_gib", "memory_limits_gib"],
+    })
     memory_row = next(csv.DictReader(io.StringIO(memory_export.text)))
-    assert [memory_row[key] for key in ("avg_memory_gib_00_et", "memory_requests_gib_00_et",
-                                       "memory_limits_gib_00_et")] == ["1.50", "2.00", "4.00"]
+    assert len(memory_row) == 26
+    assert [memory_row[key] for key in ("avg_memory_gib_00_et", "memory_requests_gib",
+                                       "memory_limits_gib")] == ["1.50", "3.00", "5.00"]
     subset = client.get(base + "/export", params={
         **params, "fields": ["date_et", "cpu_limit_quota_vcpu", "cpu_request_quota_vcpu"],
     })

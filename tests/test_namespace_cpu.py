@@ -223,6 +223,24 @@ def test_namespace_cpu_collection_retention_and_csv(tmp_path, monkeypatch):
     filtered_csv = client.get(base + "/export", params={**dates, "result_cluster_id": 2, "fields": "cluster"})
     assert list(csv.reader(io.StringIO(filtered_csv.text))) == [["cluster"], ["disabled"]]
 
+    fall_back_day = date(2024, 11, 3)
+    monkeypatch.setattr(report_api, "eastern_today", lambda: fall_back_day + timedelta(days=1))
+    with Session(engine) as session:
+        session.add(NamespaceCPUDaily(**{
+            **previous, "day": fall_back_day, "usage_json": "[0.0, 1.0, 10.0, 2.0]",
+        }))
+        session.commit()
+    fall_export = client.get(base + "/export", params={
+        "start": fall_back_day.isoformat(), "end": fall_back_day.isoformat(),
+        "fields": ["sum_avg_vcpu_hours", "hourly_usage"],
+    })
+    exported = next(csv.DictReader(io.StringIO(fall_export.text)))
+    assert len(exported) == 25
+    assert exported["avg_vcpu_01_et"] == "1.00"
+    assert exported["avg_vcpu_02_et"] == "2.00"
+    assert "avg_vcpu_01_repeat_et" not in exported
+    assert exported["sum_avg_vcpu_hours"] == "13.00"
+
 
 
 def test_eastern_report_hours_follow_daylight_saving():

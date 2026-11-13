@@ -28,7 +28,7 @@ REPORT_FIELDS = {
     "mapid": "MAPID",
     "cpu_limit_quota_vcpu": "CPU limits",
     "avg_vcpu": "Avg CPU (vCPU)",
-    "observed_cpu_vcpu_hours": "Observed CPU (vCPU-hours)",
+    "sum_avg_vcpu_hours": "Sum of avg vCPU hours",
     "hours_with_data": "CPU hours",
     "quota_status": "Quota status",
     "hourly_usage": "Hourly average CPU",
@@ -206,10 +206,10 @@ def report_query(scope, environments, search: str, sort: str, descending: bool):
         "mapid": select(func.min(func.lower(labels.c.value))).scalar_subquery(),
         "cpu_limit_quota_vcpu": func.json_extract(row.quota_json, "$[#-1]"),
         "avg_vcpu": select(func.avg(usage.c.value)).scalar_subquery(),
-        "observed_cpu_vcpu_hours": select(func.sum(usage.c.value)).scalar_subquery(),
+        "sum_avg_vcpu_hours": select(func.sum(usage.c.value)).scalar_subquery(),
         "hours_with_data": select(func.count(usage.c.value)).scalar_subquery(),
     }
-    column = columns.get(sort)
+    column = columns.get("sum_avg_vcpu_hours" if sort == "observed_cpu_vcpu_hours" else sort)
     if column is not None:
         statement = statement.order_by((column.desc() if descending else column.asc()).nulls_last())
     return statement.order_by(row.day.desc(), row.cluster_name, row.namespace, row.cluster_id)
@@ -221,11 +221,13 @@ def summarize(row: NamespaceCPUDaily):
     labels = json.loads(row.mapids_json)
     mapids = sorted({label for label in labels if label is not None})
     measured = [value for value in usage if value is not None]
+    cpu_hours = sum(measured) if measured else None
     return {
         "date_et": row.day, "cluster": row.cluster_name, "environment": row.environment,
         "namespace": row.namespace, "mapid": ", ".join(mapids),
         "avg_vcpu": sum(measured) / len(measured) if measured else None,
-        "observed_cpu_vcpu_hours": sum(measured) if measured else None,
+        "sum_avg_vcpu_hours": cpu_hours,
+        "observed_cpu_vcpu_hours": cpu_hours,
         "hours_with_data": len(measured),
         "cpu_limit_quota_vcpu": quota[-1],
         "quota_status": (
@@ -313,18 +315,15 @@ def export_report(
     sort: str = "", descending: bool = False, include_cluster_id: bool = False,
     result_cluster_id: int | None = None,
 ):
-    selected = list(dict.fromkeys(fields)) if fields is not None else [*DEFAULT_FIELDS, "hourly_usage", "hourly_quota"]
+    if fields is not None:
+        selected = list(dict.fromkeys("sum_avg_vcpu_hours" if field == "observed_cpu_vcpu_hours" else field
+                                      for field in fields))
+    else:
+        selected = [*DEFAULT_FIELDS, "hourly_usage", "hourly_quota"]
     if not selected or any(field not in REPORT_FIELDS for field in selected):
         raise HTTPException(422, "Choose valid report fields.")
 
-    start, end, _, _ = scope
-    has_repeated_hour = any(
-        len(report_hours(start + timedelta(days=offset))) == 25
-        for offset in range((end - start).days + 1)
-    )
     hour_keys = [f"{hour:02d}" for hour in range(24)]
-    if has_repeated_hour:
-        hour_keys.insert(2, "01_repeat")
 
     def generate():
         buffer = io.StringIO()
@@ -344,11 +343,12 @@ def export_report(
             query = query.where(NamespaceCPUDaily.cluster_id == result_cluster_id)
         for row in session.exec(query.execution_options(yield_per=250)):
             values = summarize(row)
-            keys = [hour.strftime("%H") + ("_repeat" if hour.fold else "") for hour in report_hours(row.day)]
+            hours = report_hours(row.day)
             cells = []
             for field in selected:
                 if field in ("hourly_usage", "hourly_quota"):
-                    by_hour = dict(zip(keys, values[field]))
+                    by_hour = {hour.strftime("%H"): value for hour, value in zip(hours, values[field])
+                               if not hour.fold}
                     cells.extend(csv_cell(by_hour.get(hour)) for hour in hour_keys)
                 else:
                     cells.append(csv_cell(values[field]))

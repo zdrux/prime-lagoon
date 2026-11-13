@@ -44,8 +44,13 @@
     try {
         const saved = JSON.parse(localStorage.getItem(fieldStorageKey));
         if (reportForm && Array.isArray(saved)) {
-            const preferences = new Map(saved.filter(entry => Array.isArray(entry) &&
-                Object.hasOwn(fieldLabels, entry[0]) && typeof entry[1] === 'boolean'));
+            const preferences = new Map();
+            for (const entry of saved) {
+                if (!Array.isArray(entry)) continue;
+                const [savedField, checked] = entry;
+                const field = savedField === 'observed_cpu_vcpu_hours' ? 'sum_avg_vcpu_hours' : savedField;
+                if (Object.hasOwn(fieldLabels, field) && typeof checked === 'boolean') preferences.set(field, checked);
+            }
             const renderedOrder = Array.from(reportForm.querySelectorAll('.cpu-field-row'), row => row.dataset.field);
             const order = [...preferences.keys(), ...renderedOrder.filter(field => !preferences.has(field))];
             for (const list of fieldLists) {
@@ -131,7 +136,7 @@
     const environment = get('cpu-environment');
     const activeEnvironments = new Set();
     const sortableFields = new Set(['date_et', 'cluster', 'environment', 'namespace', 'mapid',
-        'cpu_limit_quota_vcpu', 'avg_vcpu', 'observed_cpu_vcpu_hours', 'hours_with_data']);
+        'cpu_limit_quota_vcpu', 'avg_vcpu', 'sum_avg_vcpu_hours', 'hours_with_data']);
     let sortField = '';
     let descending = false;
 
@@ -634,7 +639,7 @@
             }
             if (!groups.size) throw new Error('No report rows are available to export.');
             const workbook = XLSX.utils.book_new();
-            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_limit_quota_vcpu$|observed_cpu_vcpu_hours$|hours_with_data$)/.test(header));
+            const numericColumns = headers.map(header => /^(avg_vcpu(?:_|$)|cpu_quota_vcpu_|cpu_limit_quota_vcpu$|sum_avg_vcpu_hours$|hours_with_data$)/.test(header));
             for (const { cluster, values } of groups.values()) {
                 const base = (String(cluster).replace(/[\\/:?*\[\]]/g, ' ').replace(/^'+|'+$/g, '').trim() || 'Cluster').slice(0, 31);
                 let name = base;
